@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt Editor Test Suite</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 {
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+            padding-bottom: 10px;
+        }
+        .test-output {
+            background: #2d2d30;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        .passed {
+            color: #4ec9b0;
+        }
+        .failed {
+            color: #f48771;
+        }
+        .test-group {
+            color: #569cd6;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .summary {
+            background: #252526;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+        .success-summary {
+            border-left: 4px solid #4ec9b0;
+        }
+        .failure-summary {
+            border-left: 4px solid #f48771;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Receipt Editor Test Suite</h1>
+    
+    <div class="controls">
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearOutput()">Clear Output</button>
+    </div>
+    
+    <div id="test-output" class="test-output">
+        Click "Run All Tests" to begin testing...
+    </div>
+    
+    <div id="test-summary" class="summary hidden">
+    </div>
+
+    <!-- Hidden DOM elements for testing -->
+    <div id="test-dom" style="display: none;"></div>
+
+    <!-- Load the receipt editor module -->
+    <script src="js/receipt-editor.js"></script>
+    
+    <!-- Load and run the tests -->
+    <script>
+        // Override console methods to capture output
+        const originalConsole = {
+            log: console.log,
+            error: console.error
+        };
+        
+        let testOutput = [];
+        
+        function captureConsole() {
+            console.log = function(...args) {
+                const message = args.join(' ');
+                testOutput.push(formatMessage(message, 'log'));
+                originalConsole.log(...args);
+            };
+            
+            console.error = function(...args) {
+                const message = args.join(' ');
+                testOutput.push(formatMessage(message, 'error'));
+                originalConsole.error(...args);
+            };
+        }
+        
+        function restoreConsole() {
+            console.log = originalConsole.log;
+            console.error = originalConsole.error;
+        }
+        
+        function formatMessage(message, type) {
+            if (message.includes('✅')) {
+                return `<span class="passed">${message}</span>`;
+            } else if (message.includes('❌')) {
+                return `<span class="failed">${message}</span>`;
+            } else if (message.includes('📋')) {
+                return `<span class="test-group">${message}</span>`;
+            } else if (type === 'error') {
+                return `<span class="failed">${message}</span>`;
+            }
+            return message;
+        }
+        
+        function runAllTests() {
+            testOutput = [];
+            const outputDiv = document.getElementById('test-output');
+            const summaryDiv = document.getElementById('test-summary');
+            
+            outputDiv.innerHTML = 'Running tests...\n\n';
+            summaryDiv.classList.add('hidden');
+            
+            // Capture console output
+            captureConsole();
+            
+            // Load and execute the test file
+            const script = document.createElement('script');
+            script.src = 'js/receipt-editor.test.js';
+            script.onload = function() {
+                // Tests will run automatically when loaded
+                setTimeout(() => {
+                    displayResults();
+                }, 100);
+            };
+            document.body.appendChild(script);
+        }
+        
+        function displayResults() {
+            const outputDiv = document.getElementById('test-output');
+            const summaryDiv = document.getElementById('test-summary');
+            
+            outputDiv.innerHTML = testOutput.join('\n');
+            
+            // Parse results for summary
+            const passedCount = (testOutput.join('').match(/✅/g) || []).length;
+            const failedCount = (testOutput.join('').match(/❌/g) || []).length;
+            const total = passedCount + failedCount;
+            
+            summaryDiv.innerHTML = `
+                <strong>Test Results Summary:</strong><br>
+                Total Tests: ${total}<br>
+                <span class="passed">Passed: ${passedCount}</span><br>
+                <span class="failed">Failed: ${failedCount}</span><br>
+                ${failedCount === 0 ? '<br>✨ All tests passed!' : '<br>⚠️ Some tests failed. Check the output above.'}
+            `;
+            
+            summaryDiv.className = `summary ${failedCount === 0 ? 'success-summary' : 'failure-summary'}`;
+            summaryDiv.classList.remove('hidden');
+            
+            restoreConsole();
+        }
+        
+        function clearOutput() {
+            document.getElementById('test-output').innerHTML = 'Click "Run All Tests" to begin testing...';
+            document.getElementById('test-summary').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

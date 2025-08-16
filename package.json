@@ -1,0 +1,28 @@
+{
+  "name": "receipt-splitter",
+  "version": "1.0.0",
+  "description": "An ironically named web application that helps groups split bills based on actual consumption rather than equally. Uses OCR technology to digitize receipts and provides a frictionless, account-free experience.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node static/js/receipt-editor-node-test.js",
+    "test:browser": "echo 'Open http://localhost:8000/static/run_tests.html in your browser'",
+    "test:watch": "nodemon static/js/receipt-editor-node-test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kuitang/receipt-splitter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kuitang/receipt-splitter/issues"
+  },
+  "homepage": "https://github.com/kuitang/receipt-splitter#readme",
+  "dependencies": {
+    "jsdom": "^26.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

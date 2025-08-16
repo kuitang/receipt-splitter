@@ -13,3 +13,4 @@ htmlcov/
 .pytest_cache/openai_key.sh
 .env
 openai_key.sh
+node_modules/

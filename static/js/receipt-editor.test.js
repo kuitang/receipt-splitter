@@ -241,6 +241,192 @@ TestRunner.describe('Validation Tests', () => {
         const errors = validateReceipt();
         TestRunner.assertTrue(errors.some(e => e.includes('Subtotal cannot be negative')));
     });
+    
+    TestRunner.it('should allow negative tax (discount)', () => {
+        setupDOM();
+        addMockItem('Item', 1, 50.00, 50.00);
+        
+        document.getElementById('subtotal').value = '50.00';
+        document.getElementById('tax').value = '-5.00'; // Discount
+        document.getElementById('tip').value = '7.50';
+        document.getElementById('total').value = '52.50';
+        
+        const errors = validateReceipt();
+        TestRunner.assertEqual(errors.length, 0);
+    });
+    
+    TestRunner.it('should allow negative tip (discount)', () => {
+        setupDOM();
+        addMockItem('Item', 1, 50.00, 50.00);
+        
+        document.getElementById('subtotal').value = '50.00';
+        document.getElementById('tax').value = '5.00';
+        document.getElementById('tip').value = '-10.00'; // Discount/credit
+        document.getElementById('total').value = '45.00';
+        
+        const errors = validateReceipt();
+        TestRunner.assertEqual(errors.length, 0);
+    });
+});
+
+TestRunner.describe('UI Behavior Tests', () => {
+    TestRunner.it('should show warning banner when receipt doesn\'t balance', () => {
+        setupDOM();
+        addMockItem('Item', 1, 30.00, 30.00);
+        
+        // Set values that don't balance
+        document.getElementById('subtotal').value = '30.00';
+        document.getElementById('tax').value = '3.00';
+        document.getElementById('tip').value = '5.00';
+        document.getElementById('total').value = '40.00'; // Should be 38.00
+        
+        checkAndDisplayBalance();
+        
+        const warningDiv = document.getElementById('balance-warning');
+        TestRunner.assertTrue(!warningDiv.classList.contains('hidden'), 'Warning should be visible');
+        TestRunner.assertEqual(window.receiptIsBalanced, false);
+    });
+    
+    TestRunner.it('should hide warning banner when receipt balances', () => {
+        setupDOM();
+        addMockItem('Item', 1, 30.00, 30.00);
+        
+        // Set values that balance
+        document.getElementById('subtotal').value = '30.00';
+        document.getElementById('tax').value = '3.00';
+        document.getElementById('tip').value = '5.00';
+        document.getElementById('total').value = '38.00';
+        
+        checkAndDisplayBalance();
+        
+        const warningDiv = document.getElementById('balance-warning');
+        TestRunner.assertTrue(warningDiv.classList.contains('hidden'), 'Warning should be hidden');
+        TestRunner.assertEqual(window.receiptIsBalanced, true);
+    });
+    
+    TestRunner.it('should disable finalize button when unbalanced', () => {
+        setupDOM();
+        const finalizeBtn = document.querySelector('button[onclick="finalizeReceipt()"]');
+        
+        // Set unbalanced values
+        document.getElementById('subtotal').value = '30.00';
+        document.getElementById('total').value = '100.00'; // Way off
+        
+        checkAndDisplayBalance();
+        
+        TestRunner.assertTrue(finalizeBtn.disabled, 'Finalize button should be disabled');
+        TestRunner.assertTrue(finalizeBtn.classList.contains('opacity-50'), 'Button should have opacity-50 class');
+    });
+    
+    TestRunner.it('should enable finalize button when balanced', () => {
+        setupDOM();
+        const finalizeBtn = document.querySelector('button[onclick="finalizeReceipt()"]');
+        
+        // Set balanced values
+        addMockItem('Item', 1, 30.00, 30.00);
+        document.getElementById('subtotal').value = '30.00';
+        document.getElementById('tax').value = '3.00';
+        document.getElementById('tip').value = '4.50';
+        document.getElementById('total').value = '37.50';
+        
+        checkAndDisplayBalance();
+        
+        TestRunner.assertTrue(!finalizeBtn.disabled, 'Finalize button should be enabled');
+        TestRunner.assertTrue(!finalizeBtn.classList.contains('opacity-50'), 'Button should not have opacity-50 class');
+    });
+});
+
+TestRunner.describe('Add Item Tests', () => {
+    TestRunner.it('should add new item row with correct structure', () => {
+        setupDOM();
+        const initialCount = document.querySelectorAll('.item-row').length;
+        
+        addItem();
+        
+        const newCount = document.querySelectorAll('.item-row').length;
+        TestRunner.assertEqual(newCount, initialCount + 1, 'Should add one new item row');
+        
+        const newRow = document.querySelectorAll('.item-row')[initialCount];
+        TestRunner.assertTrue(newRow.querySelector('.item-name') !== null, 'Should have item name input');
+        TestRunner.assertTrue(newRow.querySelector('.item-quantity') !== null, 'Should have quantity input');
+        TestRunner.assertTrue(newRow.querySelector('.item-price') !== null, 'Should have price input');
+        TestRunner.assertTrue(newRow.querySelector('.item-total') !== null, 'Should have total input');
+        TestRunner.assertTrue(newRow.querySelector('button') !== null, 'Should have remove button');
+    });
+    
+    TestRunner.it('should attach event listeners to new item', () => {
+        setupDOM();
+        addItem();
+        
+        const newRow = document.querySelector('.item-row:last-child');
+        const quantityInput = newRow.querySelector('.item-quantity');
+        const priceInput = newRow.querySelector('.item-price');
+        const totalInput = newRow.querySelector('.item-total');
+        
+        // Set values and trigger input event
+        quantityInput.value = '2';
+        priceInput.value = '5.50';
+        
+        // Manually call updateItemTotal since we can't trigger real events in this test
+        updateItemTotal(newRow);
+        
+        TestRunner.assertEqual(totalInput.value, '11.00', 'Item total should be calculated');
+    });
+});
+
+TestRunner.describe('Global Function Availability Tests', () => {
+    TestRunner.it('should expose all functions globally', () => {
+        const globalFunctions = [
+            'calculateSubtotal',
+            'updateSubtotal',
+            'updateItemTotal',
+            'updateProrations',
+            'addItem',
+            'removeItem',
+            'attachItemListeners',
+            'validateReceipt',
+            'checkAndDisplayBalance',
+            'getReceiptData'
+        ];
+        
+        globalFunctions.forEach(funcName => {
+            TestRunner.assertTrue(
+                typeof window[funcName] === 'function',
+                `${funcName} should be available globally`
+            );
+        });
+    });
+    
+    TestRunner.it('should expose receiptIsBalanced globally', () => {
+        TestRunner.assertTrue(
+            typeof window.receiptIsBalanced !== 'undefined',
+            'receiptIsBalanced should be available globally'
+        );
+    });
+});
+
+TestRunner.describe('AttachItemListeners Tests', () => {
+    TestRunner.it('should attach listeners to quantity and price inputs', () => {
+        setupDOM();
+        const row = addMockItem('Test', 1, 10.00, 10.00);
+        
+        // Remove any existing listeners (for testing)
+        const newQuantity = row.querySelector('.item-quantity').cloneNode(true);
+        const newPrice = row.querySelector('.item-price').cloneNode(true);
+        row.querySelector('.item-quantity').replaceWith(newQuantity);
+        row.querySelector('.item-price').replaceWith(newPrice);
+        
+        // Now attach listeners
+        attachItemListeners(row);
+        
+        // Test by changing values
+        row.querySelector('.item-quantity').value = '3';
+        row.querySelector('.item-price').value = '7.50';
+        updateItemTotal(row);
+        
+        const total = row.querySelector('.item-total');
+        TestRunner.assertEqual(total.value, '22.50', 'Should calculate total after attaching listeners');
+    });
 });
 
 TestRunner.describe('Integration Tests', () => {
@@ -289,6 +475,63 @@ TestRunner.describe('Integration Tests', () => {
         errors = validateReceipt();
         TestRunner.assertTrue(errors.length > 0);
     });
+    
+    TestRunner.it('should handle multiple item deletions correctly', () => {
+        setupDOM();
+        
+        // Add 5 items
+        addMockItem('Item1', 1, 10.00, 10.00);
+        addMockItem('Item2', 2, 15.00, 30.00);
+        addMockItem('Item3', 1, 20.00, 20.00);
+        addMockItem('Item4', 3, 5.00, 15.00);
+        addMockItem('Item5', 1, 25.00, 25.00);
+        
+        updateSubtotal();
+        TestRunner.assertEqual(document.getElementById('subtotal').value, '100.00');
+        
+        // Remove items one by one and check subtotal
+        let rows = document.querySelectorAll('.item-row');
+        removeItem(rows[0].querySelector('button')); // Remove Item1 (-10)
+        TestRunner.assertEqual(document.getElementById('subtotal').value, '90.00');
+        
+        rows = document.querySelectorAll('.item-row');
+        removeItem(rows[1].querySelector('button')); // Remove Item3 (-20)
+        TestRunner.assertEqual(document.getElementById('subtotal').value, '70.00');
+        
+        rows = document.querySelectorAll('.item-row');
+        removeItem(rows[2].querySelector('button')); // Remove Item5 (-25)
+        TestRunner.assertEqual(document.getElementById('subtotal').value, '45.00');
+        
+        // Verify only 2 items remain
+        TestRunner.assertEqual(document.querySelectorAll('.item-row').length, 2);
+    });
+    
+    TestRunner.it('should recalculate prorations after item removal', () => {
+        setupDOM();
+        
+        // Add items
+        const row1 = addMockItem('Expensive', 1, 60.00, 60.00);
+        const row2 = addMockItem('Cheap', 1, 40.00, 40.00);
+        
+        document.getElementById('subtotal').value = '100.00';
+        document.getElementById('tax').value = '10.00';
+        document.getElementById('tip').value = '15.00';
+        
+        updateProrations();
+        
+        // Check initial prorations (60% and 40% split)
+        const proration1 = row1.querySelector('.item-proration').textContent;
+        TestRunner.assertTrue(proration1.includes('Tax: $6.00')); // 60% of 10
+        TestRunner.assertTrue(proration1.includes('Tip: $9.00')); // 60% of 15
+        
+        // Remove expensive item
+        removeItem(row1.querySelector('button'));
+        
+        // Now cheap item should get 100% of tax and tip
+        const proration2 = row2.querySelector('.item-proration').textContent;
+        TestRunner.assertTrue(proration2.includes('Tax: $10.00')); // 100% of 10
+        TestRunner.assertTrue(proration2.includes('Tip: $15.00')); // 100% of 15
+    });
 });
 
 // Run all tests
@@ -297,14 +540,13 @@ console.log('=' + '='.repeat(49));
 
 // Check if running in Node.js or browser
 if (typeof window === 'undefined') {
-    // Node.js environment - mock minimal DOM
-    global.document = {
-        getElementById: () => null,
-        querySelectorAll: () => [],
-        querySelector: () => null,
-        body: { innerHTML: '' }
-    };
-    global.window = {};
+    // Node.js environment - use jsdom for proper DOM
+    const { JSDOM } = require('jsdom');
+    const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+    
+    global.document = dom.window.document;
+    global.window = dom.window;
+    global.HTMLElement = dom.window.HTMLElement;
     
     // Load the module
     const receiptEditor = require('./receipt-editor.js');
@@ -313,6 +555,11 @@ if (typeof window === 'undefined') {
     for (let key in receiptEditor) {
         global[key] = receiptEditor[key];
     }
+    
+    // Set up the test framework to run after everything is loaded
+    setTimeout(() => {
+        // Tests will run here
+    }, 0);
 }
 
 // Display summary

@@ -91,20 +91,17 @@
             <p class="text-gray-600 mt-2">Review and edit the extracted receipt data</p>
         </div>
 
-        <div class="grid lg:grid-cols-2 gap-8">
-            <div>
-                <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-                    <div class="p-6">
-                        <h2 class="text-xl font-semibold mb-4">Receipt Image</h2>
-                        {% if receipt.image %}
-                        <img src="{{ receipt.image.url }}" alt="Receipt" class="w-full rounded">
-                        {% endif %}
-                    </div>
+        <div class="max-w-4xl mx-auto space-y-6">
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold mb-4">Receipt Image</h2>
+                    {% if receipt.image %}
+                    <img src="{{ receipt.image.url }}" alt="Receipt" class="w-full rounded">
+                    {% endif %}
                 </div>
             </div>
 
-            <div>
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="bg-white rounded-lg shadow-lg p-6">
                     <h2 class="text-xl font-semibold mb-4">Receipt Details</h2>
                     
                     <div class="space-y-4">
@@ -168,9 +165,9 @@
                         </div>
                         {% endif %}
                     </div>
-                </div>
+            </div>
 
-                <div class="bg-white rounded-lg shadow-lg p-6">
+            <div class="bg-white rounded-lg shadow-lg p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xl font-semibold">Line Items</h2>
                         <button onclick="addItem()" class="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 text-sm {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
@@ -245,7 +242,6 @@
                             </button>
                         </div>
                     </div>
-                </div>
             </div>
         </div>
     </div>
@@ -256,7 +252,15 @@
     <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
         <h3 class="text-xl font-semibold mb-4">Receipt Ready to Share!</h3>
         <p class="text-gray-600 mb-4">Your receipt has been finalized. Share this link with your friends:</p>
-        {% include 'receipts/partials/copy_link_widget.html' with share_url='' widget_id='share-url' %}
+        <div class="flex items-center space-x-2">
+            <input type="text" id="share-url" readonly class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+            <button onclick="copyShareUrl()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                Copy
+            </button>
+        </div>
+        <div class="mt-4 text-center">
+            <canvas id="qr-code"></canvas>
+        </div>
         <button onclick="closeShareModal()" class="mt-4 w-full bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
             Close
         </button>
@@ -414,6 +418,7 @@ async function finalizeReceipt() {
         if (response.ok) {
             const data = await response.json();
             document.getElementById('share-url').value = data.share_url;
+            QRCode.toCanvas(document.getElementById('qr-code'), data.share_url);
             document.getElementById('share-modal').classList.remove('hidden');
         } else {
             const error = await response.json();
@@ -429,7 +434,12 @@ async function finalizeReceipt() {
     }
 }
 
-// Copy function is now defined in base.html
+function copyShareUrl() {
+    const input = document.getElementById('share-url');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
 
 function closeShareModal() {
     window.location.href = document.getElementById('share-url').value;
