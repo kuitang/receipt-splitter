@@ -166,6 +166,10 @@ def view_receipt(request, receipt_id):
         existing_names.extend(receipt.items.filter(claims__isnull=False).values_list('claims__claimer_name', flat=True))
         
         if name in existing_names:
+            # Create session if needed for suggestion
+            if not request.session.session_key:
+                request.session.create()
+            
             suggestions = [
                 f"{name} 2",
                 f"{name}_{request.session.session_key[:4]}",
@@ -179,6 +183,10 @@ def view_receipt(request, receipt_id):
         
         request.session[f'viewer_name_{receipt_id}'] = name
         viewer_name = name
+        
+        # Ensure session has a key
+        if not request.session.session_key:
+            request.session.create()
         
         ActiveViewer.objects.update_or_create(
             receipt=receipt,
@@ -199,6 +207,10 @@ def view_receipt(request, receipt_id):
     my_total = Decimal('0')
     
     if viewer_name:
+        # Ensure session has a key for filtering claims
+        if not request.session.session_key:
+            request.session.create()
+        
         my_claims = Claim.objects.filter(
             line_item__receipt=receipt,
             session_id=request.session.session_key
@@ -238,6 +250,10 @@ def claim_item(request, receipt_id):
         if quantity > available:
             return JsonResponse({'error': f'Only {available} available'}, status=400)
         
+        # Ensure session has a key
+        if not request.session.session_key:
+            request.session.create()
+        
         existing_claim = Claim.objects.filter(
             line_item=line_item,
             session_id=request.session.session_key
@@ -263,6 +279,10 @@ def claim_item(request, receipt_id):
 @require_http_methods(["DELETE"])
 def unclaim_item(request, receipt_id, claim_id):
     claim = get_object_or_404(Claim, id=claim_id)
+    
+    # Ensure session has a key for comparison
+    if not request.session.session_key:
+        request.session.create()
     
     if claim.session_id != request.session.session_key:
         return JsonResponse({'error': 'Unauthorized'}, status=403)
