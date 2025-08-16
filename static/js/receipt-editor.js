@@ -58,16 +58,23 @@ function updateProrations() {
     
     document.querySelectorAll('.item-row').forEach(row => {
         const itemTotalElement = row.querySelector('.item-total');
+        const quantityElement = row.querySelector('.item-quantity');
+        const priceElement = row.querySelector('.item-price');
+        
         const itemTotal = parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0;
+        const quantity = parseInt(quantityElement.value) || 0;
+        const price = parseFloat(priceElement.value) || 0;
+        
+        // Update proration display
         if (subtotal > 0) {
             const proportion = itemTotal / subtotal;
             const itemTax = tax * proportion;
             const itemTip = tip * proportion;
-            const totalShare = itemTotal + itemTax + itemTip;
+            const perItemShare = (itemTotal + itemTax + itemTip) / (quantity || 1);
             const proration = row.querySelector('.item-proration');
             if (proration) {
-                proration.textContent = 
-                    `Tax: $${itemTax.toFixed(2)} | Tip: $${itemTip.toFixed(2)} | Share: $${totalShare.toFixed(2)}`;
+                proration.innerHTML = 
+                    `+ Tax: $${itemTax.toFixed(2)} + Tip: $${itemTip.toFixed(2)} = <span class="font-semibold">$${perItemShare.toFixed(2)}</span> per item`;
             }
         }
     });
@@ -82,32 +89,34 @@ function updateProrations() {
 function addItem() {
     const container = document.getElementById('items-container');
     const newRow = document.createElement('div');
-    newRow.className = 'item-row border rounded-lg p-3';
+    newRow.className = 'item-row flex gap-2 items-start';
     newRow.innerHTML = `
-        <div class="grid grid-cols-12 gap-2 items-center">
-            <div class="col-span-5">
-                <input type="text" placeholder="Item name" class="item-name w-full px-2 py-1 border border-gray-300 rounded text-sm">
+        <div class="flex-1 border rounded-lg p-4">
+            <div class="flex gap-2 items-center">
+                <div class="flex-1">
+                    <input type="text" placeholder="Item name" class="item-name w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="w-16">
+                    <input type="number" value="1" min="1" placeholder="Qty" class="item-quantity w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-center tabular-nums">
+                </div>
+                <span class="text-gray-500 font-medium">×</span>
+                <div class="w-24">
+                    <input type="number" step="0.01" placeholder="Price" class="item-price w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-right tabular-nums">
+                </div>
+                <span class="text-gray-500 font-medium">=</span>
+                <div class="w-28">
+                    <input type="number" step="0.01" placeholder="Total" class="item-total w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-blue-500 text-right tabular-nums bg-gray-50" readonly>
+                </div>
             </div>
-            <div class="col-span-2">
-                <input type="number" value="1" min="1" placeholder="Qty" class="item-quantity w-full px-2 py-1 border border-gray-300 rounded text-sm">
-            </div>
-            <div class="col-span-2">
-                <input type="number" step="0.01" placeholder="Price" class="item-price w-full px-2 py-1 border border-gray-300 rounded text-sm">
-            </div>
-            <div class="col-span-2">
-                <input type="number" step="0.01" placeholder="Total" class="item-total w-full px-2 py-1 border border-gray-300 rounded text-sm font-semibold" readonly>
-            </div>
-            <div class="col-span-1">
-                <button onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
+            <div class="mt-2">
+                <p class="text-gray-500 text-xs item-proration"></p>
             </div>
         </div>
-        <div class="mt-2 text-xs text-gray-500">
-            <span class="item-proration"></span>
-        </div>
+        <button onclick="removeItem(this)" class="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors mt-3">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
     `;
     container.appendChild(newRow);
     attachItemListeners(newRow);
@@ -129,8 +138,14 @@ function removeItem(button) {
  * @param {HTMLElement} row - The item row element
  */
 function attachItemListeners(row) {
-    row.querySelector('.item-quantity').addEventListener('input', () => updateItemTotal(row));
-    row.querySelector('.item-price').addEventListener('input', () => updateItemTotal(row));
+    row.querySelector('.item-quantity').addEventListener('input', () => {
+        updateItemTotal(row);
+        updateProrations();
+    });
+    row.querySelector('.item-price').addEventListener('input', () => {
+        updateItemTotal(row);
+        updateProrations();
+    });
 }
 
 /**
