@@ -10,49 +10,53 @@
             The Ironically Named Receipt Splitter
         </p>
         <p class="text-sm text-gray-500">
-            Split bills based on what you actually ordered
+            Split bills based on what you actually ordered, not equally
         </p>
     </div>
 
     <div class="bg-white rounded-lg shadow-lg p-4 md:p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4 text-center">How It Works</h2>
         
-        <div class="grid md:grid-cols-3 gap-4">
-            <div class="flex items-start space-x-3">
-                <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
-                    <span class="text-lg font-bold text-blue-600">1</span>
-                </div>
-                <div class="flex-1">
-                    <img src="/media/sample_images/step_upload.png" 
-                         alt="Upload receipt" 
-                         class="w-full h-20 object-cover rounded mb-2">
-                    <h3 class="font-semibold text-sm mb-1">Upload Receipt</h3>
-                    <p class="text-gray-600 text-xs">Take a photo or upload your receipt</p>
-                </div>
+        <div class="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4">
+            <!-- Step 1: Upload -->
+            <div class="text-center flex-shrink-0">
+                <img src="/media/sample_images/step_upload.png" 
+                     alt="Upload receipt" 
+                     class="w-32 h-32 md:w-40 md:h-40 object-cover rounded-lg mb-2 mx-auto">
+                <h3 class="font-semibold text-sm">Upload Receipt</h3>
+                <p class="text-gray-600 text-xs">Take a photo or upload</p>
             </div>
-            <div class="flex items-start space-x-3">
-                <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
-                    <span class="text-lg font-bold text-blue-600">2</span>
-                </div>
-                <div class="flex-1">
-                    <img src="/media/sample_images/step_share.png" 
-                         alt="Share link" 
-                         class="w-full h-20 object-cover rounded mb-2">
-                    <h3 class="font-semibold text-sm mb-1">Share Link</h3>
-                    <p class="text-gray-600 text-xs">Send to friends to claim items</p>
-                </div>
+            
+            <!-- Arrow 1 -->
+            <div class="flex-shrink-0 rotate-90 md:rotate-0">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                </svg>
             </div>
-            <div class="flex items-start space-x-3">
-                <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
-                    <span class="text-lg font-bold text-blue-600">3</span>
-                </div>
-                <div class="flex-1">
-                    <img src="/media/sample_images/step_split.png" 
-                         alt="Split fairly" 
-                         class="w-full h-20 object-cover rounded mb-2">
-                    <h3 class="font-semibold text-sm mb-1">Split Fairly</h3>
-                    <p class="text-gray-600 text-xs">Everyone pays for their items</p>
-                </div>
+            
+            <!-- Step 2: Share -->
+            <div class="text-center flex-shrink-0">
+                <img src="/media/sample_images/step_share.png" 
+                     alt="Share link" 
+                     class="w-32 h-32 md:w-40 md:h-40 object-cover rounded-lg mb-2 mx-auto">
+                <h3 class="font-semibold text-sm">Share Link</h3>
+                <p class="text-gray-600 text-xs">Send to friends</p>
+            </div>
+            
+            <!-- Arrow 2 -->
+            <div class="flex-shrink-0 rotate-90 md:rotate-0">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                </svg>
+            </div>
+            
+            <!-- Step 3: Split -->
+            <div class="text-center flex-shrink-0">
+                <img src="/media/sample_images/step_split.png" 
+                     alt="Split fairly" 
+                     class="w-32 h-32 md:w-40 md:h-40 object-cover rounded-lg mb-2 mx-auto">
+                <h3 class="font-semibold text-sm">Split Fairly</h3>
+                <p class="text-gray-600 text-xs">Pay for what you ordered</p>
             </div>
         </div>
     </div>

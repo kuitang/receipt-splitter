@@ -30,19 +30,19 @@ def generate_and_save_images():
     
     image_prompts = [
         {
-            "prompt": "Simple, clean illustration of a smartphone camera scanning a restaurant receipt, flat design style, bright colors, minimalist, white background with subtle blue accents",
+            "prompt": "Illustrative, vibrant artwork of a diverse group of 5 friends at a restaurant table with a receipt and calculator in the center, everyone pointing at different items on the bill, warm lighting, collaborative and friendly atmosphere, modern flat design style",
             "filename": "step_upload.png",
-            "caption": "Upload receipt step"
+            "caption": "Upload Receipt"
         },
         {
-            "prompt": "Simple, clean illustration of a hand holding a smartphone with a share icon and link being sent to multiple contacts, flat design style, bright colors, minimalist, white background with subtle blue accents",
+            "prompt": "Illustrative, colorful artwork of a diverse group of 4 people at a dinner table, one person holding up a smartphone showing a split bill app, others looking pleased, restaurant setting with warm ambient lighting, modern illustration style",
             "filename": "step_share.png", 
-            "caption": "Share link step"
+            "caption": "Share Link"
         },
         {
-            "prompt": "Simple, clean illustration of multiple smartphones showing individual payment amounts with checkmarks, representing fair bill splitting, flat design style, bright colors, minimalist, white background with subtle blue accents",
+            "prompt": "Illustrative artwork of diverse friends high-fiving after dinner, empty plates and a neatly divided receipt on the table, celebration atmosphere, warm evening light, joyful and inclusive scene",
             "filename": "step_split.png",
-            "caption": "Split fairly step"
+            "caption": "Split Fairly"
         },
         {
             "prompt": "Cheerful, simple illustration of diverse hands giving thumbs up around a receipt marked 'PAID', celebration of successful bill split, flat design style, bright colors, minimalist",
