@@ -1,0 +1,88 @@
+{% comment %}
+Template partial for displaying a line item.
+Context variables:
+- item: The LineItem object
+- show_calculations: Boolean to show tax/tip calculations (default: False)
+- editable: Boolean for edit mode (default: False)
+- show_claims: Boolean to show claim interface (default: False)
+- available_quantity: Number of unclaimed items (for claim mode)
+{% endcomment %}
+
+{% if editable %}
+<div class="item-row flex items-center gap-2" data-item-id="{{ item.id }}">
+    <div class="card-compact flex-1 flex items-center gap-2">
+        <div class="flex-1">
+            <input type="text" 
+                   value="{{ item.name }}"
+                   placeholder="Item name"
+                   class="item-name input-standard w-full text-sm">
+        </div>
+        <div class="w-16">
+            <input type="number" 
+                   value="{{ item.quantity }}"
+                   min="1"
+                   placeholder="Qty"
+                   class="item-quantity input-standard text-sm text-center tabular-nums">
+        </div>
+        <span class="text-gray-500 font-medium">×</span>
+        <div class="w-24">
+            <input type="number" 
+                   value="{{ item.unit_price|floatformat:2 }}"
+                   step="0.01"
+                   placeholder="Price"
+                   class="item-price input-standard text-sm text-right tabular-nums">
+        </div>
+        <span class="text-gray-500 font-medium">=</span>
+        <div class="w-28">
+            <input type="number" 
+                   value="{{ item.total_price|floatformat:2 }}"
+                   step="0.01"
+                   placeholder="Total"
+                   class="item-total input-standard input-readonly text-sm text-right tabular-nums"
+                   readonly>
+        </div>
+    </div>
+    <button onclick="removeItem(this)" 
+            class="text-red-600 hover:text-red-800 transition-colors p-1"
+            title="Remove item">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+        </svg>
+    </button>
+</div>
+{% else %}
+<div class="flex justify-between items-start">
+    <div class="flex-1">
+        <h3 class="font-semibold text-lg">{{ item.name }}</h3>
+        <p class="text-gray-600 text-sm">
+            ${{ item.unit_price|floatformat:2 }} × {{ item.quantity }} = ${{ item.total_price|floatformat:2 }}
+        </p>
+        {% if show_calculations %}
+        <p class="text-gray-500 text-xs mt-1">
+            + Tax: ${{ item.prorated_tax|floatformat:2 }} 
+            + Tip: ${{ item.prorated_tip|floatformat:2 }}
+            = <span class="font-semibold item-share-amount" data-amount="{{ item.get_per_item_share|floatformat:2 }}">${{ item.get_per_item_share|floatformat:2 }}</span> per item
+        </p>
+        {% endif %}
+    </div>
+    
+    {% if show_claims and not is_uploader and viewer_name %}
+    <div class="ml-4">
+        {% if available_quantity > 0 %}
+        <div class="flex items-center space-x-2">
+            <label class="text-sm text-gray-600">Claim:</label>
+            <input type="number" 
+                   class="claim-quantity w-20 px-2 py-1 input-standard"
+                   min="0"
+                   max="{{ available_quantity }}"
+                   value="0"
+                   data-item-id="{{ item.id }}">
+            <span class="text-sm text-gray-600">of {{ available_quantity }}</span>
+        </div>
+        {% else %}
+        <span class="text-red-600 font-semibold">Fully Claimed</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}

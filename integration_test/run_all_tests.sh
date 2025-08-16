@@ -25,6 +25,12 @@ echo "🧪 Running Django Integration Tests..."
 python integration_test/test_django_integration.py
 DJANGO_RESULT=$?
 
+# Run Design Consistency tests
+echo ""
+echo "🧪 Running Design Consistency Tests..."
+python integration_test/test_design_consistency.py
+DESIGN_RESULT=$?
+
 # Summary
 echo ""
 echo "=========================================="
@@ -43,10 +49,16 @@ else
     echo "❌ Django Integration Tests: FAILED"
 fi
 
+if [ $DESIGN_RESULT -eq 0 ]; then
+    echo "✅ Design Consistency Tests: PASSED"
+else
+    echo "❌ Design Consistency Tests: FAILED"
+fi
+
 echo "=========================================="
 
 # Exit with failure if any test failed
-if [ $OCR_RESULT -ne 0 ] || [ $DJANGO_RESULT -ne 0 ]; then
+if [ $OCR_RESULT -ne 0 ] || [ $DJANGO_RESULT -ne 0 ] || [ $DESIGN_RESULT -ne 0 ]; then
     exit 1
 fi
 

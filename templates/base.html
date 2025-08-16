@@ -9,6 +9,9 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
     
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    
     {% block extra_head %}{% endblock %}
     
     <script>
@@ -50,6 +53,7 @@
         {% block content %}{% endblock %}
     </div>
     
+    <script src="{% static 'js/utils.js' %}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>
