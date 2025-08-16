@@ -81,7 +81,7 @@
                         <p class="text-gray-500 text-xs mt-1">
                             + Tax: ${{ item_data.item.prorated_tax|floatformat:2 }} 
                             + Tip: ${{ item_data.item.prorated_tip|floatformat:2 }}
-                            = <span class="font-semibold">${{ item_data.item.get_total_share|floatformat:2 }}</span> per item
+                            = <span class="font-semibold item-share-amount" data-amount="{{ item_data.item.get_per_item_share|floatformat:2 }}">${{ item_data.item.get_per_item_share|floatformat:2 }}</span> per item
                         </p>
                     </div>
                     
@@ -164,8 +164,11 @@ function updateTotal() {
         if (quantity > 0) {
             const itemId = input.dataset.itemId;
             const itemContainer = document.querySelector(`[data-item-id="${itemId}"]`);
-            const sharePerItem = parseFloat(itemContainer.querySelector('.font-semibold').textContent.replace('$', ''));
-            total += sharePerItem * quantity;
+            const shareElement = itemContainer.querySelector('.item-share-amount');
+            if (shareElement) {
+                const sharePerItem = parseFloat(shareElement.dataset.amount) || 0;
+                total += sharePerItem * quantity;
+            }
         }
     });
     document.getElementById('my-total').textContent = `$${total.toFixed(2)}`;

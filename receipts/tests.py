@@ -179,10 +179,21 @@ class ViewTests(TestCase):
         self.assertContains(response, "Upload Receipt")
     
     def test_view_receipt(self):
+        # First, submit a name to view the receipt
         url = reverse('view_receipt', kwargs={'receipt_id': self.receipt.id})
-        response = self.client.get(url)
+        response = self.client.post(url, {'viewer_name': 'Test Viewer'})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.receipt.restaurant_name)
+        
+        # Check that proration values are displayed correctly
+        self.assertContains(response, 'Tax: $2.00')  # 20% of 10.00 tax
+        self.assertContains(response, 'Tip: $3.00')  # 20% of 15.00 tip
+        
+        # Check that the per-item share is calculated and displayed
+        # Total share is 20.00 + 2.00 + 3.00 = 25.00 for all 2 items
+        # Per item: 25.00 / 2 = 12.50
+        self.assertContains(response, 'data-amount="12.50"')
+        self.assertContains(response, '$12.50</span> per item')
     
     def test_view_nonexistent_receipt(self):
         from uuid import uuid4
@@ -195,6 +206,37 @@ class ViewTests(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
     
+    def test_view_receipt_with_multiple_items(self):
+        # Add another item with different price
+        item2 = LineItem.objects.create(
+            receipt=self.receipt,
+            name="Fries",
+            quantity=1,
+            unit_price=Decimal("5.00"),
+            total_price=Decimal("5.00")
+        )
+        item2.calculate_prorations()
+        item2.save()
+        
+        # Submit a name to view the receipt
+        url = reverse('view_receipt', kwargs={'receipt_id': self.receipt.id})
+        response = self.client.post(url, {'viewer_name': 'Test Viewer'})
+        self.assertEqual(response.status_code, 200)
+        
+        # Check both items are displayed
+        self.assertContains(response, "Burger")
+        self.assertContains(response, "Fries")
+        
+        # The receipt subtotal is 100.00, but we only have items worth 25.00 (20+5)
+        # So prorations are based on relative item values
+        # Burger: 20.00 out of 25.00 total items = 80%
+        # Fries: 5.00 out of 25.00 total items = 20%
+        # But prorations use receipt subtotal (100.00) not actual items total
+        # Burger gets: 20/100 = 20% of tax and tip
+        # Fries gets: 5/100 = 5% of tax and tip
+        self.assertContains(response, 'Tax: $0.50')  # 5% of 10.00
+        self.assertContains(response, 'Tip: $0.75')  # 5% of 15.00
+        
     def test_claim_item(self):
         session = self.client.session
         session[f'viewer_name_{self.receipt.id}'] = "Test Viewer"
@@ -219,3 +261,53 @@ class ViewTests(TestCase):
         claims = Claim.objects.filter(line_item=self.item)
         self.assertEqual(claims.count(), 1)
         self.assertEqual(claims.first().quantity_claimed, 1)
+    
+    def test_receipt_share_calculation_display(self):
+        """Test that share amounts are correctly calculated and displayed in HTML"""
+        # Create a receipt with simple numbers for easy verification
+        receipt = Receipt.objects.create(
+            uploader_name="Calculator Test",
+            restaurant_name="Math Restaurant",
+            date=timezone.now(),
+            subtotal=Decimal("50.00"),
+            tax=Decimal("5.00"),
+            tip=Decimal("10.00"),
+            total=Decimal("65.00"),
+            is_finalized=True
+        )
+        
+        # Item worth 40% of subtotal (20/50)
+        item1 = LineItem.objects.create(
+            receipt=receipt,
+            name="Main Dish",
+            quantity=2,
+            unit_price=Decimal("10.00"),
+            total_price=Decimal("20.00")
+        )
+        item1.calculate_prorations()
+        item1.save()
+        
+        # Item worth 60% of subtotal (30/50)
+        item2 = LineItem.objects.create(
+            receipt=receipt,
+            name="Appetizer",
+            quantity=3,
+            unit_price=Decimal("10.00"),
+            total_price=Decimal("30.00")
+        )
+        item2.calculate_prorations()
+        item2.save()
+        
+        # Submit a name to view the receipt
+        url = reverse('view_receipt', kwargs={'receipt_id': receipt.id})
+        response = self.client.post(url, {'viewer_name': 'Test Viewer'})
+        
+        # Item 1: 20.00 + (40% of 5.00 tax) + (40% of 10.00 tip) = 20 + 2 + 4 = 26.00 total
+        # Per item: 26.00 / 2 = 13.00
+        self.assertContains(response, 'data-amount="13.00"')
+        self.assertContains(response, '$13.00</span> per item')
+        
+        # Item 2: 30.00 + (60% of 5.00 tax) + (60% of 10.00 tip) = 30 + 3 + 6 = 39.00 total
+        # Per item: 39.00 / 3 = 13.00
+        self.assertContains(response, 'data-amount="13.00"')
+        self.assertContains(response, '$13.00</span> per item')

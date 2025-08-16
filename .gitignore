@@ -10,4 +10,4 @@ run/
 .DS_Store
 .coverage
 htmlcov/
-.pytest_cache/
+.pytest_cache/openai_key.sh

@@ -49,6 +49,12 @@ class LineItem(models.Model):
     def get_total_share(self):
         return self.total_price + self.prorated_tax + self.prorated_tip
     
+    def get_per_item_share(self):
+        """Get the share amount for a single item"""
+        if self.quantity > 0:
+            return self.get_total_share() / self.quantity
+        return Decimal('0')
+    
     def get_available_quantity(self):
         claimed = self.claims.aggregate(
             total_claimed=models.Sum('quantity_claimed')
@@ -76,8 +82,7 @@ class Claim(models.Model):
         return timezone.now() < self.grace_period_ends
     
     def get_share_amount(self):
-        unit_share = self.line_item.get_total_share() / self.line_item.quantity
-        return unit_share * self.quantity_claimed
+        return self.line_item.get_per_item_share() * self.quantity_claimed
     
     def __str__(self):
         return f"{self.claimer_name} claimed {self.quantity_claimed}x {self.line_item.name}"
