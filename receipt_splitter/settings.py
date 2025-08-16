@@ -34,7 +34,18 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,testserver,.fly.dev').split(',')
+# Get base allowed hosts
+allowed_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,testserver').split(',')
+
+# Add Fly.io app domain if deployed on Fly.io
+app_name = os.getenv('FLY_APP_NAME')
+if app_name:
+    allowed_hosts.append(f"{app_name}.fly.dev")
+else:
+    # Fallback for local development
+    allowed_hosts.append('.fly.dev')
+
+ALLOWED_HOSTS = allowed_hosts
 
 # CSRF trusted origins for Fly.io
 CSRF_TRUSTED_ORIGINS = [

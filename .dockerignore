@@ -1,0 +1,71 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.docker
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Node modules (if any)
+node_modules/
+
+# Media files (not needed in production)
+media/
+
+# Run directory (temporary files)
+run/
+
+# Generated images and test data
+RUN_*/
+images_*/
+image_prompts/
+
+# Test files
+test_*.py
+*_test.py
+test_*.png
+errors.txt
+ocr_*.txt
+*.tmp.*
