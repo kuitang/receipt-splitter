@@ -36,9 +36,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto py-8">
-    <!-- Balance Warning Banner -->
-    <div id="balance-warning" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
+<!-- Balance Warning Banner (Sticky) -->
+<div id="balance-warning" class="hidden fixed top-0 left-0 right-0 z-50 bg-red-50 border-b-4 border-red-500 p-4">
+    <div class="max-w-6xl mx-auto">
         <div class="flex">
             <div class="flex-shrink-0">
                 <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -50,12 +50,12 @@
                 <div class="mt-2 text-sm text-red-700" id="balance-error-details">
                     <!-- Errors will be populated here -->
                 </div>
-                <p class="mt-2 text-xs text-red-600 font-semibold">
-                    The "Finalize & Share" button is disabled until the receipt balances correctly.
-                </p>
             </div>
         </div>
     </div>
+</div>
+
+<div class="max-w-6xl mx-auto py-8">
     
     <!-- Loading Modal -->
     {% if is_processing %}
@@ -265,52 +265,19 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/receipt-editor.js' %}"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
 const receiptId = "{{ receipt.id }}";
 const isProcessing = {{ is_processing|lower }};
-let receiptIsBalanced = true;  // Track balance status
 
-// Validation function
-function validateReceipt() {
-    const data = getReceiptData();
-    const errors = [];
-    
-    // Calculate items sum
-    let itemsSum = 0;
-    data.items.forEach((item, index) => {
-        if (item.name) {
-            const expected = item.quantity * item.unit_price;
-            if (Math.abs(expected - item.total_price) > 0.01) {
-                errors.push(`Item "${item.name}": Total $${item.total_price.toFixed(2)} doesn't match quantity (${item.quantity}) × price ($${item.unit_price.toFixed(2)}) = $${expected.toFixed(2)}`);
-            }
-            itemsSum += item.total_price;
-        }
-    });
-    
-    // Check if items sum matches subtotal
-    if (Math.abs(itemsSum - data.subtotal) > 0.01) {
-        errors.push(`Subtotal $${data.subtotal.toFixed(2)} doesn't match sum of items $${itemsSum.toFixed(2)}`);
-    }
-    
-    // Check if subtotal + tax + tip = total
-    const calculatedTotal = data.subtotal + data.tax + data.tip;
-    if (Math.abs(calculatedTotal - data.total) > 0.01) {
-        errors.push(`Total $${data.total.toFixed(2)} doesn't match subtotal ($${data.subtotal.toFixed(2)}) + tax ($${data.tax.toFixed(2)}) + tip ($${data.tip.toFixed(2)}) = $${calculatedTotal.toFixed(2)}`);
-    }
-    
-    // Check for negative values
-    // Note: Tax and tip CAN be negative (representing discounts)
-    // as per TOTAL_CORRECTION implementation
-    if (data.subtotal < 0) errors.push("Subtotal cannot be negative");
-    // Tax can be negative (discount/credit)
-    // Tip can be negative (discount/credit)
-    if (data.total < 0) errors.push("Total cannot be negative");
-    
-    return errors;
-}
+// Functions from receipt-editor.js are now available:
+// validateReceipt, checkAndDisplayBalance, updateItemTotal, updateProrations,
+// addItem, removeItem, attachItemListeners, getReceiptData, calculateSubtotal, updateSubtotal
 
-// Update UI based on validation
+// Override checkAndDisplayBalance to handle isProcessing state
+const originalCheckAndDisplayBalance = checkAndDisplayBalance;
 function checkAndDisplayBalance() {
     const errors = validateReceipt();
     const warningDiv = document.getElementById('balance-warning');
@@ -335,7 +302,7 @@ function checkAndDisplayBalance() {
         // Hide warning banner
         warningDiv.classList.add('hidden');
         
-        // Enable finalize button
+        // Enable finalize button (but only if not processing)
         if (finalizeBtn && !isProcessing) {
             finalizeBtn.disabled = false;
             finalizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -384,121 +351,7 @@ if (isProcessing) {
     }, 1000); // Poll every second
 }
 
-// Rest of the JavaScript functions remain the same
-function updateItemTotal(row) {
-    const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
-    const price = parseFloat(row.querySelector('.item-price').value) || 0;
-    const total = quantity * price;
-    row.querySelector('.item-total').value = total.toFixed(2);  // Display with 2 decimals
-    row.querySelector('.item-total').dataset.fullValue = total;  // Store full precision
-    updateProrations();
-}
-
-function updateProrations() {
-    const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
-    const tax = parseFloat(document.getElementById('tax').value) || 0;
-    const tip = parseFloat(document.getElementById('tip').value) || 0;
-    
-    document.querySelectorAll('.item-row').forEach(row => {
-        const itemTotalElement = row.querySelector('.item-total');
-        // Use full precision value if available, otherwise use displayed value
-        const itemTotal = parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0;
-        if (subtotal > 0) {
-            const proportion = itemTotal / subtotal;
-            const itemTax = tax * proportion;
-            const itemTip = tip * proportion;
-            const totalShare = itemTotal + itemTax + itemTip;
-            const proration = row.querySelector('.item-proration');
-            if (proration) {
-                // Display with 2 decimals, but keep full precision in memory
-                proration.textContent = 
-                    `Tax: $${itemTax.toFixed(2)} | Tip: $${itemTip.toFixed(2)} | Share: $${totalShare.toFixed(2)}`;
-            }
-        }
-    });
-    
-    // Check balance after updating prorations
-    checkAndDisplayBalance();
-}
-
-function addItem() {
-    if (isProcessing) return;
-    
-    const container = document.getElementById('items-container');
-    const newRow = document.createElement('div');
-    newRow.className = 'item-row border rounded-lg p-3';
-    newRow.innerHTML = `
-        <div class="grid grid-cols-12 gap-2 items-center">
-            <div class="col-span-5">
-                <input type="text" placeholder="Item name" class="item-name w-full px-2 py-1 border border-gray-300 rounded text-sm">
-            </div>
-            <div class="col-span-2">
-                <input type="number" value="1" min="1" placeholder="Qty" class="item-quantity w-full px-2 py-1 border border-gray-300 rounded text-sm">
-            </div>
-            <div class="col-span-2">
-                <input type="number" step="0.01" placeholder="Price" class="item-price w-full px-2 py-1 border border-gray-300 rounded text-sm">
-            </div>
-            <div class="col-span-2">
-                <input type="number" step="0.01" placeholder="Total" class="item-total w-full px-2 py-1 border border-gray-300 rounded text-sm font-semibold" readonly>
-            </div>
-            <div class="col-span-1">
-                <button onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <div class="mt-2 text-xs text-gray-500">
-            <span class="item-proration"></span>
-        </div>
-    `;
-    container.appendChild(newRow);
-    attachItemListeners(newRow);
-}
-
-function removeItem(button) {
-    if (isProcessing) return;
-    button.closest('.item-row').remove();
-}
-
-function attachItemListeners(row) {
-    row.querySelector('.item-quantity').addEventListener('input', () => updateItemTotal(row));
-    row.querySelector('.item-price').addEventListener('input', () => updateItemTotal(row));
-}
-
-function getReceiptData() {
-    const items = [];
-    document.querySelectorAll('.item-row').forEach(row => {
-        const name = row.querySelector('.item-name').value;
-        if (name) {
-            const itemTotalElement = row.querySelector('.item-total');
-            items.push({
-                name: name,
-                quantity: parseInt(row.querySelector('.item-quantity').value) || 1,
-                unit_price: parseFloat(row.querySelector('.item-price').value) || 0,
-                // Send full precision to backend
-                total_price: parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0
-            });
-        }
-    });
-    
-    // Get values from the form, checking if elements exist
-    const restaurantEl = document.getElementById('restaurant_name') || document.querySelector('[name="restaurant_name"]');
-    const subtotalEl = document.getElementById('subtotal') || document.querySelector('[name="subtotal"]');
-    const taxEl = document.getElementById('tax') || document.querySelector('[name="tax"]');
-    const tipEl = document.getElementById('tip') || document.querySelector('[name="tip"]');
-    const totalEl = document.getElementById('total') || document.querySelector('[name="total"]');
-    
-    return {
-        restaurant_name: restaurantEl ? restaurantEl.value : '',
-        subtotal: subtotalEl ? (parseFloat(subtotalEl.value) || 0) : 0,
-        tax: taxEl ? (parseFloat(taxEl.value) || 0) : 0,
-        tip: tipEl ? (parseFloat(tipEl.value) || 0) : 0,
-        total: totalEl ? (parseFloat(totalEl.value) || 0) : 0,
-        items: items
-    };
-}
+// Don't override functions here - we'll do it in DOMContentLoaded at the bottom
 
 async function saveReceipt() {
     if (isProcessing) return;
@@ -598,6 +451,23 @@ function getCookie(name) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Wrap addItem and removeItem to check isProcessing
+    if (isProcessing && window.addItem) {
+        const originalAddItem = window.addItem;
+        window.addItem = function() {
+            if (isProcessing) return;
+            return originalAddItem();
+        };
+    }
+    
+    if (isProcessing && window.removeItem) {
+        const originalRemoveItem = window.removeItem;
+        window.removeItem = function(button) {
+            if (isProcessing) return;
+            return originalRemoveItem(button);
+        };
+    }
+    
     if (!isProcessing) {
         document.querySelectorAll('.item-row').forEach(attachItemListeners);
         

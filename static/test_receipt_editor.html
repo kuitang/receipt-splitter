@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Receipt Editor Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .hidden { display: none; }
+        .item-row { margin: 5px 0; padding: 5px; border: 1px solid #eee; }
+        input { margin: 0 5px; }
+        #test-results { margin-top: 20px; padding: 10px; background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>Receipt Editor Test Page</h1>
+    
+    <div class="test-section">
+        <h2>Interactive Test</h2>
+        <div id="balance-warning" class="hidden" style="background: #fee; padding: 10px; margin: 10px 0;">
+            <strong>Warning:</strong> <span id="balance-error-details"></span>
+        </div>
+        
+        <p>
+            <label>Restaurant: <input id="restaurant_name" value="Test Restaurant"></label>
+        </p>
+        <p>
+            <label>Subtotal: $<input id="subtotal" type="number" step="0.01" value="50.00"></label>
+            <label>Tax: $<input id="tax" type="number" step="0.01" value="5.00"></label>
+            <label>Tip: $<input id="tip" type="number" step="0.01" value="10.00"></label>
+            <label>Total: $<input id="total" type="number" step="0.01" value="65.00"></label>
+        </p>
+        
+        <div id="items-container">
+            <div class="item-row">
+                <input class="item-name" value="Burger" placeholder="Item">
+                <input class="item-quantity" type="number" value="2" placeholder="Qty">
+                <input class="item-price" type="number" step="0.01" value="12.50" placeholder="Price">
+                <input class="item-total" type="number" step="0.01" value="25.00" readonly>
+                <span class="item-proration"></span>
+                <button onclick="removeItem(this)">Remove</button>
+            </div>
+            <div class="item-row">
+                <input class="item-name" value="Fries" placeholder="Item">
+                <input class="item-quantity" type="number" value="1" placeholder="Qty">
+                <input class="item-price" type="number" step="0.01" value="5.00" placeholder="Price">
+                <input class="item-total" type="number" step="0.01" value="5.00" readonly>
+                <span class="item-proration"></span>
+                <button onclick="removeItem(this)">Remove</button>
+            </div>
+            <div class="item-row">
+                <input class="item-name" value="Drink" placeholder="Item">
+                <input class="item-quantity" type="number" value="2" placeholder="Qty">
+                <input class="item-price" type="number" step="0.01" value="3.50" placeholder="Price">
+                <input class="item-total" type="number" step="0.01" value="7.00" readonly>
+                <span class="item-proration"></span>
+                <button onclick="removeItem(this)">Remove</button>
+            </div>
+        </div>
+        
+        <p>
+            <button onclick="addItem()">Add Item</button>
+            <button onclick="finalizeReceipt()">Finalize & Share</button>
+        </p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <button onclick="runTests()">Run Unit Tests</button>
+        <div id="test-results"></div>
+    </div>
+    
+    <script src="js/receipt-editor.js"></script>
+    <script src="js/receipt-editor.test.js"></script>
+    <script>
+        // Additional test functions
+        function finalizeReceipt() {
+            if (!receiptIsBalanced) {
+                alert('Cannot finalize: Receipt does not balance!');
+                return;
+            }
+            alert('Receipt finalized (test mode)');
+        }
+        
+        function runTests() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<h3>Running tests...</h3>';
+            
+            // Capture console output
+            const originalLog = console.log;
+            const originalError = console.error;
+            let output = [];
+            
+            console.log = function(...args) {
+                output.push(args.join(' '));
+                originalLog.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                output.push('<span style="color: red;">' + args.join(' ') + '</span>');
+                originalError.apply(console, args);
+            };
+            
+            // Run the test suite
+            TestRunner.passed = 0;
+            TestRunner.failed = 0;
+            
+            // Run all test groups
+            TestRunner.describe('Subtotal Calculation Tests', () => {
+                TestRunner.it('should calculate subtotal from items correctly', () => {
+                    setupDOM();
+                    addMockItem('Burger', 2, 15.00, 30.00);
+                    addMockItem('Fries', 1, 5.00, 5.00);
+                    addMockItem('Drink', 2, 3.00, 6.00);
+                    
+                    const subtotal = calculateSubtotal();
+                    TestRunner.assertClose(subtotal, 41.00);
+                });
+                
+                TestRunner.it('should update subtotal when item is removed', () => {
+                    setupDOM();
+                    const row1 = addMockItem('Burger', 2, 15.00, 30.00);
+                    const row2 = addMockItem('Fries', 1, 5.00, 5.00);
+                    
+                    updateSubtotal();
+                    TestRunner.assertEqual(document.getElementById('subtotal').value, '35.00');
+                    
+                    removeItem(row1.querySelector('button'));
+                    TestRunner.assertEqual(document.getElementById('subtotal').value, '5.00');
+                });
+            });
+            
+            const success = TestRunner.summary();
+            
+            // Restore console
+            console.log = originalLog;
+            console.error = originalError;
+            
+            // Display results
+            resultsDiv.innerHTML = '<h3>Test Results:</h3><pre>' + output.join('\n') + '</pre>';
+            
+            if (success) {
+                resultsDiv.style.background = '#efe';
+            } else {
+                resultsDiv.style.background = '#fee';
+            }
+        }
+        
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Attach listeners to existing items
+            document.querySelectorAll('.item-row').forEach(attachItemListeners);
+            
+            // Attach listeners to subtotal/tax/tip/total fields
+            ['subtotal', 'tax', 'tip', 'total'].forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.addEventListener('input', () => {
+                        updateProrations();
+                        checkAndDisplayBalance();
+                    });
+                }
+            });
+            
+            // Initial setup
+            updateProrations();
+            checkAndDisplayBalance();
+        });
+    </script>
+</body>
+</html>
