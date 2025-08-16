@@ -5,7 +5,8 @@ An ironically named web application that helps groups split bills based on actua
 ## Features
 
 - 📸 **OCR Receipt Scanning** - Upload a photo and automatically extract items
-- 🖼️ **Multiple Image Formats** - Supports JPEG, PNG, HEIC/HEIF, and WebP
+- 🖼️ **Multiple Image Formats** - Supports JPEG, PNG, HEIC/HEIF*, and WebP
+  - *HEIC files are automatically converted to JPEG for browser compatibility
 - ✏️ **Edit & Verify** - Review and correct extracted data before sharing
 - 🔗 **Easy Sharing** - Generate secure links with QR codes
 - 💰 **Fair Splitting** - Each person pays for what they ordered plus proportional tax/tip

@@ -9,40 +9,40 @@ from decimal import Decimal
 from django.utils import timezone
 from .models import Receipt, LineItem
 from .ocr_service import process_receipt_with_ocr
+from .image_utils import convert_to_jpeg_if_needed, get_image_bytes_for_ocr
 
 logger = logging.getLogger(__name__)
 
 
-def process_receipt_async(receipt_id, image_file):
+def process_receipt_async(receipt_id, original_image_file):
     """
     Process receipt OCR in a background thread
     
     Args:
         receipt_id: UUID of the receipt to process
-        image_file: The uploaded image file
+        original_image_file: The original uploaded image file (might be HEIC)
     """
-    # Read the file content before starting the thread
-    # to avoid file being closed before the thread can read it
-    image_file.seek(0)
-    image_content = image_file.read()
-    image_file.seek(0)
+    # Get the image bytes for OCR (handles HEIC)
+    # Note: We pass the original HEIC to OCR, but store as JPEG
+    image_bytes, format_hint = get_image_bytes_for_ocr(original_image_file)
     
     thread = threading.Thread(
         target=_process_receipt_worker,
-        args=(receipt_id, image_content),
+        args=(receipt_id, image_bytes, format_hint),
         daemon=True
     )
     thread.start()
     logger.info(f"Started async OCR processing for receipt {receipt_id}")
 
 
-def _process_receipt_worker(receipt_id, image_content):
+def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
     """
     Worker function that runs in background thread
     
     Args:
         receipt_id: UUID of the receipt to process
         image_content: The image file content as bytes
+        format_hint: Format hint for OCR (JPEG, HEIC, PNG, etc.)
     """
     try:
         # Get the receipt
@@ -53,8 +53,8 @@ def _process_receipt_worker(receipt_id, image_content):
         receipt.save(update_fields=['processing_status'])
         logger.info(f"Processing receipt {receipt_id}")
         
-        # Process with OCR
-        ocr_data = process_receipt_with_ocr(image_content)
+        # Process with OCR (pass format hint for proper handling)
+        ocr_data = process_receipt_with_ocr(image_content, format_hint=format_hint)
         
         # Update receipt with OCR data
         receipt.restaurant_name = ocr_data['restaurant_name']
@@ -100,14 +100,18 @@ def _process_receipt_worker(receipt_id, image_content):
 def create_placeholder_receipt(uploader_name, image):
     """
     Create a placeholder receipt that will be processed async
+    Converts HEIC images to JPEG for browser compatibility
     
     Args:
         uploader_name: Name of the uploader
-        image: The uploaded image file
+        image: The uploaded image file (may be HEIC)
         
     Returns:
         Receipt object
     """
+    # Convert HEIC to JPEG if needed (for browser display)
+    converted_image = convert_to_jpeg_if_needed(image)
+    
     receipt = Receipt.objects.create(
         uploader_name=uploader_name,
         restaurant_name="Processing...",
@@ -116,7 +120,7 @@ def create_placeholder_receipt(uploader_name, image):
         tax=Decimal('0'),
         tip=Decimal('0'),
         total=Decimal('0'),
-        image=image,
+        image=converted_image,
         processing_status='pending'
     )
     

@@ -17,12 +17,13 @@ from ocr_lib import ReceiptOCR, ReceiptData, LineItem
 logger = logging.getLogger(__name__)
 
 
-def process_receipt_with_ocr(image_input):
+def process_receipt_with_ocr(image_input, format_hint=None):
     """
     Process receipt image using OpenAI Vision API to extract structured data
     
     Args:
         image_input: Django UploadedFile object, file-like object, or bytes
+        format_hint: Optional format hint (JPEG, HEIC, PNG, etc.)
         
     Returns:
         Dictionary with receipt data compatible with Django models
@@ -48,16 +49,17 @@ def process_receipt_with_ocr(image_input):
             image_bytes = image_input.read()
             filename = getattr(image_input, 'name', 'uploaded_file')
         
-        # Detect image format from filename or default
-        format_hint = "JPEG"  # Default
-        if filename:
-            lower_name = filename.lower()
-            if lower_name.endswith('.heic') or lower_name.endswith('.heif'):
-                format_hint = "HEIC"
-            elif lower_name.endswith('.png'):
-                format_hint = "PNG"
-            elif lower_name.endswith('.webp'):
-                format_hint = "WEBP"
+        # Use provided format hint or detect from filename
+        if not format_hint:
+            format_hint = "JPEG"  # Default
+            if filename:
+                lower_name = filename.lower()
+                if lower_name.endswith('.heic') or lower_name.endswith('.heif'):
+                    format_hint = "HEIC"
+                elif lower_name.endswith('.png'):
+                    format_hint = "PNG"
+                elif lower_name.endswith('.webp'):
+                    format_hint = "WEBP"
         
         logger.info(f"Processing receipt image: {filename} (format: {format_hint})")
         receipt_data = ocr.process_image_bytes(image_bytes, format=format_hint)
