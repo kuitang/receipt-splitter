@@ -357,8 +357,9 @@ IMPORTANT INSTRUCTIONS:
 5. If subtotal is not explicitly shown, calculate it from items
 6. The sum of items should equal subtotal (or be very close)
 7. Subtotal + tax + tip should equal total (or be very close)
-8. Use 0 for missing tax or tip rather than null
-9. Set confidence_score based on image quality and extraction certainty
+8. If multiple lines containing "Total" appear on the receipt, use the one with the LARGEST value as the final total
+9. Use 0 for missing tax or tip rather than null
+10. Set confidence_score based on image quality and extraction certainty
 
 Return ONLY valid JSON, no other text."""
     

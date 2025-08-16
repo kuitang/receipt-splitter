@@ -9,13 +9,49 @@
         100% { transform: rotate(360deg); }
     }
     
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0) scale(1); }
+        25% { transform: translateY(-8px) scale(0.95); }
+        75% { transform: translateY(4px) scale(1.05); }
+    }
+    
+    @keyframes slideIn {
+        0% { transform: translateX(-20px); opacity: 0; }
+        100% { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes colorShift {
+        0% { border-top-color: #3B82F6; }
+        25% { border-top-color: #8B5CF6; }
+        50% { border-top-color: #EC4899; }
+        75% { border-top-color: #10B981; }
+        100% { border-top-color: #3B82F6; }
+    }
+    
+    @keyframes wiggle {
+        0%, 100% { transform: rotate(-3deg); }
+        50% { transform: rotate(3deg); }
+    }
+    
     .spinner {
         border: 4px solid rgba(59, 130, 246, 0.1);
         border-top: 4px solid #3B82F6;
         border-radius: 50%;
         width: 48px;
         height: 48px;
-        animation: spin 1s linear infinite;
+        animation: spin 1s linear infinite, colorShift 3s ease-in-out infinite;
+    }
+    
+    .bounce-icon {
+        animation: bounce 2s ease-in-out infinite;
+    }
+    
+    .slide-in {
+        animation: slideIn 0.5s ease-out forwards;
+    }
+    
+    .wiggle {
+        animation: wiggle 0.5s ease-in-out;
     }
     
     .processing-blur {
@@ -31,6 +67,38 @@
     
     .pulse-animation {
         animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .receipt-icon {
+        font-size: 3rem;
+        animation: bounce 2s ease-in-out infinite;
+    }
+    
+    .fun-message {
+        animation: slideIn 0.6s ease-out;
+        animation-delay: 0.3s;
+        animation-fill-mode: backwards;
+    }
+    
+    .progress-dots {
+        display: inline-flex;
+        gap: 4px;
+    }
+    
+    .progress-dots span {
+        width: 8px;
+        height: 8px;
+        background: #3B82F6;
+        border-radius: 50%;
+        animation: bounce 1.4s ease-in-out infinite;
+    }
+    
+    .progress-dots span:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    
+    .progress-dots span:nth-child(3) {
+        animation-delay: 0.4s;
     }
 </style>
 {% endblock %}
@@ -60,25 +128,59 @@
     <!-- Loading Modal -->
     {% if is_processing %}
     <div id="processing-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center overflow-hidden relative">
+            <!-- Animated background pattern -->
+            <div class="absolute inset-0 opacity-5">
+                <div class="absolute inset-0" style="background-image: repeating-linear-gradient(45deg, #3B82F6 0px, #3B82F6 10px, transparent 10px, transparent 20px);"></div>
+            </div>
+            
+            <!-- Receipt icon with animation -->
+            <div class="receipt-icon mb-4">📄</div>
+            
+            <!-- Main spinner -->
             <div class="flex justify-center mb-4">
                 <div class="spinner"></div>
             </div>
-            <h2 class="text-2xl font-semibold text-gray-900 mb-2">Analyzing Your Receipt ✨</h2>
-            <p class="text-gray-600 mb-2">Our AI is reading your receipt faster than a speed reader on espresso!</p>
-            <p class="text-sm text-gray-500 pulse-animation">This usually takes 5-10 seconds...</p>
             
-            <div class="mt-6 space-y-2">
-                <div class="flex items-center justify-center space-x-2">
-                    <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <h2 class="text-2xl font-semibold text-gray-900 mb-3 slide-in">Analyzing Your Receipt ✨</h2>
+            
+            <!-- Fun rotating messages -->
+            <div class="fun-message mb-3" id="fun-message">
+                <p class="text-gray-600 font-medium">🚀 Our AI is scanning faster than a caffeinated cashier!</p>
+            </div>
+            
+            <!-- Animated progress dots -->
+            <div class="flex items-center justify-center mb-4">
+                <span class="text-sm text-gray-500 mr-2">Processing</span>
+                <div class="progress-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+            
+            <!-- Status steps with animations -->
+            <div class="mt-6 space-y-3">
+                <div class="flex items-center justify-center space-x-2 slide-in" style="animation-delay: 0.2s;">
+                    <svg class="w-5 h-5 text-green-500 wiggle" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                     </svg>
-                    <span class="text-sm">Receipt uploaded successfully</span>
+                    <span class="text-sm font-medium text-green-700">✅ Receipt uploaded successfully</span>
                 </div>
-                <div id="processing-status" class="flex items-center justify-center space-x-2">
+                
+                <div id="processing-status" class="flex items-center justify-center space-x-2 slide-in" style="animation-delay: 0.4s;">
                     <div class="spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
-                    <span class="text-sm">Extracting text with AI vision...</span>
+                    <span class="text-sm font-medium text-blue-700">🔍 AI is reading every line item...</span>
                 </div>
+                
+                <div id="almost-done" class="flex items-center justify-center space-x-2 opacity-0" style="transition: opacity 0.5s;">
+                    <span class="text-sm font-medium text-purple-700">🎉 Almost there...</span>
+                </div>
+            </div>
+            
+            <!-- Estimated time with countdown -->
+            <div class="mt-4 text-xs text-gray-400">
+                <span id="time-estimate">Estimated time: 5-10 seconds</span>
             </div>
         </div>
     </div>
@@ -283,7 +385,8 @@
 <script src="{% static 'js/receipt-editor.js' %}"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
-const receiptId = "{{ receipt.id }}";
+const receiptSlug = "{{ receipt.slug }}";
+const receiptId = "{{ receipt.id }}";  // Keep for backward compatibility
 const isProcessing = {{ is_processing|lower }};
 
 // Functions from receipt-editor.js are now available:
@@ -335,7 +438,7 @@ if (isProcessing) {
         pollCount++;
         
         try {
-            const response = await fetch(`/status/${receiptId}/`);
+            const response = await fetch(`/status/${receiptSlug}/`);
             const data = await response.json();
             
             if (data.status === 'completed') {
@@ -367,13 +470,13 @@ if (isProcessing) {
 
 // Don't override functions here - we'll do it in DOMContentLoaded at the bottom
 
-async function saveReceipt() {
+async function saveReceipt(skipReload = false) {
     if (isProcessing) return;
     
     const data = getReceiptData();
     
     try {
-        const response = await fetch(`/update/${receiptId}/`, {
+        const response = await fetch(`/update/${receiptSlug}/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -387,17 +490,23 @@ async function saveReceipt() {
         if (response.ok) {
             // Check validation status from backend
             if (result.is_balanced) {
-                alert('Receipt saved successfully!');
+                // Only reload if not called from finalize flow
+                if (!skipReload) {
+                    location.reload();
+                }
             } else {
+                // Keep this alert as it warns about balance issues
                 alert('Receipt saved, but it doesn\'t balance. Please review the errors shown above.');
             }
             
             // Update UI based on backend validation
             checkAndDisplayBalance();
         } else {
+            // Keep error alerts as they require user attention
             alert('Error saving receipt: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
+        // Keep error alerts as they require user attention
         alert('Error saving receipt: ' + error.message);
     }
 }
@@ -407,6 +516,7 @@ async function finalizeReceipt() {
     
     // Check balance before allowing finalization
     if (!receiptIsBalanced) {
+        // Keep this alert as it prevents invalid finalization
         alert('Cannot finalize receipt: The receipt doesn\'t balance. Please fix the errors shown above.');
         return;
     }
@@ -415,10 +525,11 @@ async function finalizeReceipt() {
         return;
     }
     
-    await saveReceipt();
+    // Pass true to skip reload when saving during finalization
+    await saveReceipt(true);
     
     try {
-        const response = await fetch(`/finalize/${receiptId}/`, {
+        const response = await fetch(`/finalize/${receiptSlug}/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')
@@ -437,9 +548,11 @@ async function finalizeReceipt() {
             if (error.validation_errors) {
                 console.error('Validation errors:', error.validation_errors);
             }
+            // Keep error alerts as they require user attention
             alert('Error finalizing receipt: ' + errorMessage);
         }
     } catch (error) {
+        // Keep error alerts as they require user attention
         alert('Error finalizing receipt: ' + error.message);
     }
 }
@@ -466,6 +579,57 @@ function getCookie(name) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Add fun rotating messages for the processing modal
+    if (isProcessing) {
+        const messages = [
+            "🚀 Our AI is scanning faster than a caffeinated cashier!",
+            "🤖 Teaching robots to read receipts since 2024...",
+            "🔍 Zooming in on those tiny printed numbers...",
+            "⚡ Processing at the speed of light (almost)!",
+            "🎯 Extracting prices with laser precision...",
+            "🧮 Crunching numbers like a hungry calculator...",
+            "📸 Pixels to prices in progress...",
+            "🎪 Watch as we turn images into itemized lists!",
+            "🌟 Making receipt magic happen..."
+        ];
+        
+        let messageIndex = 0;
+        const messageElement = document.getElementById('fun-message');
+        
+        // Rotate messages every 2 seconds
+        if (messageElement) {
+            setInterval(() => {
+                messageIndex = (messageIndex + 1) % messages.length;
+                messageElement.innerHTML = `<p class="text-gray-600 font-medium">${messages[messageIndex]}</p>`;
+                messageElement.classList.add('wiggle');
+                setTimeout(() => messageElement.classList.remove('wiggle'), 500);
+            }, 2000);
+        }
+        
+        // Show "Almost done" message after 5 seconds
+        setTimeout(() => {
+            const almostDone = document.getElementById('almost-done');
+            if (almostDone) {
+                almostDone.style.opacity = '1';
+            }
+        }, 5000);
+        
+        // Update time estimate countdown
+        let timeLeft = 10;
+        const timeEstimate = document.getElementById('time-estimate');
+        if (timeEstimate) {
+            const countdown = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    timeEstimate.textContent = `Estimated time: ${timeLeft} seconds`;
+                } else {
+                    timeEstimate.textContent = "Just a moment more...";
+                    clearInterval(countdown);
+                }
+            }, 1000);
+        }
+    }
+    
     // Wrap addItem and removeItem to check isProcessing
     if (isProcessing && window.addItem) {
         const originalAddItem = window.addItem;

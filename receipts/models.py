@@ -2,6 +2,8 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 import uuid
+import random
+import string
 
 
 class Receipt(models.Model):
@@ -13,6 +15,7 @@ class Receipt(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    slug = models.CharField(max_length=10, unique=True, db_index=True, blank=True)
     uploader_name = models.CharField(max_length=50)
     restaurant_name = models.CharField(max_length=100)
     date = models.DateTimeField()
@@ -28,13 +31,44 @@ class Receipt(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     
+    @staticmethod
+    def generate_unique_slug(length=6, max_attempts=100):
+        """Generate a unique short slug for the receipt.
+        
+        Args:
+            length: Length of the slug (default 6 characters)
+            max_attempts: Maximum number of attempts to generate a unique slug
+        
+        Returns:
+            A unique slug string
+        
+        Raises:
+            ValueError: If unable to generate a unique slug after max_attempts
+        """
+        chars = string.ascii_lowercase + string.digits
+        
+        for attempt in range(max_attempts):
+            slug = ''.join(random.choice(chars) for _ in range(length))
+            if not Receipt.objects.filter(slug=slug).exists():
+                return slug
+        
+        # If we still can't find a unique slug, try longer ones
+        for extra_length in range(1, 4):
+            slug = ''.join(random.choice(chars) for _ in range(length + extra_length))
+            if not Receipt.objects.filter(slug=slug).exists():
+                return slug
+        
+        raise ValueError(f"Unable to generate unique slug after {max_attempts} attempts")
+    
     def save(self, *args, **kwargs):
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(days=30)
+        if not self.slug:
+            self.slug = self.generate_unique_slug()
         super().save(*args, **kwargs)
     
     def get_absolute_url(self):
-        return f'/r/{self.id}/'
+        return f'/r/{self.slug}/'
     
     def __str__(self):
         return f"{self.restaurant_name} - {self.date.strftime('%Y-%m-%d')} - ${self.total}"

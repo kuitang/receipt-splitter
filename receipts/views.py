@@ -52,15 +52,15 @@ def upload_receipt(request):
     # Start async processing
     process_receipt_async(receipt.id, receipt_image)
     
-    # Redirect to edit page (will show loading state)
-    return redirect('edit_receipt', receipt_id=receipt.id)
+    # Redirect to edit page using slug (will show loading state)
+    return redirect('edit_receipt_by_slug', receipt_slug=receipt.slug)
 
 
 def edit_receipt(request, receipt_id):
     receipt = get_object_or_404(Receipt, id=receipt_id)
     
     if receipt.is_finalized:
-        return redirect('view_receipt', receipt_id=receipt_id)
+        return redirect('view_receipt_by_slug', receipt_slug=receipt.slug)
     
     if request.session.get('receipt_id') != str(receipt_id):
         messages.error(request, 'You can only edit receipts you uploaded')
@@ -186,7 +186,7 @@ def view_receipt(request, receipt_id):
         
         if not name or len(name) < 2 or len(name) > 50:
             messages.error(request, 'Please provide a valid name (2-50 characters)')
-            return redirect('view_receipt', receipt_id=receipt_id)
+            return redirect('view_receipt_by_slug', receipt_slug=receipt.slug)
         
         existing_names = list(receipt.viewers.values_list('viewer_name', flat=True))
         existing_names.extend(receipt.items.filter(claims__isnull=False).values_list('claims__claimer_name', flat=True))
@@ -272,7 +272,8 @@ def view_receipt(request, receipt_id):
         'show_name_form': not viewer_name and not is_uploader,
         'participant_totals': participant_list,
         'total_claimed': total_claimed,
-        'total_unclaimed': total_unclaimed
+        'total_unclaimed': total_unclaimed,
+        'share_url': request.build_absolute_uri(receipt.get_absolute_url())
     })
 
 
@@ -367,3 +368,52 @@ def get_receipt_content(request, receipt_id):
         'receipt': receipt,
         'items': receipt.items.all()
     })
+
+
+# Slug-based wrapper functions for backward compatibility
+def edit_receipt_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return edit_receipt(request, receipt.id)
+
+
+def update_receipt_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return update_receipt(request, receipt.id)
+
+
+def finalize_receipt_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return finalize_receipt(request, receipt.id)
+
+
+def view_receipt_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return view_receipt(request, receipt.id)
+
+
+def claim_item_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return claim_item(request, receipt.id)
+
+
+def unclaim_item_by_slug(request, receipt_slug, claim_id):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return unclaim_item(request, receipt.id, claim_id)
+
+
+def check_processing_status_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return check_processing_status(request, receipt.id)
+
+
+def get_receipt_content_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return get_receipt_content(request, receipt.id)

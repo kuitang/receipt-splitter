@@ -104,7 +104,7 @@
                     <div class="flex-1">
                         <h3 class="font-semibold text-lg">{{ item_data.item.name }}</h3>
                         <p class="text-gray-600 text-sm">
-                            ${{ item_data.item.unit_price }} × {{ item_data.item.quantity }} = ${{ item_data.item.total_price }}
+                            ${{ item_data.item.unit_price|floatformat:2 }} × {{ item_data.item.quantity }} = ${{ item_data.item.total_price|floatformat:2 }}
                         </p>
                         <p class="text-gray-500 text-xs mt-1">
                             + Tax: ${{ item_data.item.prorated_tax|floatformat:2 }} 
@@ -177,7 +177,7 @@
                 <strong>You uploaded this receipt.</strong> Share this link with your friends:
             </p>
             <div class="flex-1 max-w-lg">
-                {% include 'receipts/partials/copy_link_widget.html' with share_url=request.build_absolute_uri widget_id='share-link-input' border_color='border-blue-300' input_bg='bg-white' button_bg='bg-white' button_hover='hover:bg-blue-100' %}
+                {% include 'receipts/partials/copy_link_widget.html' with share_url=share_url widget_id='share-link-input' border_color='border-blue-300' input_bg='bg-white' button_bg='bg-white' button_hover='hover:bg-blue-100' %}
             </div>
         </div>
     </div>
@@ -190,7 +190,8 @@
 {% block extra_scripts %}
 {% if viewer_name and not is_uploader %}
 <script>
-const receiptId = "{{ receipt.id }}";
+const receiptSlug = "{{ receipt.slug }}";
+const receiptId = "{{ receipt.id }}";  // Keep for backward compatibility
 let currentClaims = {};
 
 function updateTotal() {
@@ -223,6 +224,7 @@ async function confirmClaims() {
     });
     
     if (claims.length === 0) {
+        // Keep this alert as it requires user action
         alert('Please select items to claim');
         return;
     }
@@ -234,7 +236,7 @@ async function confirmClaims() {
     
     for (const claim of claims) {
         try {
-            const response = await fetch(`/claim/${receiptId}/`, {
+            const response = await fetch(`/claim/${receiptSlug}/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -245,17 +247,19 @@ async function confirmClaims() {
             
             if (!response.ok) {
                 const error = await response.json();
+                // Keep error alerts as they require user attention
                 alert('Error claiming item: ' + error.error);
                 return;
             }
         } catch (error) {
+            // Keep error alerts as they require user attention
             alert('Error claiming items: ' + error.message);
             return;
         }
     }
     
-    alert('Items claimed successfully! You have 30 seconds to undo if needed.');
-    setTimeout(() => location.reload(), 2000);
+    // Just reload the page to show the updated claims
+    location.reload();
 }
 
 function getCookie(name) {
