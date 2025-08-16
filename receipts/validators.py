@@ -20,7 +20,6 @@ class FileUploadValidator:
     
     ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-    MAX_IMAGE_DIMENSION = 4000  # Max width or height
     
     @classmethod
     def validate_image_file(cls, uploaded_file):
@@ -63,9 +62,7 @@ class FileUploadValidator:
             uploaded_file.seek(0)
             image = Image.open(uploaded_file)
             
-            # Check image dimensions
-            if image.width > cls.MAX_IMAGE_DIMENSION or image.height > cls.MAX_IMAGE_DIMENSION:
-                raise ValidationError(f'Image dimensions too large (max {cls.MAX_IMAGE_DIMENSION}x{cls.MAX_IMAGE_DIMENSION})')
+            # No dimension restrictions - support all image sizes
             
             # Strip EXIF data for privacy (optional but recommended)
             # This removes GPS location and other metadata

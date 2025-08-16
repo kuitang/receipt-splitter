@@ -1,133 +1,50 @@
 # System Architecture
 
-## Overview
+## Key Files & Locations
 
-Communist Style is a Django-based web application for splitting restaurant bills based on actual consumption. The system uses OCR to digitize receipts and provides a frictionless, account-free experience.
+### Core Application
+- **models.py:18** - Receipt model with UUID/slug, 30-day expiry
+- **models.py:77** - LineItem with prorated tax/tip calculations  
+- **models.py:111** - Claim model with 30-second grace period
+- **views.py:66** - upload_receipt with OCR processing
+- **views.py:136** - update_receipt with validation
+- **views.py:253** - view_receipt with claiming interface
+- **ocr_service.py** - OpenAI Vision API integration via lib/ocr/
+
+### URL Routing
+- **urls.py** - Dual UUID/slug support for backward compatibility
+- **receipt_splitter/urls.py** - Main project routing
+
+### Configuration
+- **settings.py** - Django config with rate limiting, security headers
+- **CLAUDE.md** - Development instructions and workflow
 
 ## Technology Stack
-
-- **Backend**: Django 5.2.5
-- **Database**: SQLite (dev) / PostgreSQL (prod ready)
-- **Frontend**: Server-side rendering with HTMX + Tailwind CSS
-- **OCR**: OpenAI Vision API (GPT-4o)
-- **Real-time**: Django Channels (configured, not yet implemented)
-- **Image Generation**: OpenAI DALL-E 3
-
-## Project Structure
-
-```
-receipt-splitter/
-├── receipt_splitter/       # Django project settings
-│   ├── settings.py        # Configuration with environment variables
-│   ├── urls.py            # URL routing
-│   ├── asgi.py            # ASGI config for Channels
-│   └── wsgi.py            # WSGI config
-├── receipts/              # Main application
-│   ├── models.py          # Data models
-│   ├── views.py           # Request handlers
-│   ├── urls.py            # App URL patterns
-│   ├── tests.py           # Unit tests
-│   └── ocr_service.py     # OCR integration
-├── templates/             # HTML templates
-│   ├── base.html          # Base template
-│   └── receipts/          # App templates
-├── static/                # Static files (CSS, JS)
-├── media/                 # User uploads
-├── venv/                  # Virtual environment
-└── generate_images.py     # DALL-E image generation script
-```
+- Django 5.2.5, SQLite, HTMX + Tailwind CSS
+- OpenAI Vision API (GPT-4o), DALL-E 3 for images
+- Session-based auth, no user accounts required
 
 ## Data Flow
+1. Upload → OCR processing → placeholder receipt with slug
+2. Edit → validation → save (allows invalid data) 
+3. Finalize → validation required → shareable URL
+4. Claim → name entry → item selection → 30s undo window
 
-1. **Upload Flow**
-   - User uploads receipt image
-   - OCR service extracts structured data
-   - Receipt and line items saved to database
-   - User redirected to edit interface
+## Security Features
+- UUID4 + 6-char slug for receipt URLs
+- Session-based access control with edit tokens  
+- Rate limiting (10/min upload, 30/min update, 15/min claim)
+- Input validation and XSS protection
+- Images stored in memory cache, not filesystem
 
-2. **Edit Flow**
-   - User reviews/modifies extracted data
-   - Real-time proration calculations
-   - Save changes or finalize receipt
-   - Generate shareable URL
+## API Endpoints
+- POST /upload/ → creates receipt, returns edit URL
+- GET /r/{slug}/ → view/claim interface
+- POST /update/{slug}/ → save changes (edit permission required)
+- POST /finalize/{slug}/ → lock receipt (uploader only)
+- POST /claim/{slug}/ → claim items (session-based)
 
-3. **Claim Flow**
-   - Invitees access via UUID URL
-   - Enter name (collision detection)
-   - Select items to claim
-   - 30-second grace period for undo
-
-## Database Schema
-
-### Receipt
-- UUID primary key for security
-- Stores totals, restaurant info, uploader name
-- 30-day automatic expiration
-- Finalization lock prevents editing
-
-### LineItem
-- Foreign key to Receipt
-- Quantity-based items
-- Prorated tax/tip calculations
-- Tracks available vs claimed quantities
-
-### Claim
-- Links users to items via session
-- Grace period for undo
-- Quantity-based claiming
-- Session-scoped identity
-
-### ActiveViewer
-- Presence tracking per receipt
-- Session-based identification
-- Last seen timestamp
-
-## Security Measures
-
-1. **URL Security**: UUID4 (cryptographically random)
-2. **Session Management**: HttpOnly, Secure cookies
-3. **CSRF Protection**: Django middleware
-4. **Input Validation**: Server-side validation
-5. **Rate Limiting**: Planned for production
-
-## API Design
-
-RESTful endpoints with JSON responses:
-- `POST /upload/` - Receipt upload
-- `GET /r/{uuid}/` - View receipt
-- `POST /update/{uuid}/` - Update receipt
-- `POST /finalize/{uuid}/` - Finalize receipt
-- `POST /claim/{uuid}/` - Claim items
-- `DELETE /unclaim/{uuid}/{id}/` - Undo claim
-
-## Frontend Architecture
-
-- **Server-side rendering**: Django templates
-- **Progressive enhancement**: HTMX for dynamic updates
-- **Styling**: Tailwind CSS via CDN
-- **JavaScript**: Vanilla JS for calculations
-- **Mobile-first**: Responsive design
-
-## Deployment Considerations
-
-1. **Environment Variables**
-   - OPENAI_API_KEY
-   - SECRET_KEY (production)
-   - DATABASE_URL (production)
-
-2. **Static Files**
-   - WhiteNoise or CDN for production
-   - Media storage for receipts
-
-3. **Scaling**
-   - Stateless design allows horizontal scaling
-   - Redis for production Channel Layer
-   - PostgreSQL for production database
-
-## Future Enhancements
-
-1. **Real-time Updates**: Complete WebSocket implementation
-2. **Payment Integration**: Venmo, PayPal, Zelle APIs
-3. **Receipt History**: Optional email/phone registration
-4. **Analytics**: Usage tracking and insights
-5. **Multi-language**: i18n support
+## Testing & Validation
+- Unit tests in receipts/tests.py (15 tests)
+- Integration tests in integration_test/
+- Balance validation prevents finalization of unbalanced receipts

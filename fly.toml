@@ -1,0 +1,38 @@
+# fly.toml app configuration file generated for receipt-splitter on 2025-08-16
+
+app = "receipt-splitter"
+primary_region = "ord"
+
+[build]
+
+[env]
+  DEBUG = "False"
+  DJANGO_SETTINGS_MODULE = "receipt_splitter.settings"
+  SECURE_SSL_REDIRECT = "True"
+  SESSION_COOKIE_SECURE = "True"
+  CSRF_COOKIE_SECURE = "True"
+  SECURE_HSTS = "True"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/"
+    timeout = "5s"
+
+[processes]
+  web = "gunicorn receipt_splitter.wsgi:application --bind 0.0.0.0:8000"
+
+[[statics]]
+  guest_path = "/code/staticfiles"
+  url_prefix = "/static/"
+
+[deploy]
+  release_command = "python manage.py migrate"

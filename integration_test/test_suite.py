@@ -689,6 +689,112 @@ class UIValidationTest(IntegrationTestBase):
         except Exception as e:
             print(f"\n❌ Unexpected error: {e}")
             return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+    
+    def test_responsive_images(self) -> TestResult:
+        """Test CSS-based responsive image implementation"""
+        print_test_header("UI: Responsive Images Test")
+        
+        try:
+            print("\n📱 Testing CSS Responsive Image Implementation")
+            
+            # Test the main page for responsive images
+            response = self.client.get('/')
+            assert response.status_code == 200, "Index page should load"
+            content = response.content.decode('utf-8')
+            
+            # Check for mobile-optimized images
+            mobile_images = [
+                'step_upload_mobile.png',
+                'step_share_mobile.png', 
+                'step_split_mobile.png'
+            ]
+            
+            for mobile_img in mobile_images:
+                assert mobile_img in content, f"Should reference {mobile_img}"
+                print(f"   ✅ Mobile-optimized image {mobile_img} referenced")
+            
+            # Check for responsive CSS classes
+            responsive_classes = [
+                'w-20 h-20',        # Base mobile size
+                'sm:w-32 sm:h-32',  # Small screen size
+                'md:w-40 md:h-40'   # Medium screen size
+            ]
+            
+            for css_class in responsive_classes:
+                assert css_class in content, f"Should have responsive CSS class {css_class}"
+                print(f"   ✅ Responsive CSS class {css_class} found")
+            
+            # Verify images use object-cover for proper scaling
+            assert 'object-cover' in content, "Should use object-cover for proper image scaling"
+            print("   ✅ object-cover CSS class found")
+            
+            print("\n✅ CSS responsive images test PASSED")
+            return TestResult(TestResult.PASSED)
+            
+        except AssertionError as e:
+            print(f"\n❌ Responsive images test failed: {e}")
+            return TestResult(TestResult.FAILED, str(e))
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}")
+            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+    
+    def test_image_links_valid(self) -> TestResult:
+        """Test that all image links are valid and accessible"""
+        print_test_header("UI: Image Links Validation Test")
+        
+        try:
+            print("\n🔗 Testing Image Link Validity")
+            
+            # Get the homepage content
+            response = self.client.get('/')
+            assert response.status_code == 200, "Index page should load"
+            content = response.content.decode('utf-8')
+            
+            # Extract all image URLs from the page
+            import re
+            
+            # Find all image sources 
+            img_src_pattern = r'src=["\']([^"\']*\.png)["\']'
+            img_urls = re.findall(img_src_pattern, content)
+            all_image_urls = list(set(img_urls))
+            
+            print(f"   Found {len(all_image_urls)} unique image references:")
+            for url in all_image_urls:
+                print(f"     - {url}")
+            
+            # Test each image URL for accessibility  
+            for img_url in all_image_urls:
+                if img_url.startswith('/media/'):
+                    # Test that the image is accessible
+                    response = self.client.get(img_url)
+                    assert response.status_code == 200, f"Image {img_url} should be accessible"
+                    
+                    # Verify it's actually an image
+                    content_type = response.get('Content-Type', '')
+                    assert content_type.startswith('image/'), f"Image {img_url} should have image content type, got {content_type}"
+                    
+                    print(f"   ✅ {img_url} accessible (Content-Type: {content_type})")
+            
+            # Verify expected mobile-optimized step images are present
+            expected_mobile_images = [
+                '/media/step_upload_mobile.png',
+                '/media/step_share_mobile.png', 
+                '/media/step_split_mobile.png'
+            ]
+            
+            for expected_img in expected_mobile_images:
+                assert expected_img in all_image_urls, f"Expected image {expected_img} not found in HTML"
+                print(f"   ✅ Required mobile image {expected_img} found in HTML")
+            
+            print("\n✅ Image links validation test PASSED")
+            return TestResult(TestResult.PASSED)
+            
+        except AssertionError as e:
+            print(f"\n❌ Image links test failed: {e}")
+            return TestResult(TestResult.FAILED, str(e))
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}")
+            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
 
 
 class PerformanceTest(IntegrationTestBase):
@@ -810,6 +916,8 @@ def run_all_tests():
         ui_test = UIValidationTest()
         results.append(("Frontend HEIC Support", ui_test.test_frontend_heic_support()))
         results.append(("UI Design Consistency", ui_test.test_ui_design_consistency()))
+        results.append(("Responsive Images", ui_test.test_responsive_images()))
+        results.append(("Image Links Validation", ui_test.test_image_links_valid()))
         
         # Performance tests
         results.append(("Large Receipt Performance", performance_test.test_large_receipt()))
