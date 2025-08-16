@@ -66,10 +66,10 @@
                 <input type="file" 
                        name="receipt_image" 
                        id="receipt_image" 
-                       accept="image/*"
+                       accept="image/*,.heic,.heif,image/heic,image/heif"
                        required
                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <p class="text-xs text-gray-500 mt-1">Supported formats: JPEG, PNG, HEIF, WebP (Max 10MB)</p>
+                <p class="text-xs text-gray-500 mt-1">Supported formats: JPEG, PNG, HEIC/HEIF, WebP (Max 10MB)</p>
             </div>
 
             <button type="submit" 
@@ -78,6 +78,48 @@
             </button>
         </form>
     </div>
+    
+    <script>
+    // Enhanced file input validation and feedback
+    document.getElementById('receipt_image').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Check file size
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            alert('File size must be less than 10MB');
+            e.target.value = '';
+            return;
+        }
+        
+        // Get file extension
+        const fileName = file.name.toLowerCase();
+        const validExtensions = ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp', '.bmp', '.gif'];
+        const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+        
+        if (!hasValidExtension) {
+            // Check MIME type as fallback
+            const validMimeTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'image/bmp', 'image/gif'];
+            if (!validMimeTypes.includes(file.type) && !file.type.startsWith('image/')) {
+                alert('Please upload a valid image file (JPEG, PNG, HEIC, WebP, etc.)');
+                e.target.value = '';
+                return;
+            }
+        }
+        
+        // Show file info
+        const fileInfo = document.createElement('p');
+        fileInfo.className = 'text-sm text-green-600 mt-2';
+        fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+        
+        // Remove any existing file info
+        const existingInfo = e.target.parentElement.querySelector('.text-green-600');
+        if (existingInfo) existingInfo.remove();
+        
+        e.target.parentElement.appendChild(fileInfo);
+    });
+    </script>
 
     <div class="mt-12 grid md:grid-cols-3 gap-6">
         {% for image in sample_images %}

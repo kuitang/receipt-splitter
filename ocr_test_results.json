@@ -1,0 +1,54 @@
+{
+  "restaurant_name": "The Gin Mill (NY)",
+  "date": "2023-10-06T00:00:00",
+  "items": [
+    {
+      "name": "WELL TEQUILA",
+      "quantity": 1,
+      "unit_price": 5.0,
+      "total_price": 5.0
+    },
+    {
+      "name": "AMARETTO",
+      "quantity": 1,
+      "unit_price": 17.0,
+      "total_price": 17.0
+    },
+    {
+      "name": "PALOMA",
+      "quantity": 1,
+      "unit_price": 8.5,
+      "total_price": 8.5
+    },
+    {
+      "name": "HAPPY HOUR BEER",
+      "quantity": 1,
+      "unit_price": 5.0,
+      "total_price": 5.0
+    },
+    {
+      "name": "WELL GIN",
+      "quantity": 1,
+      "unit_price": 5.0,
+      "total_price": 5.0
+    },
+    {
+      "name": "CONEY ISLAND DRAFT",
+      "quantity": 1,
+      "unit_price": 8.0,
+      "total_price": 8.0
+    },
+    {
+      "name": "MEZCAL ME GINGER",
+      "quantity": 1,
+      "unit_price": 12.0,
+      "total_price": 12.0
+    }
+  ],
+  "subtotal": 60.5,
+  "tax": 0.0,
+  "tip": 0.0,
+  "total": 64.0,
+  "confidence_score": 0.95,
+  "raw_text": "```json\n{\n    \"restaurant_name\": \"The Gin Mill (NY)\",\n    \"date\": \"2023-10-06\",\n    \"items\": [\n        {\n            \"name\": \"WELL TEQUILA\",\n            \"quantity\": 1,\n            \"unit_price\": 5.00,\n            \"total_price\": 5.00\n        },\n        {\n            \"name\": \"AMARETTO\",\n            \"quantity\": 1,\n            \"unit_price\": 17.00,\n            \"total_price\": 17.00\n        },\n        {\n            \"name\": \"PALOMA\",\n            \"quantity\": 1,\n            \"unit_price\": 8.50,\n            \"total_price\": 8.50\n        },\n        {\n            \"name\": \"HAPPY HOUR BEER\",\n            \"quantity\": 1,\n            \"unit_price\": 5.00,\n            \"total_price\": 5.00\n        },\n        {\n            \"name\": \"WELL GIN\",\n            \"quantity\": 1,\n            \"unit_price\": 5.00,\n            \"total_price\": 5.00\n        },\n        {\n            \"name\": \"CONEY ISLAND DRAFT\",\n            \"quantity\": 1,\n            \"unit_price\": 8.00,\n            \"total_price\": 8.00\n        },\n        {\n            \"name\": \"MEZCAL ME GINGER\",\n            \"quantity\": 1,\n            \"unit_price\": 12.00,\n            \"total_price\": 12.00\n        }\n    ],\n    \"subtotal\": 60.50,\n    \"tax\": 0,\n    \"tip\": 0,\n    \"total\": 64.00,\n    \"confidence_score\": 0.95,\n    \"notes\": \"Subtotal calculated from items. No tax or tip shown. Date assumed as today.\"\n}\n```"
+}

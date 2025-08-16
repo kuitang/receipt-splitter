@@ -1,106 +1,104 @@
-import base64
-import json
+"""
+OCR Service for Django app - integrates with ocr_lib
+"""
+
+import logging
+import sys
+from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
-from io import BytesIO
-from PIL import Image
-from openai import OpenAI
 from django.conf import settings
+
+# Add parent directory to path for ocr_lib import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from ocr_lib import ReceiptOCR, ReceiptData, LineItem
+
+logger = logging.getLogger(__name__)
 
 
 def process_receipt_with_ocr(image_file):
     """
     Process receipt image using OpenAI Vision API to extract structured data
     
-    For development/testing, returns mock data if OpenAI API key is not configured
+    Args:
+        image_file: Django UploadedFile object or file-like object
+        
+    Returns:
+        Dictionary with receipt data compatible with Django models
     """
     
+    # Check if API key is configured
     if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your_api_key_here":
+        logger.warning("OpenAI API key not configured, using mock data")
         return get_mock_receipt_data()
     
     try:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # Initialize OCR processor
+        ocr = ReceiptOCR(settings.OPENAI_API_KEY)
         
-        image = Image.open(image_file)
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
+        # Process the uploaded image
+        # Read file content and process as bytes
+        image_file.seek(0)  # Ensure we're at the start
+        image_bytes = image_file.read()
         
-        buffer = BytesIO()
-        image.save(buffer, format='JPEG', quality=85)
-        image_data = buffer.getvalue()
+        # Detect image format from filename
+        filename = getattr(image_file, 'name', 'uploaded_file')
+        format_hint = "JPEG"  # Default
+        if filename:
+            lower_name = filename.lower()
+            if lower_name.endswith('.heic') or lower_name.endswith('.heif'):
+                format_hint = "HEIC"
+            elif lower_name.endswith('.png'):
+                format_hint = "PNG"
+            elif lower_name.endswith('.webp'):
+                format_hint = "WEBP"
         
-        base64_image = base64.b64encode(image_data).decode('utf-8')
+        logger.info(f"Processing receipt image: {filename} (format: {format_hint})")
+        receipt_data = ocr.process_image_bytes(image_bytes, format=format_hint)
         
-        prompt = """Analyze this receipt image and extract the following information in JSON format:
-        {
-            "restaurant_name": "string",
-            "date": "YYYY-MM-DD HH:MM:SS",
-            "items": [
-                {
-                    "name": "string",
-                    "quantity": integer,
-                    "unit_price": number,
-                    "total_price": number
-                }
-            ],
-            "subtotal": number,
-            "tax": number,
-            "tip": number,
-            "total": number
-        }
+        # Validate the extracted data
+        is_valid, errors = receipt_data.validate()
+        if not is_valid:
+            logger.warning(f"Receipt validation issues: {errors}")
         
-        Important:
-        - Extract all line items with their quantities and prices
-        - If quantity is not specified, assume 1
-        - Ensure subtotal + tax + tip = total
-        - All monetary values should be in dollars with 2 decimal places
-        - If date is not visible, use today's date
-        - If tip is not shown, set it to 0
-        """
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=1000,
-            temperature=0.1
-        )
-        
-        result_text = response.choices[0].message.content
-        
-        json_start = result_text.find('{')
-        json_end = result_text.rfind('}') + 1
-        if json_start != -1 and json_end != 0:
-            result_text = result_text[json_start:json_end]
-        
-        data = json.loads(result_text)
-        
-        if isinstance(data['date'], str):
-            try:
-                data['date'] = datetime.strptime(data['date'], '%Y-%m-%d %H:%M:%S')
-            except:
-                try:
-                    data['date'] = datetime.strptime(data['date'], '%Y-%m-%d')
-                except:
-                    data['date'] = datetime.now()
-        
-        return data
+        # Convert to Django-compatible format
+        return receipt_data_to_dict(receipt_data)
         
     except Exception as e:
-        print(f"OCR Error: {str(e)}")
+        logger.error(f"OCR processing failed: {str(e)}")
+        logger.info("Falling back to mock data")
         return get_mock_receipt_data()
+
+
+def receipt_data_to_dict(receipt_data: ReceiptData) -> dict:
+    """
+    Convert ReceiptData object to dictionary format expected by Django views
+    
+    Args:
+        receipt_data: ReceiptData object from OCR
+        
+    Returns:
+        Dictionary with receipt information
+    """
+    return {
+        "restaurant_name": receipt_data.restaurant_name,
+        "date": receipt_data.date,
+        "items": [
+            {
+                "name": item.name,
+                "quantity": item.quantity,
+                "unit_price": float(item.unit_price),
+                "total_price": float(item.total_price)
+            }
+            for item in receipt_data.items
+        ],
+        "subtotal": float(receipt_data.subtotal),
+        "tax": float(receipt_data.tax),
+        "tip": float(receipt_data.tip),
+        "total": float(receipt_data.total),
+        "confidence_score": receipt_data.confidence_score
+    }
 
 
 def get_mock_receipt_data():
@@ -137,5 +135,6 @@ def get_mock_receipt_data():
         "subtotal": 35.94,
         "tax": 3.24,
         "tip": 6.00,
-        "total": 45.18
+        "total": 45.18,
+        "confidence_score": 1.0  # Mock data is 100% confident
     }

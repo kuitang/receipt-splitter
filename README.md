@@ -5,6 +5,7 @@ An ironically named web application that helps groups split bills based on actua
 ## Features
 
 - 📸 **OCR Receipt Scanning** - Upload a photo and automatically extract items
+- 🖼️ **Multiple Image Formats** - Supports JPEG, PNG, HEIC/HEIF, and WebP
 - ✏️ **Edit & Verify** - Review and correct extracted data before sharing
 - 🔗 **Easy Sharing** - Generate secure links with QR codes
 - 💰 **Fair Splitting** - Each person pays for what they ordered plus proportional tax/tip
@@ -34,7 +35,7 @@ source venv/bin/activate
 
 3. Install dependencies:
 ```bash
-pip install django python-dotenv pillow channels daphne openai
+pip install django python-dotenv pillow pillow-heif channels daphne openai
 ```
 
 4. Set up environment variables:

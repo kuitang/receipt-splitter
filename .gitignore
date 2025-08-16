@@ -11,3 +11,4 @@ run/
 .coverage
 htmlcov/
 .pytest_cache/openai_key.sh
+.env
