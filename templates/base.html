@@ -16,35 +16,51 @@
     
     <script>
     // Global copy function for share links
-    function copyShareUrl(inputId) {
+    function copyShareUrl(inputId, event) {
         inputId = inputId || 'share-url';
         const input = document.getElementById(inputId);
         input.select();
         input.setSelectionRange(0, 99999); // For mobile devices
         
-        navigator.clipboard.writeText(input.value).then(() => {
-            // Show temporary success feedback
-            const button = event.currentTarget;
-            const originalTitle = button.title;
-            button.title = 'Copied!';
-            button.classList.add('bg-green-100');
-            
-            setTimeout(() => {
-                button.title = originalTitle;
-                button.classList.remove('bg-green-100');
-            }, 2000);
-        }).catch(err => {
-            // Fallback for older browsers
-            document.execCommand('copy');
-            // Show temporary success feedback for fallback
-            const button = event.currentTarget;
+        // Get the button that was clicked
+        const button = event ? event.currentTarget : null;
+        
+        // Function to show success feedback
+        function showSuccess() {
             if (button) {
+                const originalTitle = button.title;
+                button.title = 'Copied!';
                 button.classList.add('bg-green-100');
+                
                 setTimeout(() => {
+                    button.title = originalTitle;
                     button.classList.remove('bg-green-100');
                 }, 2000);
             }
-        });
+        }
+        
+        // Try modern clipboard API first, fall back to execCommand
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(input.value).then(() => {
+                showSuccess();
+            }).catch(err => {
+                // If clipboard API fails, try execCommand
+                try {
+                    document.execCommand('copy');
+                    showSuccess();
+                } catch (e) {
+                    console.error('Failed to copy:', e);
+                }
+            });
+        } else {
+            // Use legacy execCommand for older browsers or non-HTTPS
+            try {
+                document.execCommand('copy');
+                showSuccess();
+            } catch (err) {
+                console.error('Failed to copy:', err);
+            }
+        }
     }
     </script>
 </head>

@@ -135,9 +135,76 @@ This requires installing nodemon globally:
 npm install -g nodemon
 ```
 
-## Python/Django Tests
+## Test Organization
 
-Run Django tests with:
+### Library Structure
+```
+lib/
+└── ocr/
+    ├── __init__.py
+    ├── ocr_lib.py         # Main OCR library
+    └── tests/
+        ├── __init__.py
+        ├── test_ocr_lib.py        # OCR library unit tests
+        ├── test_ocr_correction.py # Total correction tests
+        ├── test_ocr_unit.py       # Additional unit tests
+        └── test_ocr_cache.py      # Cache functionality tests
+```
+
+### Integration Tests
+```
+integration_test/
+├── test_suite.py          # Main consolidated test suite
+├── base_test.py           # Base test classes and utilities
+├── mock_ocr.py            # OCR mocking system
+├── run_tests.sh           # Test runner script
+└── (UI tests kept separate)
+    ├── test_clipboard_ui.py
+    ├── test_design_consistency.py
+    ├── test_frontend_heic.py
+    └── test_ui_regression.py
+```
+
+## Running Tests
+
+### OCR Unit Tests
+```bash
+# Run all OCR unit tests
+source venv/bin/activate
+python -m unittest discover lib.ocr.tests -v
+
+# Run specific test module
+python -m unittest lib.ocr.tests.test_ocr_correction -v
+```
+
+### Integration Tests
+```bash
+# Run with mock OCR (default - no API costs)
+./integration_test/run_tests.sh
+
+# Run with real OpenAI API (costs money!)
+./integration_test/run_tests.sh --real
+
+# Or directly with Python
+export INTEGRATION_TEST_REAL_OPENAI_OCR=false
+python integration_test/test_suite.py
+```
+
+### Test Coverage
+The consolidated integration test suite covers:
+- ✅ Complete workflow (upload → edit → finalize → claim)
+- ✅ Security validation (XSS, SQL injection, file upload)
+- ✅ Session isolation and access control
+- ✅ Receipt balance validation
+- ✅ Performance with large receipts (50+ items)
+- ✅ Multiple user scenarios
+
+### OCR Mocking
+Tests use mock OCR data by default. Control with environment variable:
+- `INTEGRATION_TEST_REAL_OPENAI_OCR=false` - Use mock data (default)
+- `INTEGRATION_TEST_REAL_OPENAI_OCR=true` - Use real OpenAI API
+
+### Django Tests
 ```bash
 source venv/bin/activate
 python manage.py test

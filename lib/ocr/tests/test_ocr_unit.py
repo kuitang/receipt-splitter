@@ -11,7 +11,12 @@ from decimal import Decimal
 from pathlib import Path
 import json
 
-from ocr_lib import ReceiptOCR, ReceiptData, LineItem
+import sys
+from pathlib import Path
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from lib.ocr.ocr_lib import ReceiptOCR, ReceiptData, LineItem
 
 
 class TestLineItem(unittest.TestCase):

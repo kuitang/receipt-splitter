@@ -9,10 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from django.conf import settings
 
-# Add parent directory to path for ocr_lib import
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from ocr_lib import ReceiptOCR, ReceiptData, LineItem
+from lib.ocr import ReceiptOCR, ReceiptData, LineItem
 
 logger = logging.getLogger(__name__)
 

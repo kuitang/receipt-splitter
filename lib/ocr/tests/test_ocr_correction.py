@@ -7,7 +7,12 @@ Tests the invariant: line items MUST add up to the Total
 import unittest
 from decimal import Decimal
 from datetime import datetime
-from ocr_lib import ReceiptData, LineItem
+import sys
+from pathlib import Path
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from lib.ocr.ocr_lib import ReceiptData, LineItem
 
 
 class TestTotalCorrection(unittest.TestCase):

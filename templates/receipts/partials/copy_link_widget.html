@@ -4,7 +4,7 @@
            readonly 
            id="{{ widget_id }}"
            class="flex-1 px-3 py-2 {{ border_color|default:'border-gray-300' }} border rounded-l-lg {{ input_bg|default:'bg-gray-50' }}">
-    <button onclick="copyShareUrl('{{ widget_id }}')" 
+    <button onclick="copyShareUrl('{{ widget_id }}', event)" 
             class="px-3 py-2 {{ border_color|default:'border-gray-300' }} border border-l-0 rounded-r-lg {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors"
             title="Copy to clipboard">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 {{ icon_color|default:'text-blue-600' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">

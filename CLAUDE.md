@@ -75,7 +75,7 @@ Generate static images using OpenAI's image generation API by creating a dedicat
 - Store image prompts in separate files for documentation
 - As an exception, you may save the generated images to git
 
-**Image Style Guidelines**: Create illustrative (not photorealistic) images featuring diverse groups of friends enjoying various activities and adventures. Emphasize positive, inclusive themes with vibrant, engaging visuals.
+**Image Style Guidelines**: Create illustrative (not photorealistic) images featuring conventionally attractive groups of friends enjoying various activities and adventures. Emphasize positive, inclusive themes with vibrant, engaging visuals.
 
 ## Development Guidelines
 

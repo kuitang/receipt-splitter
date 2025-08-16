@@ -20,7 +20,7 @@ from datetime import datetime
 
 
 def generate_and_save_images():
-    """Generate sample images showing diverse groups enjoying activities"""
+    """Generate sample images showing conventionally attractive groups enjoying activities"""
     
     if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your_api_key_here":
         print("Please set OPENAI_API_KEY in .env file")
@@ -28,26 +28,24 @@ def generate_and_save_images():
     
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     
+    # Watercolor impressionistic style like Manet
+    style_prefix = "Watercolor impressionistic painting in the style of Édouard Manet, soft brushstrokes, muted pastel colors, natural light and shadow, "
+    
     image_prompts = [
         {
-            "prompt": "Illustrative, vibrant artwork of a diverse group of 5 friends at a restaurant table with a receipt and calculator in the center, everyone pointing at different items on the bill, warm lighting, collaborative and friendly atmosphere, modern flat design style",
-            "filename": "step_upload.png",
-            "caption": "Upload Receipt"
+            "prompt": style_prefix + "conventionally attractive group of friends at a café table with a receipt and pencil, loose gestural marks, Parisian café atmosphere, dappled sunlight through windows",
+            "filename": "hero_image",
+            "caption": "Hero Image - Friends at Café"
         },
         {
-            "prompt": "Illustrative, colorful artwork of a diverse group of 4 people at a dinner table, one person holding up a smartphone showing a split bill app, others looking pleased, restaurant setting with warm ambient lighting, modern illustration style",
-            "filename": "step_share.png", 
-            "caption": "Share Link"
+            "prompt": style_prefix + "people gathered around a table dividing expenses, impressionistic rendering of hands and paper money, soft afternoon light, outdoor terrace setting with umbrellas",
+            "filename": "split_expenses",
+            "caption": "Split Expenses - Fair Division"
         },
         {
-            "prompt": "Illustrative artwork of diverse friends high-fiving after dinner, empty plates and a neatly divided receipt on the table, celebration atmosphere, warm evening light, joyful and inclusive scene",
-            "filename": "step_split.png",
-            "caption": "Split Fairly"
-        },
-        {
-            "prompt": "Cheerful, simple illustration of diverse hands giving thumbs up around a receipt marked 'PAID', celebration of successful bill split, flat design style, bright colors, minimalist",
-            "filename": "success_split.png",
-            "caption": "Successfully split the bill"
+            "prompt": style_prefix + "group of conventionally attractive friends posing together after a meal, empty wine glasses and plates on table, golden hour lighting, painterly brushwork capturing joy and camaraderie",
+            "filename": "group_photo",
+            "caption": "Group Photo - Celebration"
         }
     ]
     
@@ -60,40 +58,47 @@ def generate_and_save_images():
         f.write(f"Generated on: {datetime.now()}\n\n")
         
         for i, image_data in enumerate(image_prompts, 1):
-            print(f"Generating image {i}/{len(image_prompts)}: {image_data['caption']}")
+            print(f"\nGenerating {image_data['caption']} (3 alternatives)")
             
-            try:
-                response = client.images.generate(
-                    model="dall-e-3",
-                    prompt=image_data["prompt"],
-                    size="1024x1024",
-                    quality="standard",
-                    style="natural",
-                    n=1,
-                )
+            # Generate 3 alternatives for each image
+            for alt in range(1, 4):
+                print(f"  Alternative {alt}/3...")
                 
-                image_url = response.data[0].url
-                
-                img_response = requests.get(image_url)
-                if img_response.status_code == 200:
-                    image_path = media_dir / image_data["filename"]
-                    with open(image_path, "wb") as img_file:
-                        img_file.write(img_response.content)
+                try:
+                    response = client.images.generate(
+                        model="dall-e-3",
+                        prompt=image_data["prompt"],
+                        size="1024x1024",
+                        quality="standard",
+                        style="natural",
+                        n=1,
+                    )
                     
-                    print(f"  ✓ Saved to {image_path}")
+                    image_url = response.data[0].url
                     
-                    f.write(f"Image {i}: {image_data['filename']}\n")
-                    f.write(f"Caption: {image_data['caption']}\n")
-                    f.write(f"Prompt: {image_data['prompt']}\n")
-                    f.write(f"URL: {image_url}\n\n")
-                else:
-                    print(f"  ✗ Failed to download image")
-                    
-            except Exception as e:
-                print(f"  ✗ Error generating image: {e}")
+                    img_response = requests.get(image_url)
+                    if img_response.status_code == 200:
+                        # Save with alternative number in filename
+                        filename = f"{image_data['filename']}_alt{alt}.png"
+                        image_path = media_dir / filename
+                        with open(image_path, "wb") as img_file:
+                            img_file.write(img_response.content)
+                        
+                        print(f"    ✓ Saved to {image_path}")
+                        
+                        f.write(f"Image {i}-{alt}: {filename}\n")
+                        f.write(f"Caption: {image_data['caption']}\n")
+                        f.write(f"Alternative: {alt}\n")
+                        f.write(f"Prompt: {image_data['prompt']}\n")
+                        f.write(f"URL: {image_url}\n\n")
+                    else:
+                        print(f"    ✗ Failed to download image")
+                        
+                except Exception as e:
+                    print(f"    ✗ Error generating image: {e}")
     
     print(f"\nPrompts saved to: {prompts_file}")
-    print("Images generated successfully!")
+    print("All images generated successfully!")
 
 
 if __name__ == "__main__":

@@ -8,10 +8,10 @@ import sys
 import time
 from pathlib import Path
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ocr_lib import ReceiptOCR
+from lib.ocr.ocr_lib import ReceiptOCR
 
 
 def test_ocr_cache():

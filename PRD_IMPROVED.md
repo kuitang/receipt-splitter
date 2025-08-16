@@ -21,7 +21,7 @@
 
 **Requirements**:
 - Hero section with app title and tagline
-- 3-4 illustrative sample images showing diverse friend groups
+- 3-4 illustrative sample images showing conventionally attractive friend groups
 - Clear "Upload Receipt" CTA button
 - Brief explanation of how it works (3 steps max)
 - Mobile-optimized responsive design
