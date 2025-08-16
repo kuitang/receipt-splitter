@@ -172,21 +172,14 @@
 
     {% if is_uploader %}
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p class="text-blue-800 flex items-center flex-wrap gap-2">
-            <strong>You uploaded this receipt.</strong> Share this link with your friends:
-            <span class="inline-flex items-center">
-                <input type="text" value="{{ request.build_absolute_uri }}" readonly 
-                       id="share-link-input"
-                       class="px-2 py-1 border border-blue-300 rounded-l bg-white">
-                <button onclick="copyShareLink()" 
-                        class="px-2 py-1 border border-blue-300 border-l-0 rounded-r bg-white hover:bg-blue-100 transition-colors"
-                        title="Copy to clipboard">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                </button>
-            </span>
-        </p>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <p class="text-blue-800">
+                <strong>You uploaded this receipt.</strong> Share this link with your friends:
+            </p>
+            <div class="flex-1 max-w-lg">
+                {% include 'receipts/partials/copy_link_widget.html' with share_url=request.build_absolute_uri widget_id='share-link-input' border_color='border-blue-300' input_bg='bg-white' button_bg='bg-white' button_hover='hover:bg-blue-100' %}
+            </div>
+        </div>
     </div>
     {% endif %}
     
@@ -288,29 +281,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 {% endif %}
 
-{% if is_uploader %}
-<script>
-function copyShareLink() {
-    const input = document.getElementById('share-link-input');
-    input.select();
-    input.setSelectionRange(0, 99999); // For mobile devices
-    
-    navigator.clipboard.writeText(input.value).then(() => {
-        // Show temporary success feedback
-        const button = event.currentTarget;
-        const originalTitle = button.title;
-        button.title = 'Copied!';
-        button.classList.add('bg-green-100');
-        
-        setTimeout(() => {
-            button.title = originalTitle;
-            button.classList.remove('bg-green-100');
-        }, 2000);
-    }).catch(err => {
-        // Fallback for older browsers
-        document.execCommand('copy');
-    });
-}
-</script>
-{% endif %}
 {% endblock %}

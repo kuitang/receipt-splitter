@@ -10,6 +10,40 @@
     <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
     
     {% block extra_head %}{% endblock %}
+    
+    <script>
+    // Global copy function for share links
+    function copyShareUrl(inputId) {
+        inputId = inputId || 'share-url';
+        const input = document.getElementById(inputId);
+        input.select();
+        input.setSelectionRange(0, 99999); // For mobile devices
+        
+        navigator.clipboard.writeText(input.value).then(() => {
+            // Show temporary success feedback
+            const button = event.currentTarget;
+            const originalTitle = button.title;
+            button.title = 'Copied!';
+            button.classList.add('bg-green-100');
+            
+            setTimeout(() => {
+                button.title = originalTitle;
+                button.classList.remove('bg-green-100');
+            }, 2000);
+        }).catch(err => {
+            // Fallback for older browsers
+            document.execCommand('copy');
+            // Show temporary success feedback for fallback
+            const button = event.currentTarget;
+            if (button) {
+                button.classList.add('bg-green-100');
+                setTimeout(() => {
+                    button.classList.remove('bg-green-100');
+                }, 2000);
+            }
+        });
+    }
+    </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="container mx-auto px-4">
