@@ -14,3 +14,4 @@ htmlcov/
 .env
 openai_key.sh
 node_modules/
+SECURITY_AUDIT_REPORT.md

@@ -65,6 +65,7 @@ Autonomously implement the webapp specified in PRD.md by:
 - **Database**: SQLite (simple, file-based)
 - **Frontend**: HTMX + Tailwind CSS (progressive enhancement)
 - **Testing**: Django test framework + curl for HTTP endpoint validation
+- **Python Environment**: Use virtualenv to find python. Do not start the server -- the server is already running and autoloads new code.
 
 ## Image Generation
 Generate static images using OpenAI's image generation API by creating a dedicated script. The script should:

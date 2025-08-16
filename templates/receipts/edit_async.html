@@ -209,9 +209,7 @@
         <div class="space-y-6">
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <h2 class="text-2xl font-semibold mb-4">Receipt Image</h2>
-                {% if receipt.image %}
-                <img src="{{ receipt.image.url }}" alt="Receipt" class="w-full rounded">
-                {% endif %}
+                <img src="{% url 'serve_receipt_image_by_slug' receipt.slug %}" alt="Receipt" class="w-full rounded" onerror="this.style.display='none'">
             </div>
 
             <div class="bg-white rounded-lg shadow-lg p-6">

@@ -16,6 +16,24 @@ from ocr_lib import ReceiptOCR, ReceiptData, LineItem
 
 logger = logging.getLogger(__name__)
 
+# Global OCR instance with persistent cache
+_ocr_instance = None
+
+
+def get_ocr_instance():
+    """Get or create the global OCR instance with persistent cache"""
+    global _ocr_instance
+    
+    # Check if API key is configured
+    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your_api_key_here":
+        return None
+    
+    if _ocr_instance is None:
+        logger.info("Initializing global OCR instance with cache")
+        _ocr_instance = ReceiptOCR(settings.OPENAI_API_KEY, cache_size=128)
+    
+    return _ocr_instance
+
 
 def process_receipt_with_ocr(image_input, format_hint=None):
     """
@@ -29,14 +47,13 @@ def process_receipt_with_ocr(image_input, format_hint=None):
         Dictionary with receipt data compatible with Django models
     """
     
-    # Check if API key is configured
-    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your_api_key_here":
+    # Get the global OCR instance
+    ocr = get_ocr_instance()
+    if ocr is None:
         logger.warning("OpenAI API key not configured, using mock data")
         return get_mock_receipt_data()
     
     try:
-        # Initialize OCR processor
-        ocr = ReceiptOCR(settings.OPENAI_API_KEY)
         
         # Handle different input types
         if isinstance(image_input, bytes):

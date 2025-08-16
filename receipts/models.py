@@ -24,7 +24,7 @@ class Receipt(models.Model):
     tip = models.DecimalField(max_digits=12, decimal_places=6)
     total = models.DecimalField(max_digits=12, decimal_places=6)
     image_url = models.URLField(blank=True, null=True)
-    image = models.ImageField(upload_to='receipts/', blank=True, null=True)
+    # Image removed - now stored in memory cache
     is_finalized = models.BooleanField(default=False)
     processing_status = models.CharField(max_length=20, choices=PROCESSING_STATUS_CHOICES, default='pending')
     processing_error = models.TextField(blank=True, null=True)

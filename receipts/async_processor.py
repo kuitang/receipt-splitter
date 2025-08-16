@@ -10,6 +10,7 @@ from django.utils import timezone
 from .models import Receipt, LineItem
 from .ocr_service import process_receipt_with_ocr
 from .image_utils import convert_to_jpeg_if_needed, get_image_bytes_for_ocr
+from .image_storage import store_receipt_image_in_memory
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
 def create_placeholder_receipt(uploader_name, image):
     """
     Create a placeholder receipt that will be processed async
-    Converts HEIC images to JPEG for browser compatibility
+    Stores image in memory for browser display
     
     Args:
         uploader_name: Name of the uploader
@@ -120,9 +121,12 @@ def create_placeholder_receipt(uploader_name, image):
         tax=Decimal('0'),
         tip=Decimal('0'),
         total=Decimal('0'),
-        image=converted_image,
+        # Don't save image to disk
         processing_status='pending'
     )
+    
+    # Store the converted image in memory
+    store_receipt_image_in_memory(receipt.id, converted_image)
     
     # Create a single placeholder item
     LineItem.objects.create(

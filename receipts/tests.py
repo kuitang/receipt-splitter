@@ -37,7 +37,7 @@ class ReceiptModelTests(TestCase):
     
     def test_receipt_url(self):
         url = self.receipt.get_absolute_url()
-        self.assertEqual(url, f'/r/{self.receipt.id}/')
+        self.assertEqual(url, f'/r/{self.receipt.slug}/')
 
 
 class LineItemModelTests(TestCase):

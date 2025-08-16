@@ -16,6 +16,7 @@ from .models import Receipt, LineItem, Claim, ActiveViewer
 from .ocr_service import process_receipt_with_ocr
 from .async_processor import process_receipt_async, create_placeholder_receipt
 from .validation import validate_receipt_balance
+from .image_storage import get_receipt_image_from_memory
 
 
 def index(request):
@@ -417,3 +418,34 @@ def get_receipt_content_by_slug(request, receipt_slug):
     """Wrapper to support slug-based URLs"""
     receipt = get_object_or_404(Receipt, slug=receipt_slug)
     return get_receipt_content(request, receipt.id)
+
+
+def serve_receipt_image(request, receipt_id):
+    """
+    Serve receipt image from memory.
+    Only accessible to the uploader during editing.
+    """
+    receipt = get_object_or_404(Receipt, id=receipt_id)
+    
+    # Check if user is the uploader (for security)
+    is_uploader = request.session.get('receipt_id') == str(receipt_id)
+    if not is_uploader and not receipt.is_finalized:
+        # Only uploader can see image during editing
+        return HttpResponse(status=403)
+    
+    # Get image from memory
+    image_bytes, content_type = get_receipt_image_from_memory(receipt_id)
+    
+    if image_bytes:
+        response = HttpResponse(image_bytes, content_type=content_type)
+        response['Cache-Control'] = 'private, max-age=3600'  # Cache for 1 hour
+        return response
+    
+    # Return 404 if image not found
+    return HttpResponse(status=404)
+
+
+def serve_receipt_image_by_slug(request, receipt_slug):
+    """Wrapper to support slug-based URLs"""
+    receipt = get_object_or_404(Receipt, slug=receipt_slug)
+    return serve_receipt_image(request, receipt.id)

@@ -23,12 +23,13 @@ def convert_to_jpeg_if_needed(uploaded_file):
     """
     Convert uploaded image to JPEG if it's in HEIC format.
     Chrome and many browsers cannot display HEIC files directly.
+    Returns an in-memory file, no disk operations.
     
     Args:
         uploaded_file: Django UploadedFile object
         
     Returns:
-        Django UploadedFile object (original or converted to JPEG)
+        Django UploadedFile object (original or converted to JPEG in memory)
     """
     
     if not uploaded_file:
@@ -47,23 +48,23 @@ def convert_to_jpeg_if_needed(uploaded_file):
         raise ValueError("HEIC format is not supported. Please upload a JPEG or PNG file.")
     
     try:
-        # Read the HEIC image
+        # Read the HEIC image into memory
         uploaded_file.seek(0)
         image_bytes = uploaded_file.read()
         
-        # Open with PIL (pillow-heif handles HEIC)
+        # Open with PIL (pillow-heif handles HEIC) - in memory
         image = Image.open(io.BytesIO(image_bytes))
         
         # Convert to RGB if necessary (HEIC might have alpha channel)
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Save as JPEG
+        # Save as JPEG to memory buffer
         output = io.BytesIO()
         image.save(output, format='JPEG', quality=95)
         output.seek(0)
         
-        # Create new uploaded file with JPEG content
+        # Create new uploaded file with JPEG content (in memory)
         new_filename = filename.rsplit('.', 1)[0] + '.jpg'
         converted_file = InMemoryUploadedFile(
             output,
@@ -74,7 +75,7 @@ def convert_to_jpeg_if_needed(uploaded_file):
             None
         )
         
-        logger.info(f"Converted HEIC file {filename} to JPEG {new_filename}")
+        logger.info(f"Converted HEIC file {filename} to JPEG {new_filename} in memory")
         return converted_file
         
     except Exception as e:
