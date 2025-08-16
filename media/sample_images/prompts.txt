@@ -1,0 +1,32 @@
+Generated on: 2025-08-16 17:06:36.216266
+
+Image 1: hero_split_receipt.png
+Caption: Friends splitting a restaurant receipt
+Prompt: Illustrative, vibrant artwork of a diverse group of 5 friends at a restaurant table with a receipt and calculator in the center, everyone pointing at different items on the bill, warm lighting, collaborative and friendly atmosphere, modern flat design style
+URL: https://oaidalleapiprodscus.blob.core.windows.net/private/org-LC1HtHgLG4gk8FIqeQhwccb2/user-3rKAwC3ovqxOZczGLluA50LY/img-oyQdy9W5Iq1Dmsy9Rgj6NE1d.png?st=2025-08-16T16%3A06%3A49Z&se=2025-08-16T18%3A06%3A49Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=ed3ea2f9-5e38-44be-9a1b-7c1e65e4d54f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-15T18%3A30%3A53Z&ske=2025-08-16T18%3A30%3A53Z&sks=b&skv=2024-08-04&sig=hQBKqj4ExmZciuKRGXNAlCZdq5TtNuaVDUp7U515D9A%3D
+
+Image 2: hero_mobile_split.png
+Caption: Using technology to split bills fairly
+Prompt: Illustrative, colorful artwork of a diverse group of 4 people at a dinner table, one person holding up a smartphone showing a split bill app, others looking pleased, restaurant setting with warm ambient lighting, modern illustration style
+URL: https://oaidalleapiprodscus.blob.core.windows.net/private/org-LC1HtHgLG4gk8FIqeQhwccb2/user-3rKAwC3ovqxOZczGLluA50LY/img-Qd0hWNr9qNshngvfSQS2QojD.png?st=2025-08-16T16%3A07%3A04Z&se=2025-08-16T18%3A07%3A04Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=ed3ea2f9-5e38-44be-9a1b-7c1e65e4d54f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-16T13%3A46%3A09Z&ske=2025-08-17T13%3A46%3A09Z&sks=b&skv=2024-08-04&sig=ea5oZZpGbncYolm97G16b92YENFh/CL6J8FAKrVHFk8%3D
+
+Image 3: hero_collaborative.png
+Caption: Collaborative bill splitting
+Prompt: Illustrative artwork of hands from different people pointing at items on a restaurant receipt, calculator and phones visible, top-down view, bright and clean design, emphasizing collaboration and fairness
+URL: https://oaidalleapiprodscus.blob.core.windows.net/private/org-LC1HtHgLG4gk8FIqeQhwccb2/user-3rKAwC3ovqxOZczGLluA50LY/img-m5c7ia6Su5jXreLxHTGw0VKg.png?st=2025-08-16T16%3A07%3A15Z&se=2025-08-16T18%3A07%3A15Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=77e5a8ec-6bd1-4477-8afc-16703a64f029&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-16T00%3A22%3A32Z&ske=2025-08-17T00%3A22%3A32Z&sks=b&skv=2024-08-04&sig=uFNrKnnPqp0GWMWYhgVqZktuCW7XvZPS0HWjZ/nqt3o%3D
+
+Image 4: group_dinner.png
+Caption: Group dinner with easy bill splitting
+Prompt: Illustrative, cheerful artwork of a diverse group enjoying dinner at a long table, receipt paper trail winding between plates, everyone smiling and engaged, warm restaurant atmosphere, modern flat illustration style
+URL: https://oaidalleapiprodscus.blob.core.windows.net/private/org-LC1HtHgLG4gk8FIqeQhwccb2/user-3rKAwC3ovqxOZczGLluA50LY/img-BzI0k5qJ4aifgRSsC8qp2lHw.png?st=2025-08-16T16%3A07%3A28Z&se=2025-08-16T18%3A07%3A28Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=ed3ea2f9-5e38-44be-9a1b-7c1e65e4d54f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-15T22%3A48%3A47Z&ske=2025-08-16T22%3A48%3A47Z&sks=b&skv=2024-08-04&sig=tw5UHyW78S7RpR0/w5PWyEx8RdaZb0TBTM0JkZCa5oo%3D
+
+Image 5: receipt_transform.png
+Caption: Receipt splitting visualization
+Prompt: Illustrative artwork of a receipt transforming into individual smaller receipts with colorful arrows, abstract and modern design, bright colors on white background, clean minimalist style
+URL: https://oaidalleapiprodscus.blob.core.windows.net/private/org-LC1HtHgLG4gk8FIqeQhwccb2/user-3rKAwC3ovqxOZczGLluA50LY/img-P2KAmyR8sehVjWUZ1ufAq2Re.png?st=2025-08-16T16%3A07%3A42Z&se=2025-08-16T18%3A07%3A42Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=8b33a531-2df9-46a3-bc02-d4b1430a422c&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-16T14%3A28%3A54Z&ske=2025-08-17T14%3A28%3A54Z&sks=b&skv=2024-08-04&sig=vyr/B/lV9P6uKupBIhPI4YLbSGOfLdK6Ua%2BnJPjzdhs%3D
+
+Image 6: success_split.png
+Caption: Successfully split the bill
+Prompt: Illustrative artwork of diverse friends high-fiving after dinner, empty plates and a neatly divided receipt on the table, celebration atmosphere, warm evening light, joyful and inclusive scene
+URL: https://oaidalleapiprodscus.blob.core.windows.net/private/org-LC1HtHgLG4gk8FIqeQhwccb2/user-3rKAwC3ovqxOZczGLluA50LY/img-N9vYEXXTXypikn2ntkEpm0o1.png?st=2025-08-16T16%3A07%3A56Z&se=2025-08-16T18%3A07%3A56Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=cc612491-d948-4d2e-9821-2683df3719f5&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-16T06%3A14%3A24Z&ske=2025-08-17T06%3A14%3A24Z&sks=b&skv=2024-08-04&sig=RKKL1BF0UuBO8dio%2BO7rO9vuahqYQu6rcVSDGq0zkK8%3D
+

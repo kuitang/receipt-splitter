@@ -20,7 +20,21 @@ from .image_storage import get_receipt_image_from_memory
 
 
 def index(request):
-    sample_images = []
+    # Define sample images to display
+    sample_images = [
+        {
+            'url': '/media/sample_images/hero_split_receipt.png',
+            'caption': 'Friends splitting a restaurant receipt'
+        },
+        {
+            'url': '/media/sample_images/group_dinner.png',
+            'caption': 'Group dinner with easy bill splitting'
+        },
+        {
+            'url': '/media/sample_images/success_split.png',
+            'caption': 'Successfully split the bill'
+        }
+    ]
     return render(request, 'receipts/index.html', {
         'sample_images': sample_images
     })

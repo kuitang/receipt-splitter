@@ -31,6 +31,16 @@
     
     {% else %}
     
+    <!-- Success Image if all items are claimed -->
+    {% if total_unclaimed == 0 and participant_totals %}
+    <div class="mb-6 text-center">
+        <img src="/media/sample_images/success_split.png" 
+             alt="Successfully split the bill" 
+             class="w-full max-w-md mx-auto h-48 object-contain rounded-lg">
+        <p class="text-green-600 font-semibold mt-3">🎉 All items have been claimed!</p>
+    </div>
+    {% endif %}
+    
     <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
         <div class="flex justify-between items-start mb-4">
             <div>

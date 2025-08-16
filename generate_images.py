@@ -30,19 +30,34 @@ def generate_and_save_images():
     
     image_prompts = [
         {
-            "prompt": "Illustrative, colorful artwork of a diverse group of 5 friends laughing and sharing a large pizza at a cozy restaurant, warm lighting, everyone reaching for slices, vibrant and inclusive atmosphere",
-            "filename": "friends_pizza.png",
-            "caption": "Friends sharing pizza together"
+            "prompt": "Illustrative, vibrant artwork of a diverse group of 5 friends at a restaurant table with a receipt and calculator in the center, everyone pointing at different items on the bill, warm lighting, collaborative and friendly atmosphere, modern flat design style",
+            "filename": "hero_split_receipt.png",
+            "caption": "Friends splitting a restaurant receipt"
         },
         {
-            "prompt": "Illustrative, cheerful artwork of a diverse group of 4 people enjoying brunch at a sunny outdoor cafe, mimosas on the table, plants and urban background, bright and inviting colors",
-            "filename": "brunch_cafe.png", 
-            "caption": "Weekend brunch with friends"
+            "prompt": "Illustrative, colorful artwork of a diverse group of 4 people at a dinner table, one person holding up a smartphone showing a split bill app, others looking pleased, restaurant setting with warm ambient lighting, modern illustration style",
+            "filename": "hero_mobile_split.png", 
+            "caption": "Using technology to split bills fairly"
         },
         {
-            "prompt": "Illustrative, dynamic artwork of a diverse group of 6 coworkers celebrating at a modern restaurant after work, raising glasses in a toast, business casual attire, warm evening lighting",
-            "filename": "coworkers_dinner.png",
-            "caption": "Team dinner celebration"
+            "prompt": "Illustrative artwork of hands from different people pointing at items on a restaurant receipt, calculator and phones visible, top-down view, bright and clean design, emphasizing collaboration and fairness",
+            "filename": "hero_collaborative.png",
+            "caption": "Collaborative bill splitting"
+        },
+        {
+            "prompt": "Illustrative, cheerful artwork of a diverse group enjoying dinner at a long table, receipt paper trail winding between plates, everyone smiling and engaged, warm restaurant atmosphere, modern flat illustration style",
+            "filename": "group_dinner.png",
+            "caption": "Group dinner with easy bill splitting"
+        },
+        {
+            "prompt": "Illustrative artwork of a receipt transforming into individual smaller receipts with colorful arrows, abstract and modern design, bright colors on white background, clean minimalist style",
+            "filename": "receipt_transform.png",
+            "caption": "Receipt splitting visualization"
+        },
+        {
+            "prompt": "Illustrative artwork of diverse friends high-fiving after dinner, empty plates and a neatly divided receipt on the table, celebration atmosphere, warm evening light, joyful and inclusive scene",
+            "filename": "success_split.png",
+            "caption": "Successfully split the bill"
         }
     ]
     
@@ -59,10 +74,9 @@ def generate_and_save_images():
             
             try:
                 response = client.images.generate(
-                    model="dall-e-3",
+                    model="dall-e-2",
                     prompt=image_data["prompt"],
                     size="1024x1024",
-                    quality="standard",
                     n=1,
                 )
                 
