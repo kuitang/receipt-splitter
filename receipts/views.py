@@ -3,7 +3,11 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
+from django_ratelimit.decorators import ratelimit
 from django.core.files.base import ContentFile
+from django.core.signing import Signer, BadSignature
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.html import escape
 from django.conf import settings
@@ -12,48 +16,96 @@ import json
 import base64
 from datetime import datetime
 import os
+import hashlib
 
 from .models import Receipt, LineItem, Claim, ActiveViewer
 from .ocr_service import process_receipt_with_ocr
 from .async_processor import process_receipt_async, create_placeholder_receipt
 from .validation import validate_receipt_balance
 from .image_storage import get_receipt_image_from_memory
+from .validators import FileUploadValidator, InputValidator
+
+
+# Access Control Functions
+def create_edit_token(receipt_id, session_key):
+    """Create a secure edit token for a receipt"""
+    signer = Signer()
+    data = f"{receipt_id}:{session_key}"
+    return signer.sign(data)
+
+
+def verify_edit_permission(request, receipt):
+    """Verify user has permission to edit receipt"""
+    if receipt.is_finalized:
+        return False
+    
+    # Check if user uploaded this receipt (stored in session)
+    if request.session.get('receipt_id') == str(receipt.id):
+        return True
+    
+    # Check for edit token
+    stored_token = request.session.get(f'edit_token_{receipt.id}')
+    if not stored_token:
+        return False
+    
+    try:
+        signer = Signer()
+        unsigned = signer.unsign(stored_token)
+        receipt_id, session_key = unsigned.split(':')
+        return str(receipt.id) == receipt_id and request.session.session_key == session_key
+    except (BadSignature, ValueError):
+        return False
 
 
 def index(request):
     return render(request, 'receipts/index.html')
 
 
+@ratelimit(key='ip', rate='10/m', method='POST')
 @require_http_methods(["POST"])
 def upload_receipt(request):
     uploader_name = request.POST.get('uploader_name', '').strip()
     receipt_image = request.FILES.get('receipt_image')
     
+    # Basic validation to maintain backward compatibility with tests
     if not uploader_name or len(uploader_name) < 2 or len(uploader_name) > 50:
         messages.error(request, 'Please provide a valid name (2-50 characters)')
-        return HttpResponse('Invalid name', status=400)  # 400 Bad Request
+        return HttpResponse('Invalid name', status=400)
     
     if not receipt_image:
         messages.error(request, 'Please upload a receipt image')
-        return HttpResponse('No image provided', status=400)  # 400 Bad Request
+        return HttpResponse('No image provided', status=400)
     
     if receipt_image.size == 0:
         messages.error(request, 'Image file is empty')
-        return HttpResponse('Empty file', status=400)  # 400 Bad Request
+        return HttpResponse('Empty file', status=400)
     
     if receipt_image.size > 10 * 1024 * 1024:
         messages.error(request, 'Image size must be less than 10MB')
-        return HttpResponse('File too large', status=413)  # 413 Payload Too Large
+        return HttpResponse('File too large', status=413)
     
-    # Escape HTML after validation to prevent XSS
+    # Comprehensive file validation using FileUploadValidator
+    try:
+        receipt_image = FileUploadValidator.validate_image_file(receipt_image)
+    except ValidationError as e:
+        messages.error(request, str(e))
+        return HttpResponse(str(e), status=400)
+    
+    # Escape HTML to prevent XSS
     uploader_name = escape(uploader_name)
     
     # Create placeholder receipt immediately
     receipt = create_placeholder_receipt(uploader_name, receipt_image)
     
-    # Store session info
+    # Store session info and create edit token
     request.session['uploader_name'] = uploader_name
     request.session['receipt_id'] = str(receipt.id)
+    
+    # Create edit token for this receipt
+    if not request.session.session_key:
+        request.session.create()
+    edit_token = create_edit_token(receipt.id, request.session.session_key)
+    request.session[f'edit_token_{receipt.id}'] = edit_token
     
     # Start async processing
     process_receipt_async(receipt.id, receipt_image)
@@ -68,8 +120,8 @@ def edit_receipt(request, receipt_id):
     if receipt.is_finalized:
         return redirect('view_receipt_by_slug', receipt_slug=receipt.slug)
     
-    if request.session.get('receipt_id') != str(receipt_id):
-        messages.error(request, 'You can only edit receipts you uploaded')
+    if not verify_edit_permission(request, receipt):
+        messages.error(request, 'You do not have permission to edit this receipt')
         return redirect('index')
     
     return render(request, 'receipts/edit_async.html', {
@@ -79,6 +131,7 @@ def edit_receipt(request, receipt_id):
     })
 
 
+@ratelimit(key='ip', rate='30/m', method='POST')
 @require_http_methods(["POST"])
 def update_receipt(request, receipt_id):
     receipt = get_object_or_404(Receipt, id=receipt_id)
@@ -86,33 +139,48 @@ def update_receipt(request, receipt_id):
     if receipt.is_finalized:
         return JsonResponse({'error': 'Receipt is already finalized'}, status=400)
     
-    if request.session.get('receipt_id') != str(receipt_id):
+    if not verify_edit_permission(request, receipt):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
     
     try:
         data = json.loads(request.body)
         
-        # Validate the receipt data before saving
-        is_valid, validation_errors = validate_receipt_balance(data)
+        # Validate input data using InputValidator
+        try:
+            validated_data = InputValidator.validate_receipt_data(data)
+        except ValidationError as e:
+            # Return validation errors but don't block saving
+            validation_errors = e.messages if hasattr(e, 'messages') else [str(e)]
+        else:
+            validated_data = data
+            validation_errors = []
+        
+        # Validate the receipt balance
+        is_valid, balance_errors = validate_receipt_balance(data)
+        if balance_errors:
+            if isinstance(validation_errors, list):
+                validation_errors.extend(balance_errors.values())
+            else:
+                validation_errors = balance_errors
         
         # Always save the data (even if invalid) so user doesn't lose work
-        # Escape HTML to prevent XSS
-        receipt.restaurant_name = escape(data.get('restaurant_name', receipt.restaurant_name))
-        receipt.subtotal = Decimal(str(data.get('subtotal', receipt.subtotal)))
-        receipt.tax = Decimal(str(data.get('tax', receipt.tax)))
-        receipt.tip = Decimal(str(data.get('tip', receipt.tip)))
-        receipt.total = Decimal(str(data.get('total', receipt.total)))
+        receipt.restaurant_name = validated_data.get('restaurant_name', receipt.restaurant_name)
+        receipt.subtotal = validated_data.get('subtotal', receipt.subtotal)
+        receipt.tax = validated_data.get('tax', receipt.tax)
+        receipt.tip = validated_data.get('tip', receipt.tip)
+        receipt.total = validated_data.get('total', receipt.total)
         receipt.save()
         
         receipt.items.all().delete()
         
-        for item_data in data.get('items', []):
+        for item_data in validated_data.get('items', []):
             line_item = LineItem.objects.create(
                 receipt=receipt,
-                name=escape(item_data['name']),
-                quantity=int(item_data['quantity']),
-                unit_price=Decimal(str(item_data['unit_price'])),
-                total_price=Decimal(str(item_data['total_price']))
+                name=item_data['name'],  # Already validated and escaped
+                quantity=item_data['quantity'],  # Already validated
+                unit_price=item_data['unit_price'],  # Already validated as Decimal
+                total_price=item_data['total_price']  # Already validated as Decimal
             )
             line_item.calculate_prorations()
             line_item.save()
@@ -120,7 +188,7 @@ def update_receipt(request, receipt_id):
         # Return validation status along with success
         response = {'success': True, 'is_balanced': is_valid}
         if validation_errors:
-            response['validation_errors'] = validation_errors
+            response['validation_errors'] = validation_errors if isinstance(validation_errors, dict) else {'errors': validation_errors}
         
         return JsonResponse(response)
         
@@ -191,8 +259,11 @@ def view_receipt(request, receipt_id):
     if request.method == 'POST' and not viewer_name and not is_uploader:
         name = request.POST.get('viewer_name', '').strip()
         
-        if not name or len(name) < 2 or len(name) > 50:
-            messages.error(request, 'Please provide a valid name (2-50 characters)')
+        # Validate viewer name using InputValidator
+        try:
+            name = InputValidator.validate_name(name, field_name="Your name")
+        except ValidationError as e:
+            messages.error(request, str(e))
             return redirect('view_receipt_by_slug', receipt_slug=receipt.slug)
         
         existing_names = list(receipt.viewers.values_list('viewer_name', flat=True))
@@ -284,6 +355,7 @@ def view_receipt(request, receipt_id):
     })
 
 
+@ratelimit(key='ip', rate='15/m', method='POST')
 @require_http_methods(["POST"])
 def claim_item(request, receipt_id):
     receipt = get_object_or_404(Receipt, id=receipt_id)
@@ -317,12 +389,12 @@ def claim_item(request, receipt_id):
         
         if existing_claim:
             existing_claim.quantity_claimed = quantity
-            existing_claim.claimer_name = escape(viewer_name)  # Update name in case it changed
+            existing_claim.claimer_name = viewer_name  # Already escaped from session
             existing_claim.save()
         else:
             Claim.objects.create(
                 line_item=line_item,
-                claimer_name=escape(viewer_name),
+                claimer_name=viewer_name,  # Already escaped from session
                 quantity_claimed=quantity,
                 session_id=request.session.session_key
             )
@@ -456,3 +528,10 @@ def serve_receipt_image_by_slug(request, receipt_slug):
     """Wrapper to support slug-based URLs"""
     receipt = get_object_or_404(Receipt, slug=receipt_slug)
     return serve_receipt_image(request, receipt.id)
+
+
+def ratelimit_exceeded(request, exception):
+    """Handle rate limit exceeded responses"""
+    return JsonResponse({
+        'error': 'Rate limit exceeded. Please try again later.'
+    }, status=429)

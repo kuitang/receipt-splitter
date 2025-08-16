@@ -9,14 +9,10 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 
 logger = logging.getLogger(__name__)
 
-# Try to import pillow-heif for HEIC support
-try:
-    import pillow_heif
-    pillow_heif.register_heif_opener()
-    HEIC_SUPPORT = True
-except ImportError:
-    HEIC_SUPPORT = False
-    logger.warning("pillow-heif not installed. HEIC files will not be supported.")
+# Required HEIC support
+import pillow_heif
+pillow_heif.register_heif_opener()
+HEIC_SUPPORT = True
 
 
 def convert_to_jpeg_if_needed(uploaded_file):
@@ -43,9 +39,7 @@ def convert_to_jpeg_if_needed(uploaded_file):
         # Not HEIC, return as-is
         return uploaded_file
     
-    if not HEIC_SUPPORT:
-        logger.error("Cannot convert HEIC file - pillow-heif not installed")
-        raise ValueError("HEIC format is not supported. Please upload a JPEG or PNG file.")
+    # HEIC support is now required, no need to check
     
     try:
         # Read the HEIC image into memory

@@ -47,18 +47,31 @@ Based on SECURITY_AUDIT_REPORT.md findings:
 
 #### Input Validation
 - XSS prevention in text fields
-- SQL injection prevention
-- Input sanitization
+- SQL injection prevention  
+- Input sanitization with bleach
 
 #### File Upload Security
 - File size limits (max 10MB)
 - Empty file rejection
-- Malicious file handling
+- Malicious file handling with python-magic
+- MIME type spoofing prevention
+
+#### Enhanced Security Validation
+- Shell script rejection
+- HTML/JS content blocking
+- PDF content filtering
+- python-magic integration verification
+
+#### Rate Limiting
+- Upload rate limiting (10/min)
+- Burst testing with actual rate calculation
+- Graceful handling when limits exceeded
 
 #### Session Security
 - Session isolation between users
 - Unauthorized edit prevention
-- Access control validation
+- Concurrent edit protection
+- Session hijacking prevention
 
 ### 3. Validation Tests
 - Balanced receipt validation
@@ -66,7 +79,13 @@ Based on SECURITY_AUDIT_REPORT.md findings:
 - Negative tip (discount) handling
 - Item total calculations
 
-### 4. Performance Tests
+### 4. UI Tests
+- Frontend HEIC/HEIF support verification
+- HTML accept attribute validation
+- MIME type inclusion checking
+- Design consistency across pages
+
+### 5. Performance Tests
 - Large receipt handling (50+ items)
 - Update performance
 - Claim performance
@@ -87,12 +106,11 @@ The mock system provides different data based on input:
 
 ```
 integration_test/
-├── README.md           # This file
+├── README.md           # This file  
 ├── run_tests.sh        # Main test runner script
-├── test_suite.py       # Consolidated test suite
+├── test_suite.py       # Complete consolidated test suite
 ├── base_test.py        # Base classes and utilities
-├── mock_ocr.py         # OCR mocking system
-└── (legacy tests)      # To be removed
+└── mock_ocr.py         # OCR mocking system
 ```
 
 ## Running Individual Tests
@@ -107,8 +125,26 @@ test.test_complete_workflow()
 from integration_test.test_suite import SecurityValidationTest
 test = SecurityValidationTest()
 test.test_input_validation()
-test.test_file_upload_security()
+test.test_file_upload_security() 
+test.test_security_validation()
+test.test_rate_limiting()
 test.test_session_security()
+
+# Run UI tests
+from integration_test.test_suite import UIValidationTest
+test = UIValidationTest()
+test.test_frontend_heic_support()
+test.test_ui_design_consistency()
+
+# Run performance tests
+from integration_test.test_suite import PerformanceTest
+test = PerformanceTest()
+test.test_large_receipt()
+
+# Run validation tests
+from integration_test.test_suite import ValidationTest
+test = ValidationTest()
+test.test_balance_validation()
 ```
 
 ## Test Output Example
@@ -137,11 +173,15 @@ TEST SUMMARY
   ✅ Complete Workflow
   ✅ Input Validation Security
   ✅ File Upload Security
-  ✅ Session Security
+  ✅ Security Validation
+  ✅ Rate Limiting Security
   ✅ Balance Validation
+  ✅ Frontend HEIC Support
+  ✅ UI Design Consistency
   ✅ Large Receipt Performance
+  ✅ Session Security
 ----------------------------------------------
-Results: 6/6 passed
+Results: 10/10 passed
 ✅ ALL TESTS PASSED
 ```
 
@@ -196,13 +236,14 @@ echo $INTEGRATION_TEST_REAL_OPENAI_OCR
 # Should output: false (or empty)
 ```
 
-## Legacy Tests (To Be Removed)
+## Test Classes
 
-The following files are superseded by the consolidated suite:
-- test_ocr_integration.py
-- test_django_integration.py
-- test_async_upload.py
-- test_balance_validation.py
-- Individual test_*.py files in parent directory
+The consolidated test suite contains the following test classes:
 
-These will be removed after confirming the consolidated suite covers all scenarios.
+- **ReceiptWorkflowTest**: Complete end-to-end workflow testing
+- **SecurityValidationTest**: Comprehensive security testing
+- **ValidationTest**: Receipt balance and validation logic
+- **UIValidationTest**: Frontend and UI component testing  
+- **PerformanceTest**: Large data and performance testing
+
+All tests extend `IntegrationTestBase` and use HTTP-only interactions for true integration testing.

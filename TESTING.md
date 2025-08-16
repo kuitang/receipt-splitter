@@ -154,15 +154,11 @@ lib/
 ### Integration Tests
 ```
 integration_test/
-├── test_suite.py          # Main consolidated test suite
+├── test_suite.py          # Complete consolidated test suite
 ├── base_test.py           # Base test classes and utilities
 ├── mock_ocr.py            # OCR mocking system
 ├── run_tests.sh           # Test runner script
-└── (UI tests kept separate)
-    ├── test_clipboard_ui.py
-    ├── test_design_consistency.py
-    ├── test_frontend_heic.py
-    └── test_ui_regression.py
+└── README.md              # Integration test documentation
 ```
 
 ## Running Tests
@@ -192,23 +188,41 @@ python integration_test/test_suite.py
 
 ### Test Coverage
 The consolidated integration test suite covers:
-- ✅ Complete workflow (upload → edit → finalize → claim)
-- ✅ Security validation (XSS, SQL injection, file upload)
-- ✅ Session isolation and access control
-- ✅ Receipt balance validation
-- ✅ Performance with large receipts (50+ items)
-- ✅ Multiple user scenarios
+- ✅ **Complete Workflow**: Upload → edit → finalize → claim lifecycle
+- ✅ **Input Validation Security**: XSS prevention, SQL injection prevention
+- ✅ **File Upload Security**: Size limits, malicious file rejection, MIME spoofing prevention
+- ✅ **Enhanced Security Validation**: python-magic integration, shell script blocking
+- ✅ **Rate Limiting**: Upload burst testing with actual rate calculation
+- ✅ **Balance Validation**: Receipt balance verification, negative tip support
+- ✅ **Frontend HEIC Support**: HTML accept attributes, MIME type validation
+- ✅ **UI Design Consistency**: Page loading, CSS framework usage
+- ✅ **Large Receipt Performance**: 50+ items, update/claim performance
+- ✅ **Session Security**: Isolation, unauthorized access prevention, concurrent edits
 
 ### OCR Mocking
-Tests use mock OCR data by default. Control with environment variable:
+Tests use mock OCR data by default to avoid API costs. Control with environment variable:
 - `INTEGRATION_TEST_REAL_OPENAI_OCR=false` - Use mock data (default)
-- `INTEGRATION_TEST_REAL_OPENAI_OCR=true` - Use real OpenAI API
+- `INTEGRATION_TEST_REAL_OPENAI_OCR=true` - Use real OpenAI API (costs money!)
 
-### Django Tests
+Mock data provides different scenarios based on image size:
+- < 100 bytes: Minimal receipt (1 item)
+- < 1000 bytes: Default receipt (3 items, balanced)
+- < 5000 bytes: Unbalanced receipt (for validation testing)
+- ≥ 5000 bytes: Large receipt (20+ items)
+
+### Django Unit Tests
 ```bash
 source venv/bin/activate
 python manage.py test
 ```
+
+### Security Dependencies
+The test suite now requires these security dependencies:
+- `python-magic==0.4.27` - For proper file type detection
+- `bleach==6.2.0` - For HTML sanitization
+- `pillow-heif==1.1.0` - For HEIC/HEIF image support
+
+These are automatically installed via `requirements.txt`.
 
 ## Manual Testing Checklist
 
