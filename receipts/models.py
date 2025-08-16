@@ -5,6 +5,13 @@ import uuid
 
 
 class Receipt(models.Model):
+    PROCESSING_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     uploader_name = models.CharField(max_length=50)
     restaurant_name = models.CharField(max_length=100)
@@ -16,6 +23,8 @@ class Receipt(models.Model):
     image_url = models.URLField(blank=True, null=True)
     image = models.ImageField(upload_to='receipts/', blank=True, null=True)
     is_finalized = models.BooleanField(default=False)
+    processing_status = models.CharField(max_length=20, choices=PROCESSING_STATUS_CHOICES, default='pending')
+    processing_error = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     

@@ -10,4 +10,6 @@ urlpatterns = [
     path('r/<uuid:receipt_id>/', views.view_receipt, name='view_receipt'),
     path('claim/<uuid:receipt_id>/', views.claim_item, name='claim_item'),
     path('unclaim/<uuid:receipt_id>/<int:claim_id>/', views.unclaim_item, name='unclaim_item'),
+    path('status/<uuid:receipt_id>/', views.check_processing_status, name='check_processing_status'),
+    path('content/<uuid:receipt_id>/', views.get_receipt_content, name='get_receipt_content'),
 ]

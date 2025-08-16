@@ -17,12 +17,12 @@ from ocr_lib import ReceiptOCR, ReceiptData, LineItem
 logger = logging.getLogger(__name__)
 
 
-def process_receipt_with_ocr(image_file):
+def process_receipt_with_ocr(image_input):
     """
     Process receipt image using OpenAI Vision API to extract structured data
     
     Args:
-        image_file: Django UploadedFile object or file-like object
+        image_input: Django UploadedFile object, file-like object, or bytes
         
     Returns:
         Dictionary with receipt data compatible with Django models
@@ -37,13 +37,18 @@ def process_receipt_with_ocr(image_file):
         # Initialize OCR processor
         ocr = ReceiptOCR(settings.OPENAI_API_KEY)
         
-        # Process the uploaded image
-        # Read file content and process as bytes
-        image_file.seek(0)  # Ensure we're at the start
-        image_bytes = image_file.read()
+        # Handle different input types
+        if isinstance(image_input, bytes):
+            # Already bytes, use directly
+            image_bytes = image_input
+            filename = "uploaded_file"
+        else:
+            # File-like object, read bytes
+            image_input.seek(0)  # Ensure we're at the start
+            image_bytes = image_input.read()
+            filename = getattr(image_input, 'name', 'uploaded_file')
         
-        # Detect image format from filename
-        filename = getattr(image_file, 'name', 'uploaded_file')
+        # Detect image format from filename or default
         format_hint = "JPEG"  # Default
         if filename:
             lower_name = filename.lower()

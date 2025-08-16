@@ -14,6 +14,7 @@ import os
 
 from .models import Receipt, LineItem, Claim, ActiveViewer
 from .ocr_service import process_receipt_with_ocr
+from .async_processor import process_receipt_async, create_placeholder_receipt
 
 
 def index(request):
@@ -40,39 +41,18 @@ def upload_receipt(request):
         messages.error(request, 'Image size must be less than 10MB')
         return redirect('index')
     
-    try:
-        ocr_data = process_receipt_with_ocr(receipt_image)
-        
-        receipt = Receipt.objects.create(
-            uploader_name=uploader_name,
-            restaurant_name=ocr_data['restaurant_name'],
-            date=ocr_data['date'],
-            subtotal=Decimal(str(ocr_data['subtotal'])),
-            tax=Decimal(str(ocr_data['tax'])),
-            tip=Decimal(str(ocr_data['tip'])),
-            total=Decimal(str(ocr_data['total'])),
-            image=receipt_image
-        )
-        
-        for item_data in ocr_data['items']:
-            line_item = LineItem.objects.create(
-                receipt=receipt,
-                name=item_data['name'],
-                quantity=item_data['quantity'],
-                unit_price=Decimal(str(item_data['unit_price'])),
-                total_price=Decimal(str(item_data['total_price']))
-            )
-            line_item.calculate_prorations()
-            line_item.save()
-        
-        request.session['uploader_name'] = uploader_name
-        request.session['receipt_id'] = str(receipt.id)
-        
-        return redirect('edit_receipt', receipt_id=receipt.id)
-        
-    except Exception as e:
-        messages.error(request, f'Error processing receipt: {str(e)}')
-        return redirect('index')
+    # Create placeholder receipt immediately
+    receipt = create_placeholder_receipt(uploader_name, receipt_image)
+    
+    # Store session info
+    request.session['uploader_name'] = uploader_name
+    request.session['receipt_id'] = str(receipt.id)
+    
+    # Start async processing
+    process_receipt_async(receipt.id, receipt_image)
+    
+    # Redirect to edit page (will show loading state)
+    return redirect('edit_receipt', receipt_id=receipt.id)
 
 
 def edit_receipt(request, receipt_id):
@@ -85,9 +65,10 @@ def edit_receipt(request, receipt_id):
         messages.error(request, 'You can only edit receipts you uploaded')
         return redirect('index')
     
-    return render(request, 'receipts/edit.html', {
+    return render(request, 'receipts/edit_async.html', {
         'receipt': receipt,
-        'items': receipt.items.all()
+        'items': receipt.items.all(),
+        'is_processing': receipt.processing_status in ['pending', 'processing']
     })
 
 
@@ -314,3 +295,30 @@ def unclaim_item(request, receipt_id, claim_id):
     
     claim.delete()
     return JsonResponse({'success': True})
+
+
+def check_processing_status(request, receipt_id):
+    """Check the processing status of a receipt"""
+    receipt = get_object_or_404(Receipt, id=receipt_id)
+    
+    return JsonResponse({
+        'status': receipt.processing_status,
+        'error': receipt.processing_error,
+        'restaurant_name': receipt.restaurant_name,
+        'total': str(receipt.total),
+        'items_count': receipt.items.count()
+    })
+
+
+def get_receipt_content(request, receipt_id):
+    """Get the receipt content partial for HTMX"""
+    receipt = get_object_or_404(Receipt, id=receipt_id)
+    
+    # Only return content if processing is complete
+    if receipt.processing_status != 'completed':
+        return HttpResponse("")
+    
+    return render(request, 'receipts/partials/receipt_content.html', {
+        'receipt': receipt,
+        'items': receipt.items.all()
+    })

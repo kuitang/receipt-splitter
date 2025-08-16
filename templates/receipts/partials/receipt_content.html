@@ -1,0 +1,73 @@
+<!-- Receipt content partial for HTMX -->
+<div id="receipt-items" class="space-y-4">
+    {% for item in items %}
+    <div class="border rounded-lg p-4 hover:bg-gray-50">
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <input type="text" 
+                       name="item_name_{{ item.id }}"
+                       value="{{ item.name }}"
+                       class="font-semibold w-full border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-600">$</span>
+                    <input type="number" 
+                           name="item_price_{{ item.id }}"
+                           value="{{ item.unit_price }}"
+                           step="0.01"
+                           class="w-20 text-right border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-600">×</span>
+                    <input type="number" 
+                           name="item_quantity_{{ item.id }}"
+                           value="{{ item.quantity }}"
+                           min="1"
+                           class="w-16 text-center border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
+                </div>
+                <div class="text-right font-semibold w-24">
+                    ${{ item.get_item_total|floatformat:2 }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="mt-6 pt-6 border-t">
+    <div class="space-y-2">
+        <div class="flex justify-between">
+            <span>Subtotal:</span>
+            <span class="font-semibold">${{ receipt.subtotal|floatformat:2 }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Tax:</span>
+            <div class="flex items-center gap-2">
+                <span>$</span>
+                <input type="number" 
+                       id="tax"
+                       name="tax"
+                       value="{{ receipt.tax }}"
+                       step="0.01"
+                       class="w-24 text-right border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
+            </div>
+        </div>
+        <div class="flex justify-between">
+            <span>Tip:</span>
+            <div class="flex items-center gap-2">
+                <span>$</span>
+                <input type="number" 
+                       id="tip"
+                       name="tip"
+                       value="{{ receipt.tip }}"
+                       step="0.01"
+                       class="w-24 text-right border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
+            </div>
+        </div>
+        <div class="flex justify-between font-bold text-lg pt-2 border-t">
+            <span>Total:</span>
+            <span>${{ receipt.total|floatformat:2 }}</span>
+        </div>
+    </div>
+</div>

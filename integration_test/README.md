@@ -19,11 +19,38 @@ Tests core Django functionality:
 - Item claiming and unclaiming
 - Participant total calculations
 
-### 3. `test_ocr_unit.py`
-Unit tests for the OCR library (in parent directory):
+### 3. `test_total_correction.py`
+Tests the total correction algorithm:
+- Ensures line items ALWAYS add up to the receipt total
+- Tests automatic correction of discrepancies
+- Verifies the Gin Mill receipt correction (tip adjustment)
+- Validates mock data also satisfies the invariant
+
+### 4. `test_image_formats.py`
+Tests support for different image formats:
+- JPEG, PNG, HEIC/HEIF, WebP
+- Verifies all formats can be uploaded
+- Tests OCR processing for each format
+
+### 5. `test_frontend_heic.py`
+Tests frontend HEIC support:
+- Verifies accept attribute includes HEIC
+- Tests JavaScript validation
+- Ensures HEIC files can be selected in browser
+
+### Unit Tests (Parent Directory)
+
+#### `test_ocr_unit.py`
+Unit tests for the OCR library:
 - Tests OCR library API
 - Mock testing without API calls
 - Data validation logic
+
+#### `test_ocr_correction.py`
+Unit tests for total correction algorithm:
+- Tests various discrepancy scenarios
+- Verifies correction logic
+- Ensures invariant is maintained
 
 ## Running Tests
 

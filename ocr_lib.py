@@ -89,6 +89,98 @@ class ReceiptData:
             errors.append("Total seems unreasonably high (>$10,000)")
         
         return len(errors) == 0, errors
+    
+    def correct_totals(self, tolerance: Decimal = Decimal('0.01')) -> Dict[str, Any]:
+        """
+        Correct receipt totals to ensure subtotal + tax + tip = total
+        
+        Returns dict with correction details
+        """
+        # Calculate items sum and current total
+        items_sum = sum(item.total_price for item in self.items)
+        calculated_total = self.subtotal + self.tax + self.tip
+        discrepancy = self.total - calculated_total
+        
+        corrections = {
+            'applied': False,
+            'original_subtotal': float(self.subtotal),
+            'original_tax': float(self.tax),
+            'original_tip': float(self.tip),
+            'discrepancy': float(discrepancy),
+            'reason': None
+        }
+        
+        # If totals already match, no correction needed
+        if abs(discrepancy) <= tolerance:
+            corrections['reason'] = 'Totals already match'
+            return corrections
+        
+        # First ensure subtotal matches items sum
+        if abs(items_sum - self.subtotal) > tolerance:
+            logger.info(f"Correcting subtotal from {self.subtotal} to {items_sum} to match items")
+            self.subtotal = items_sum
+            # Recalculate discrepancy
+            calculated_total = self.subtotal + self.tax + self.tip
+            discrepancy = self.total - calculated_total
+        
+        # Case 1: Tax and tip are both zero - treat discrepancy as service charge/tip
+        if self.tax == 0 and self.tip == 0 and discrepancy > 0:
+            logger.info(f"No tax/tip found, treating ${discrepancy} discrepancy as tip/service charge")
+            self.tip = discrepancy
+            corrections['applied'] = True
+            corrections['reason'] = 'Discrepancy treated as tip/service charge'
+        
+        # Case 2: Tax and/or tip exist - proportionally adjust
+        elif self.tax > 0 or self.tip > 0:
+            tax_tip_sum = self.tax + self.tip
+            if tax_tip_sum > 0:
+                tax_ratio = self.tax / tax_tip_sum
+                tip_ratio = self.tip / tax_tip_sum
+            else:
+                tax_ratio = Decimal('0.5')
+                tip_ratio = Decimal('0.5')
+            
+            # Distribute discrepancy proportionally
+            tax_adjustment = discrepancy * tax_ratio
+            tip_adjustment = discrepancy * tip_ratio
+            
+            self.tax += tax_adjustment
+            self.tip += tip_adjustment
+            
+            # Ensure non-negative values
+            if self.tax < 0:
+                # Transfer negative tax to tip
+                self.tip += self.tax
+                self.tax = Decimal('0')
+            if self.tip < 0:
+                # Transfer negative tip to tax
+                self.tax += self.tip
+                self.tip = Decimal('0')
+            
+            logger.info(f"Proportionally adjusted tax by {tax_adjustment} and tip by {tip_adjustment}")
+            corrections['applied'] = True
+            corrections['reason'] = 'Proportionally adjusted tax and tip'
+        
+        # Case 3: Negative discrepancy with zero tax/tip (possible discount)
+        elif discrepancy < 0:
+            # Create a negative tip to represent discount
+            logger.info(f"Negative discrepancy of ${discrepancy}, treating as discount")
+            self.tip = discrepancy  # Will be negative
+            corrections['applied'] = True
+            corrections['reason'] = 'Negative discrepancy treated as discount'
+        
+        # Record final values
+        corrections['corrected_subtotal'] = float(self.subtotal)
+        corrections['corrected_tax'] = float(self.tax)
+        corrections['corrected_tip'] = float(self.tip)
+        
+        # Verify correction worked
+        final_calculated = self.subtotal + self.tax + self.tip
+        if abs(final_calculated - self.total) > tolerance:
+            logger.warning(f"Correction failed: {final_calculated} != {self.total}")
+            corrections['error'] = 'Correction did not resolve discrepancy'
+        
+        return corrections
 
 
 class ReceiptOCR:
@@ -298,6 +390,20 @@ Return ONLY valid JSON, no other text."""
             is_valid, errors = receipt.validate()
             if not is_valid:
                 logger.warning(f"Validation issues: {errors}")
+                
+                # Apply automatic corrections
+                corrections = receipt.correct_totals()
+                if corrections['applied']:
+                    logger.info(f"Applied corrections: {corrections['reason']}")
+                    logger.info(f"Corrected values - Tax: ${corrections['corrected_tax']:.2f}, "
+                              f"Tip: ${corrections['corrected_tip']:.2f}")
+                    
+                    # Re-validate after corrections
+                    is_valid_after, errors_after = receipt.validate()
+                    if is_valid_after:
+                        logger.info("Receipt validation successful after corrections")
+                    else:
+                        logger.warning(f"Receipt still has issues after corrections: {errors_after}")
             
             return receipt
             
@@ -363,6 +469,20 @@ Return ONLY valid JSON, no other text."""
             is_valid, errors = receipt.validate()
             if not is_valid:
                 logger.warning(f"Validation issues: {errors}")
+                
+                # Apply automatic corrections
+                corrections = receipt.correct_totals()
+                if corrections['applied']:
+                    logger.info(f"Applied corrections: {corrections['reason']}")
+                    logger.info(f"Corrected values - Tax: ${corrections['corrected_tax']:.2f}, "
+                              f"Tip: ${corrections['corrected_tip']:.2f}")
+                    
+                    # Re-validate after corrections
+                    is_valid_after, errors_after = receipt.validate()
+                    if is_valid_after:
+                        logger.info("Receipt validation successful after corrections")
+                    else:
+                        logger.warning(f"Receipt still has issues after corrections: {errors_after}")
             
             return receipt
             
