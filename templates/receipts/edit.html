@@ -173,7 +173,8 @@ function updateItemTotal(row) {
     const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
     const price = parseFloat(row.querySelector('.item-price').value) || 0;
     const total = quantity * price;
-    row.querySelector('.item-total').value = total.toFixed(2);
+    row.querySelector('.item-total').value = total.toFixed(2);  // Display with 2 decimals
+    row.querySelector('.item-total').dataset.fullValue = total;  // Store full precision
     updateProrations();
 }
 
@@ -183,14 +184,17 @@ function updateProrations() {
     const tip = parseFloat(document.getElementById('tip').value) || 0;
     
     document.querySelectorAll('.item-row').forEach(row => {
-        const itemTotal = parseFloat(row.querySelector('.item-total').value) || 0;
+        const itemTotalElement = row.querySelector('.item-total');
+        // Use full precision value if available, otherwise use displayed value
+        const itemTotal = parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0;
         if (subtotal > 0) {
             const proportion = itemTotal / subtotal;
-            const itemTax = (tax * proportion).toFixed(2);
-            const itemTip = (tip * proportion).toFixed(2);
-            const totalShare = (itemTotal + parseFloat(itemTax) + parseFloat(itemTip)).toFixed(2);
+            const itemTax = tax * proportion;
+            const itemTip = tip * proportion;
+            const totalShare = itemTotal + itemTax + itemTip;
+            // Display with 2 decimals, but keep full precision in memory
             row.querySelector('.item-proration').textContent = 
-                `Tax: $${itemTax} | Tip: $${itemTip} | Share: $${totalShare}`;
+                `Tax: $${itemTax.toFixed(2)} | Tip: $${itemTip.toFixed(2)} | Share: $${totalShare.toFixed(2)}`;
         }
     });
 }
@@ -244,11 +248,13 @@ function getReceiptData() {
     document.querySelectorAll('.item-row').forEach(row => {
         const name = row.querySelector('.item-name').value;
         if (name) {
+            const itemTotalElement = row.querySelector('.item-total');
             items.push({
                 name: name,
                 quantity: parseInt(row.querySelector('.item-quantity').value) || 1,
                 unit_price: parseFloat(row.querySelector('.item-price').value) || 0,
-                total_price: parseFloat(row.querySelector('.item-total').value) || 0
+                // Send full precision to backend
+                total_price: parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0
             });
         }
     });
