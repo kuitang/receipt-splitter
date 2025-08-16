@@ -217,6 +217,25 @@ def view_receipt(request, receipt_id):
         )
         my_total = sum(claim.get_share_amount() for claim in my_claims)
     
+    # Calculate participant totals
+    all_claims = Claim.objects.filter(line_item__receipt=receipt)
+    participant_totals = {}
+    for claim in all_claims:
+        name = claim.claimer_name
+        if name not in participant_totals:
+            participant_totals[name] = Decimal('0')
+        participant_totals[name] += claim.get_share_amount()
+    
+    # Calculate total claimed and unclaimed
+    total_claimed = sum(participant_totals.values())
+    total_unclaimed = receipt.total - total_claimed
+    
+    # Sort participants by name for consistent display
+    participant_list = sorted([
+        {'name': name, 'amount': amount}
+        for name, amount in participant_totals.items()
+    ], key=lambda x: x['name'])
+    
     return render(request, 'receipts/view.html', {
         'receipt': receipt,
         'items_with_claims': items_with_claims,
@@ -224,7 +243,10 @@ def view_receipt(request, receipt_id):
         'is_uploader': is_uploader,
         'my_claims': my_claims,
         'my_total': my_total,
-        'show_name_form': not viewer_name and not is_uploader
+        'show_name_form': not viewer_name and not is_uploader,
+        'participant_totals': participant_list,
+        'total_claimed': total_claimed,
+        'total_unclaimed': total_unclaimed
     })
 
 

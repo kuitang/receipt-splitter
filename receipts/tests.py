@@ -311,3 +311,47 @@ class ViewTests(TestCase):
         # Per item: 39.00 / 3 = 13.00
         self.assertContains(response, 'data-amount="13.00"')
         self.assertContains(response, '$13.00</span> per item')
+    
+    def test_participant_totals_display(self):
+        """Test that participant totals and unclaimed amounts are displayed correctly"""
+        # Create some claims
+        claim1 = Claim.objects.create(
+            line_item=self.item,
+            claimer_name="Alice",
+            quantity_claimed=1,
+            session_id="session_alice"
+        )
+        
+        # Add another item
+        item2 = LineItem.objects.create(
+            receipt=self.receipt,
+            name="Salad",
+            quantity=1,
+            unit_price=Decimal("15.00"),
+            total_price=Decimal("15.00")
+        )
+        item2.calculate_prorations()
+        item2.save()
+        
+        claim2 = Claim.objects.create(
+            line_item=item2,
+            claimer_name="Bob",
+            quantity_claimed=1,
+            session_id="session_bob"
+        )
+        
+        # View the receipt
+        url = reverse('view_receipt', kwargs={'receipt_id': self.receipt.id})
+        response = self.client.post(url, {'viewer_name': 'Charlie'})
+        
+        # Check that participants are shown
+        self.assertContains(response, "Alice")
+        self.assertContains(response, "Bob")
+        
+        # Check that "Not Claimed" is shown
+        self.assertContains(response, "Not Claimed")
+        
+        # Check the vertical totals display
+        self.assertContains(response, "Subtotal")
+        self.assertContains(response, "+ Tax")
+        self.assertContains(response, "+ Tip")
