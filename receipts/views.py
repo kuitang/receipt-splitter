@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.utils import timezone
+from django.utils.html import escape
 from django.conf import settings
 from decimal import Decimal
 import json
@@ -30,15 +31,22 @@ def upload_receipt(request):
     
     if not uploader_name or len(uploader_name) < 2 or len(uploader_name) > 50:
         messages.error(request, 'Please provide a valid name (2-50 characters)')
-        return redirect('index')
+        return HttpResponse('Invalid name', status=400)  # 400 Bad Request
     
     if not receipt_image:
         messages.error(request, 'Please upload a receipt image')
-        return redirect('index')
+        return HttpResponse('No image provided', status=400)  # 400 Bad Request
+    
+    if receipt_image.size == 0:
+        messages.error(request, 'Image file is empty')
+        return HttpResponse('Empty file', status=400)  # 400 Bad Request
     
     if receipt_image.size > 10 * 1024 * 1024:
         messages.error(request, 'Image size must be less than 10MB')
-        return redirect('index')
+        return HttpResponse('File too large', status=413)  # 413 Payload Too Large
+    
+    # Escape HTML after validation to prevent XSS
+    uploader_name = escape(uploader_name)
     
     # Create placeholder receipt immediately
     receipt = create_placeholder_receipt(uploader_name, receipt_image)
@@ -88,7 +96,8 @@ def update_receipt(request, receipt_id):
         is_valid, validation_errors = validate_receipt_balance(data)
         
         # Always save the data (even if invalid) so user doesn't lose work
-        receipt.restaurant_name = data.get('restaurant_name', receipt.restaurant_name)
+        # Escape HTML to prevent XSS
+        receipt.restaurant_name = escape(data.get('restaurant_name', receipt.restaurant_name))
         receipt.subtotal = Decimal(str(data.get('subtotal', receipt.subtotal)))
         receipt.tax = Decimal(str(data.get('tax', receipt.tax)))
         receipt.tip = Decimal(str(data.get('tip', receipt.tip)))
@@ -100,7 +109,7 @@ def update_receipt(request, receipt_id):
         for item_data in data.get('items', []):
             line_item = LineItem.objects.create(
                 receipt=receipt,
-                name=item_data['name'],
+                name=escape(item_data['name']),
                 quantity=int(item_data['quantity']),
                 unit_price=Decimal(str(item_data['unit_price'])),
                 total_price=Decimal(str(item_data['total_price']))
@@ -308,11 +317,12 @@ def claim_item(request, receipt_id):
         
         if existing_claim:
             existing_claim.quantity_claimed = quantity
+            existing_claim.claimer_name = escape(viewer_name)  # Update name in case it changed
             existing_claim.save()
         else:
             Claim.objects.create(
                 line_item=line_item,
-                claimer_name=viewer_name,
+                claimer_name=escape(viewer_name),
                 quantity_claimed=quantity,
                 session_id=request.session.session_key
             )

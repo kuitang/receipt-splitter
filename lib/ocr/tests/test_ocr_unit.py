@@ -147,7 +147,7 @@ class TestReceiptOCR(unittest.TestCase):
     def setUp(self):
         self.ocr = ReceiptOCR("test_api_key")
     
-    @patch('ocr_lib.OpenAI')
+    @patch('lib.ocr.ocr_lib.OpenAI')
     def test_initialization(self, mock_openai):
         ocr = ReceiptOCR("test_key", model="gpt-4o")
         mock_openai.assert_called_once_with(api_key="test_key")
@@ -212,45 +212,60 @@ class TestReceiptOCR(unittest.TestCase):
         # Should use today's date
         self.assertEqual(receipt.date.date(), datetime.now().date())
     
-    @patch('ocr_lib.Image.open')
+    @patch('lib.ocr.ocr_lib.Image.open')
     @patch.object(ReceiptOCR, '_image_to_base64')
     def test_process_image_file_not_found(self, mock_base64, mock_open):
         with self.assertRaises(FileNotFoundError):
             self.ocr.process_image("nonexistent.jpg")
     
-    @patch('ocr_lib.Image.open')
-    def test_preprocess_image(self, mock_open):
+    @patch('PIL.ImageOps.exif_transpose')
+    def test_preprocess_image(self, mock_exif_transpose):
         # Create a mock image with proper size property
         mock_image = MagicMock()
         mock_image.mode = 'RGBA'
-        mock_image.size = MagicMock(return_value=(3000, 4000))
-        mock_image.size.__iter__ = MagicMock(return_value=iter([3000, 4000]))
-        mock_image.convert.return_value = mock_image
-        mock_image.thumbnail = MagicMock()
+        mock_image.size = (3000, 4000)  # Size should be a tuple, not a MagicMock
+        
+        # Create converted image mock with proper size
+        converted_image = MagicMock()
+        converted_image.size = (3000, 4000)
+        converted_image.thumbnail = MagicMock()
+        mock_image.convert.return_value = converted_image
+        
+        # Mock exif_transpose to return the converted image
+        mock_exif_transpose.return_value = converted_image
         
         result = self.ocr._preprocess_image(mock_image)
         
         # Should convert to RGB
         mock_image.convert.assert_called_once_with('RGB')
         # Should resize large image
-        mock_image.thumbnail.assert_called_once()
+        converted_image.thumbnail.assert_called_once()
 
 
 class TestIntegration(unittest.TestCase):
     """Test integration scenarios"""
     
-    @patch('ocr_lib.OpenAI')
-    @patch('ocr_lib.Image.open')
-    def test_process_image_success(self, mock_image_open, mock_openai_class):
+    @patch('lib.ocr.ocr_lib.OpenAI')
+    @patch('PIL.ImageOps.exif_transpose')
+    @patch('lib.ocr.ocr_lib.Image.open')
+    @patch.object(ReceiptOCR, '_image_to_base64', return_value='mock_base64')
+    def test_process_image_success(self, mock_base64, mock_image_open, mock_exif_transpose, mock_openai_class):
         # Setup mocks
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
         
         # Mock image with proper size attribute
         mock_image = MagicMock()
+        mock_image.size = (1024, 768)  # Size should be a tuple
         mock_image.mode = 'RGB'
-        mock_image.size = [1000, 1000]  # Use list for proper iteration
+        # Make convert return itself with size preserved
+        converted_mock = MagicMock()
+        converted_mock.size = (1024, 768)
+        converted_mock.thumbnail = MagicMock()
+        mock_image.convert.return_value = converted_mock
         mock_image_open.return_value = mock_image
+        # Mock exif_transpose to return the converted image
+        mock_exif_transpose.return_value = converted_mock
         
         # Mock API response
         mock_response = MagicMock()
@@ -295,17 +310,35 @@ class TestIntegration(unittest.TestCase):
         finally:
             test_file.unlink()
     
-    @patch('ocr_lib.OpenAI')
-    @patch('ocr_lib.Image.open')
-    def test_process_image_api_error(self, mock_image_open, mock_openai_class):
+    @patch('lib.ocr.ocr_lib.OpenAI')
+    @patch('PIL.ImageOps.exif_transpose')
+    @patch('lib.ocr.ocr_lib.Image.open')
+    @patch.object(ReceiptOCR, '_image_to_base64', return_value='mock_base64')
+    def test_process_image_api_error(self, mock_base64, mock_image_open, mock_exif_transpose, mock_openai_class):
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
         
-        # Mock valid image
+        # Mock valid image - Image.open should work with BytesIO
         mock_image = MagicMock()
         mock_image.mode = 'RGB'
-        mock_image.size = [1000, 1000]
-        mock_image_open.return_value = mock_image
+        mock_image.size = (1000, 1000)  # Size should be a tuple
+        # Make convert return itself with size preserved
+        converted_mock = MagicMock()
+        converted_mock.size = (1000, 1000)
+        converted_mock.thumbnail = MagicMock()
+        mock_image.convert.return_value = converted_mock
+        
+        # Configure Image.open to work with BytesIO input
+        def mock_open_side_effect(arg):
+            # Return mock_image for any BytesIO input
+            from io import BytesIO
+            if isinstance(arg, BytesIO):
+                return mock_image
+            return mock_image
+        
+        mock_image_open.side_effect = mock_open_side_effect
+        # Mock exif_transpose to return the converted image
+        mock_exif_transpose.return_value = converted_mock
         
         # Mock API error
         mock_client.chat.completions.create.side_effect = Exception("API Error")
