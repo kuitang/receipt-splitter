@@ -14,7 +14,7 @@
                     <span class="text-gray-600">$</span>
                     <input type="number" 
                            name="item_price_{{ item.id }}"
-                           value="{{ item.unit_price }}"
+                           value="{{ item.unit_price|floatformat:2 }}"
                            step="0.01"
                            class="w-20 text-right border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
                 </div>
@@ -48,7 +48,7 @@
                 <input type="number" 
                        id="tax"
                        name="tax"
-                       value="{{ receipt.tax }}"
+                       value="{{ receipt.tax|floatformat:2 }}"
                        step="0.01"
                        class="w-24 text-right border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
             </div>
@@ -60,7 +60,7 @@
                 <input type="number" 
                        id="tip"
                        name="tip"
-                       value="{{ receipt.tip }}"
+                       value="{{ receipt.tip|floatformat:2 }}"
                        step="0.01"
                        class="w-24 text-right border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
             </div>
