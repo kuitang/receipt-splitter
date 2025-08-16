@@ -219,9 +219,11 @@ function validateReceipt() {
     }
     
     // Check for negative values
+    // Note: Tax and tip CAN be negative (representing discounts)
+    // as per TOTAL_CORRECTION implementation
     if (data.subtotal < 0) errors.push("Subtotal cannot be negative");
-    if (data.tax < 0) errors.push("Tax cannot be negative");
-    if (data.tip < 0) errors.push("Tip cannot be negative");
+    // Tax can be negative (discount/credit)
+    // Tip can be negative (discount/credit)
     if (data.total < 0) errors.push("Total cannot be negative");
     
     return errors;

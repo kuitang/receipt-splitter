@@ -1,5 +1,9 @@
 """
 Receipt validation utilities
+
+Validates that receipt totals balance correctly while allowing for discounts.
+Tax and tip can be negative to represent discounts or corrections, as per
+the TOTAL_CORRECTION implementation for handling OCR discrepancies.
 """
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional, Tuple
@@ -14,12 +18,16 @@ def validate_receipt_balance(receipt_data: Dict) -> Tuple[bool, Optional[Dict]]:
     """
     Validate that a receipt's numbers balance correctly.
     
+    Tax and tip can be negative to represent discounts or adjustments,
+    as implemented in the TOTAL_CORRECTION system for handling OCR
+    discrepancies where the total doesn't match subtotal + tax + tip.
+    
     Args:
         receipt_data: Dictionary containing receipt fields:
-            - subtotal: Receipt subtotal
-            - tax: Tax amount
-            - tip: Tip amount  
-            - total: Total amount
+            - subtotal: Receipt subtotal (must be non-negative)
+            - tax: Tax amount (can be negative for discounts)
+            - tip: Tip amount (can be negative for discounts)
+            - total: Total amount (must be non-negative)
             - items: List of line items with quantity, unit_price, total_price
     
     Returns:
@@ -70,12 +78,12 @@ def validate_receipt_balance(receipt_data: Dict) -> Tuple[bool, Optional[Dict]]:
             errors['total'] = f"Total ${total:.2f} doesn't match subtotal (${subtotal:.2f}) + tax (${tax:.2f}) + tip (${tip:.2f}) = ${calculated_total:.2f}"
         
         # Check for negative values
+        # Note: Tax and tip CAN be negative (representing discounts)
+        # as per TOTAL_CORRECTION implementation for handling discrepancies
         if subtotal < 0:
             errors['subtotal_negative'] = "Subtotal cannot be negative"
-        if tax < 0:
-            errors['tax_negative'] = "Tax cannot be negative"
-        if tip < 0:
-            errors['tip_negative'] = "Tip cannot be negative"
+        # Allow negative tax (discount/credit)
+        # Allow negative tip (discount/credit)
         if total < 0:
             errors['total_negative'] = "Total cannot be negative"
         

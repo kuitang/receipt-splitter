@@ -84,16 +84,80 @@ def test_validation_logic():
         print(f"   ❌ Failed to detect item calculation error")
         return False
     
-    # Test 5: Negative values
-    print("\n5️⃣  Testing negative values...")
-    negative_tax = valid_data.copy()
-    negative_tax['tax'] = '-5.00'
+    # Test 5: Negative tax/tip (allowed as discounts)
+    print("\n5️⃣  Testing negative tax/tip (discounts)...")
+    discount_data = {
+        'subtotal': '50.00',
+        'tax': '-5.00',  # Tax discount
+        'tip': '10.00',
+        'total': '55.00',  # Adjusted total (50 - 5 + 10)
+        'items': [
+            {'name': 'Burger', 'quantity': 2, 'unit_price': '15.00', 'total_price': '30.00'},
+            {'name': 'Fries', 'quantity': 2, 'unit_price': '10.00', 'total_price': '20.00'}
+        ]
+    }
     
-    is_valid, errors = validate_receipt_balance(negative_tax)
-    if not is_valid and 'tax_negative' in errors:
-        print(f"   ✅ Detected negative tax: {errors['tax_negative']}")
+    is_valid, errors = validate_receipt_balance(discount_data)
+    if is_valid:
+        print(f"   ✅ Negative tax accepted as discount")
     else:
-        print(f"   ❌ Failed to detect negative tax")
+        print(f"   ❌ Negative tax should be allowed: {errors}")
+        return False
+    
+    # Test negative tip
+    discount_tip = {
+        'subtotal': '50.00',
+        'tax': '5.00',
+        'tip': '-2.00',  # Tip discount
+        'total': '53.00',  # Adjusted total (50 + 5 - 2)
+        'items': [
+            {'name': 'Burger', 'quantity': 2, 'unit_price': '15.00', 'total_price': '30.00'},
+            {'name': 'Fries', 'quantity': 2, 'unit_price': '10.00', 'total_price': '20.00'}
+        ]
+    }
+    
+    is_valid, errors = validate_receipt_balance(discount_tip)
+    if is_valid:
+        print(f"   ✅ Negative tip accepted as discount")
+    else:
+        print(f"   ❌ Negative tip should be allowed: {errors}")
+        return False
+    
+    # Test 6: TOTAL_CORRECTION scenario - discrepancy as negative tip
+    print("\n6️⃣  Testing TOTAL_CORRECTION scenario...")
+    # Simulating Gin Mill case where OCR correction adds tip
+    gin_mill_case = {
+        'subtotal': '60.50',
+        'tax': '0.00',
+        'tip': '3.50',  # Added by TOTAL_CORRECTION to balance
+        'total': '64.00',
+        'items': [
+            {'name': 'Food items', 'quantity': 1, 'unit_price': '60.50', 'total_price': '60.50'}
+        ]
+    }
+    
+    is_valid, errors = validate_receipt_balance(gin_mill_case)
+    if is_valid:
+        print(f"   ✅ TOTAL_CORRECTION case validated")
+    else:
+        print(f"   ❌ TOTAL_CORRECTION case should be valid: {errors}")
+        return False
+    
+    # Test 7: Negative subtotal (not allowed)
+    print("\n7️⃣  Testing negative subtotal (not allowed)...")
+    negative_subtotal = {
+        'subtotal': '-50.00',
+        'tax': '5.00',
+        'tip': '10.00', 
+        'total': '-35.00',
+        'items': []
+    }
+    
+    is_valid, errors = validate_receipt_balance(negative_subtotal)
+    if not is_valid and 'subtotal_negative' in errors:
+        print(f"   ✅ Detected negative subtotal: {errors['subtotal_negative']}")
+    else:
+        print(f"   ❌ Failed to detect negative subtotal")
         return False
     
     return True
@@ -190,8 +254,37 @@ def test_api_validation():
         receipt.delete()
         return False
     
-    # Test 4: Fix the receipt and finalize
-    print("\n4️⃣  Testing finalization of balanced receipt...")
+    # Test 4: Test receipt with discount (negative tax)
+    print("\n4️⃣  Testing receipt with discount (negative tax)...")
+    discount_update = {
+        'restaurant_name': 'Discount Restaurant',
+        'subtotal': 50.00,
+        'tax': -5.00,  # Discount applied as negative tax
+        'tip': 10.00,
+        'total': 55.00,  # 50 - 5 + 10
+        'items': [
+            {'name': 'Burger', 'quantity': 2, 'unit_price': 15.00, 'total_price': 30.00},
+            {'name': 'Fries', 'quantity': 2, 'unit_price': 10.00, 'total_price': 20.00}
+        ]
+    }
+    
+    response = client.post(
+        f'/update/{receipt.id}/',
+        data=json.dumps(discount_update),
+        content_type='application/json'
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('is_balanced'):
+            print(f"   ✅ Receipt with discount validated correctly")
+        else:
+            print(f"   ❌ Discount should be valid: {data}")
+            receipt.delete()
+            return False
+    
+    # Test 5: Fix the receipt and finalize
+    print("\n5️⃣  Testing finalization of balanced receipt...")
     valid_update = {
         'restaurant_name': 'Updated Restaurant',
         'subtotal': 50.00,  # Correct
@@ -327,7 +420,8 @@ if __name__ == '__main__':
         print("- Update API returns validation status")
         print("- Finalize API rejects unbalanced receipts")
         print("- Decimal precision handled correctly")
-        print("- Negative values rejected")
+        print("- Negative tax/tip allowed as discounts (per TOTAL_CORRECTION)")
+        print("- Negative subtotal/total properly rejected")
     else:
         print("❌ SOME TESTS FAILED")
     
