@@ -30,32 +30,22 @@ def generate_and_save_images():
     
     image_prompts = [
         {
-            "prompt": "Illustrative, vibrant artwork of a diverse group of 5 friends at a restaurant table with a receipt and calculator in the center, everyone pointing at different items on the bill, warm lighting, collaborative and friendly atmosphere, modern flat design style",
-            "filename": "hero_split_receipt.png",
-            "caption": "Friends splitting a restaurant receipt"
+            "prompt": "Simple, clean illustration of a smartphone camera scanning a restaurant receipt, flat design style, bright colors, minimalist, white background with subtle blue accents",
+            "filename": "step_upload.png",
+            "caption": "Upload receipt step"
         },
         {
-            "prompt": "Illustrative, colorful artwork of a diverse group of 4 people at a dinner table, one person holding up a smartphone showing a split bill app, others looking pleased, restaurant setting with warm ambient lighting, modern illustration style",
-            "filename": "hero_mobile_split.png", 
-            "caption": "Using technology to split bills fairly"
+            "prompt": "Simple, clean illustration of a hand holding a smartphone with a share icon and link being sent to multiple contacts, flat design style, bright colors, minimalist, white background with subtle blue accents",
+            "filename": "step_share.png", 
+            "caption": "Share link step"
         },
         {
-            "prompt": "Illustrative artwork of hands from different people pointing at items on a restaurant receipt, calculator and phones visible, top-down view, bright and clean design, emphasizing collaboration and fairness",
-            "filename": "hero_collaborative.png",
-            "caption": "Collaborative bill splitting"
+            "prompt": "Simple, clean illustration of multiple smartphones showing individual payment amounts with checkmarks, representing fair bill splitting, flat design style, bright colors, minimalist, white background with subtle blue accents",
+            "filename": "step_split.png",
+            "caption": "Split fairly step"
         },
         {
-            "prompt": "Illustrative, cheerful artwork of a diverse group enjoying dinner at a long table, receipt paper trail winding between plates, everyone smiling and engaged, warm restaurant atmosphere, modern flat illustration style",
-            "filename": "group_dinner.png",
-            "caption": "Group dinner with easy bill splitting"
-        },
-        {
-            "prompt": "Illustrative artwork of a receipt transforming into individual smaller receipts with colorful arrows, abstract and modern design, bright colors on white background, clean minimalist style",
-            "filename": "receipt_transform.png",
-            "caption": "Receipt splitting visualization"
-        },
-        {
-            "prompt": "Illustrative artwork of diverse friends high-fiving after dinner, empty plates and a neatly divided receipt on the table, celebration atmosphere, warm evening light, joyful and inclusive scene",
+            "prompt": "Cheerful, simple illustration of diverse hands giving thumbs up around a receipt marked 'PAID', celebration of successful bill split, flat design style, bright colors, minimalist",
             "filename": "success_split.png",
             "caption": "Successfully split the bill"
         }
@@ -74,9 +64,11 @@ def generate_and_save_images():
             
             try:
                 response = client.images.generate(
-                    model="dall-e-2",
+                    model="dall-e-3",
                     prompt=image_data["prompt"],
                     size="1024x1024",
+                    quality="standard",
+                    style="natural",
                     n=1,
                 )
                 

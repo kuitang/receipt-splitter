@@ -1,62 +1,63 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto py-8">
-    <!-- Hero Image Section -->
-    <div class="mb-8 rounded-lg overflow-hidden shadow-lg">
-        <img src="/media/sample_images/hero_collaborative.png" 
-             alt="Collaborative bill splitting" 
-             class="w-full h-64 md:h-96 object-cover">
-    </div>
-    
-    <div class="text-center mb-12">
-        <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+<div class="max-w-4xl mx-auto py-4 px-4">
+    <div class="text-center mb-6">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
             Communist Style
         </h1>
-        <p class="text-xl text-gray-600 mb-2">
+        <p class="text-lg text-gray-600">
             The Ironically Named Receipt Splitter
         </p>
-        <p class="text-lg text-gray-500">
-            Split bills based on what you actually ordered, not equally
+        <p class="text-sm text-gray-500">
+            Split bills based on what you actually ordered
         </p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
-        <h2 class="text-2xl font-semibold mb-6 text-center">How It Works</h2>
+    <div class="bg-white rounded-lg shadow-lg p-4 md:p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4 text-center">How It Works</h2>
         
-        <!-- Visual Receipt Transform -->
-        <div class="mb-8 flex justify-center">
-            <img src="/media/sample_images/receipt_transform.png" 
-                 alt="Receipt splitting visualization" 
-                 class="w-full max-w-md h-48 object-contain">
-        </div>
-        
-        <div class="grid md:grid-cols-3 gap-6">
-            <div class="text-center">
-                <div class="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
-                    <span class="text-2xl font-bold text-blue-600">1</span>
+        <div class="grid md:grid-cols-3 gap-4">
+            <div class="flex items-start space-x-3">
+                <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
+                    <span class="text-lg font-bold text-blue-600">1</span>
                 </div>
-                <h3 class="font-semibold mb-2">Upload Receipt</h3>
-                <p class="text-gray-600 text-sm">Take a photo or upload an image of your receipt</p>
+                <div class="flex-1">
+                    <img src="/media/sample_images/step_upload.png" 
+                         alt="Upload receipt" 
+                         class="w-full h-20 object-cover rounded mb-2">
+                    <h3 class="font-semibold text-sm mb-1">Upload Receipt</h3>
+                    <p class="text-gray-600 text-xs">Take a photo or upload your receipt</p>
+                </div>
             </div>
-            <div class="text-center">
-                <div class="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
-                    <span class="text-2xl font-bold text-blue-600">2</span>
+            <div class="flex items-start space-x-3">
+                <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
+                    <span class="text-lg font-bold text-blue-600">2</span>
                 </div>
-                <h3 class="font-semibold mb-2">Share Link</h3>
-                <p class="text-gray-600 text-sm">Send the link to your friends to claim their items</p>
+                <div class="flex-1">
+                    <img src="/media/sample_images/step_share.png" 
+                         alt="Share link" 
+                         class="w-full h-20 object-cover rounded mb-2">
+                    <h3 class="font-semibold text-sm mb-1">Share Link</h3>
+                    <p class="text-gray-600 text-xs">Send to friends to claim items</p>
+                </div>
             </div>
-            <div class="text-center">
-                <div class="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
-                    <span class="text-2xl font-bold text-blue-600">3</span>
+            <div class="flex items-start space-x-3">
+                <div class="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
+                    <span class="text-lg font-bold text-blue-600">3</span>
                 </div>
-                <h3 class="font-semibold mb-2">Split Fairly</h3>
-                <p class="text-gray-600 text-sm">Everyone pays for what they ordered, including tax & tip</p>
+                <div class="flex-1">
+                    <img src="/media/sample_images/step_split.png" 
+                         alt="Split fairly" 
+                         class="w-full h-20 object-cover rounded mb-2">
+                    <h3 class="font-semibold text-sm mb-1">Split Fairly</h3>
+                    <p class="text-gray-600 text-xs">Everyone pays for their items</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-lg p-8">
+    <div class="bg-white rounded-lg shadow-lg p-4 md:p-6">
         <form action="{% url 'upload_receipt' %}" method="post" enctype="multipart/form-data" class="space-y-6">
             {% csrf_token %}
             
@@ -137,13 +138,5 @@
     });
     </script>
 
-    <div class="mt-12 grid md:grid-cols-3 gap-6">
-        {% for image in sample_images %}
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-            <img src="{{ image.url }}" alt="{{ image.caption }}" class="w-full h-48 object-cover">
-            <p class="p-3 text-sm text-gray-600 text-center">{{ image.caption }}</p>
-        </div>
-        {% endfor %}
-    </div>
 </div>
 {% endblock %}
