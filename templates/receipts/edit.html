@@ -148,7 +148,12 @@
     <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
         <h3 class="text-xl font-semibold mb-4">Receipt Ready to Share!</h3>
         <p class="text-gray-600 mb-4">Your receipt has been finalized. Share this link with your friends:</p>
-        {% include 'receipts/partials/copy_link_widget.html' with share_url='' widget_id='share-url' %}
+        <div class="flex items-center space-x-2">
+            <input type="text" id="share-url" readonly class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+            <button onclick="copyShareUrl()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                Copy
+            </button>
+        </div>
         <div class="mt-4 text-center">
             <canvas id="qr-code"></canvas>
         </div>
@@ -311,7 +316,12 @@ async function finalizeReceipt() {
     }
 }
 
-// Copy function is now defined in base.html
+function copyShareUrl() {
+    const input = document.getElementById('share-url');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
 
 function closeShareModal() {
     window.location.href = document.getElementById('share-url').value;

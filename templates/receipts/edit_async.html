@@ -87,23 +87,65 @@
                 <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
                     <h2 class="text-xl font-semibold mb-4">Receipt Details</h2>
                     
-                    <div id="receipt-details">
+                    <div class="space-y-4">
                         {% if is_processing %}
                         <!-- Placeholder content while processing -->
-                        <div class="space-y-4">
+                        <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
+                        <div class="grid grid-cols-2 gap-4">
                             <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                                <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                                <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                            </div>
+                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
+                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
                         </div>
                         {% else %}
                         <!-- Actual content when ready -->
-                        {% include "receipts/partials/receipt_content.html" %}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Restaurant Name</label>
+                            <input type="text" 
+                                   id="restaurant_name" 
+                                   value="{{ receipt.restaurant_name }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Subtotal</label>
+                                <input type="number" 
+                                       id="subtotal" 
+                                       value="{{ receipt.subtotal }}"
+                                       step="0.01"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tax</label>
+                                <input type="number" 
+                                       id="tax" 
+                                       value="{{ receipt.tax }}"
+                                       step="0.01"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tip</label>
+                                <input type="number" 
+                                       id="tip" 
+                                       value="{{ receipt.tip }}"
+                                       step="0.01"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Total</label>
+                                <input type="number" 
+                                       id="total" 
+                                       value="{{ receipt.total }}"
+                                       step="0.01"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-bold">
+                            </div>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
@@ -164,6 +206,9 @@
                                         </svg>
                                     </button>
                                 </div>
+                            </div>
+                            <div class="mt-2 text-xs text-gray-500">
+                                <span class="item-proration"></span>
                             </div>
                         </div>
                         {% endfor %}
@@ -250,6 +295,28 @@ function updateItemTotal(row) {
     const price = parseFloat(row.querySelector('.item-price').value) || 0;
     const total = quantity * price;
     row.querySelector('.item-total').value = total.toFixed(2);
+    updateProrations();
+}
+
+function updateProrations() {
+    const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
+    const tax = parseFloat(document.getElementById('tax').value) || 0;
+    const tip = parseFloat(document.getElementById('tip').value) || 0;
+    
+    document.querySelectorAll('.item-row').forEach(row => {
+        const itemTotal = parseFloat(row.querySelector('.item-total').value) || 0;
+        if (subtotal > 0) {
+            const proportion = itemTotal / subtotal;
+            const itemTax = (tax * proportion).toFixed(2);
+            const itemTip = (tip * proportion).toFixed(2);
+            const totalShare = (itemTotal + parseFloat(itemTax) + parseFloat(itemTip)).toFixed(2);
+            const proration = row.querySelector('.item-proration');
+            if (proration) {
+                proration.textContent = 
+                    `Tax: $${itemTax} | Tip: $${itemTip} | Share: $${totalShare}`;
+            }
+        }
+    });
 }
 
 function addItem() {
@@ -279,6 +346,9 @@ function addItem() {
                     </svg>
                 </button>
             </div>
+        </div>
+        <div class="mt-2 text-xs text-gray-500">
+            <span class="item-proration"></span>
         </div>
     `;
     container.appendChild(newRow);
@@ -406,6 +476,14 @@ function getCookie(name) {
 document.addEventListener('DOMContentLoaded', () => {
     if (!isProcessing) {
         document.querySelectorAll('.item-row').forEach(attachItemListeners);
+        
+        // Also update prorations on load
+        updateProrations();
+        
+        // Update prorations when totals change
+        document.getElementById('subtotal')?.addEventListener('input', updateProrations);
+        document.getElementById('tax')?.addEventListener('input', updateProrations);
+        document.getElementById('tip')?.addEventListener('input', updateProrations);
     }
 });
 </script>
