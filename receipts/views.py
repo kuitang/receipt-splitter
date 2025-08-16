@@ -15,6 +15,7 @@ import os
 from .models import Receipt, LineItem, Claim, ActiveViewer
 from .ocr_service import process_receipt_with_ocr
 from .async_processor import process_receipt_async, create_placeholder_receipt
+from .validation import validate_receipt_balance
 
 
 def index(request):
@@ -85,6 +86,10 @@ def update_receipt(request, receipt_id):
     try:
         data = json.loads(request.body)
         
+        # Validate the receipt data before saving
+        is_valid, validation_errors = validate_receipt_balance(data)
+        
+        # Always save the data (even if invalid) so user doesn't lose work
         receipt.restaurant_name = data.get('restaurant_name', receipt.restaurant_name)
         receipt.subtotal = Decimal(str(data.get('subtotal', receipt.subtotal)))
         receipt.tax = Decimal(str(data.get('tax', receipt.tax)))
@@ -105,7 +110,12 @@ def update_receipt(request, receipt_id):
             line_item.calculate_prorations()
             line_item.save()
         
-        return JsonResponse({'success': True})
+        # Return validation status along with success
+        response = {'success': True, 'is_balanced': is_valid}
+        if validation_errors:
+            response['validation_errors'] = validation_errors
+        
+        return JsonResponse(response)
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -120,6 +130,41 @@ def finalize_receipt(request, receipt_id):
     
     if request.session.get('receipt_id') != str(receipt_id):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    # Validate the receipt before finalizing
+    receipt_data = {
+        'subtotal': str(receipt.subtotal),
+        'tax': str(receipt.tax),
+        'tip': str(receipt.tip),
+        'total': str(receipt.total),
+        'items': [
+            {
+                'name': item.name,
+                'quantity': item.quantity,
+                'unit_price': str(item.unit_price),
+                'total_price': str(item.total_price)
+            }
+            for item in receipt.items.all()
+        ]
+    }
+    
+    is_valid, validation_errors = validate_receipt_balance(receipt_data)
+    
+    if not is_valid:
+        # Don't allow finalization if receipt doesn't balance
+        error_message = "Receipt doesn't balance. Please fix the following issues:\n"
+        if validation_errors:
+            for key, value in validation_errors.items():
+                if key == 'items':
+                    for item_error in value:
+                        error_message += f"- {item_error['message']}\n"
+                elif key != 'warnings':
+                    error_message += f"- {value}\n"
+        
+        return JsonResponse({
+            'error': error_message,
+            'validation_errors': validation_errors
+        }, status=400)
     
     receipt.is_finalized = True
     receipt.save()

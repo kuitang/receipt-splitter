@@ -4,6 +4,26 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto py-8">
+    <!-- Balance Warning Banner -->
+    <div id="balance-warning" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800">Receipt doesn't balance</h3>
+                <div class="mt-2 text-sm text-red-700" id="balance-error-details">
+                    <!-- Errors will be populated here -->
+                </div>
+                <p class="mt-2 text-xs text-red-600 font-semibold">
+                    The "Finalize & Share" button is disabled until the receipt balances correctly.
+                </p>
+            </div>
+        </div>
+    </div>
+    
     <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-900">Edit Receipt</h1>
         <p class="text-gray-600 mt-2">Review and edit the extracted receipt data</p>
@@ -168,6 +188,79 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
 const receiptId = "{{ receipt.id }}";
+let receiptIsBalanced = true;  // Track balance status
+
+// Validation function
+function validateReceipt() {
+    const data = getReceiptData();
+    const errors = [];
+    
+    // Calculate items sum
+    let itemsSum = 0;
+    data.items.forEach((item, index) => {
+        if (item.name) {
+            const expected = item.quantity * item.unit_price;
+            if (Math.abs(expected - item.total_price) > 0.01) {
+                errors.push(`Item "${item.name}": Total $${item.total_price.toFixed(2)} doesn't match quantity (${item.quantity}) × price ($${item.unit_price.toFixed(2)}) = $${expected.toFixed(2)}`);
+            }
+            itemsSum += item.total_price;
+        }
+    });
+    
+    // Check if items sum matches subtotal
+    if (Math.abs(itemsSum - data.subtotal) > 0.01) {
+        errors.push(`Subtotal $${data.subtotal.toFixed(2)} doesn't match sum of items $${itemsSum.toFixed(2)}`);
+    }
+    
+    // Check if subtotal + tax + tip = total
+    const calculatedTotal = data.subtotal + data.tax + data.tip;
+    if (Math.abs(calculatedTotal - data.total) > 0.01) {
+        errors.push(`Total $${data.total.toFixed(2)} doesn't match subtotal ($${data.subtotal.toFixed(2)}) + tax ($${data.tax.toFixed(2)}) + tip ($${data.tip.toFixed(2)}) = $${calculatedTotal.toFixed(2)}`);
+    }
+    
+    // Check for negative values
+    if (data.subtotal < 0) errors.push("Subtotal cannot be negative");
+    if (data.tax < 0) errors.push("Tax cannot be negative");
+    if (data.tip < 0) errors.push("Tip cannot be negative");
+    if (data.total < 0) errors.push("Total cannot be negative");
+    
+    return errors;
+}
+
+// Update UI based on validation
+function checkAndDisplayBalance() {
+    const errors = validateReceipt();
+    const warningDiv = document.getElementById('balance-warning');
+    const errorDetails = document.getElementById('balance-error-details');
+    const finalizeBtn = document.querySelector('button[onclick="finalizeReceipt()"]');
+    
+    if (errors.length > 0) {
+        // Show warning banner
+        warningDiv.classList.remove('hidden');
+        errorDetails.innerHTML = '<ul class="list-disc list-inside space-y-1">' + 
+            errors.map(e => `<li>${e}</li>`).join('') + 
+            '</ul>';
+        
+        // Disable finalize button
+        if (finalizeBtn) {
+            finalizeBtn.disabled = true;
+            finalizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        
+        receiptIsBalanced = false;
+    } else {
+        // Hide warning banner
+        warningDiv.classList.add('hidden');
+        
+        // Enable finalize button
+        if (finalizeBtn) {
+            finalizeBtn.disabled = false;
+            finalizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        
+        receiptIsBalanced = true;
+    }
+}
 
 function updateItemTotal(row) {
     const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
@@ -197,6 +290,9 @@ function updateProrations() {
                 `Tax: $${itemTax.toFixed(2)} | Tip: $${itemTip.toFixed(2)} | Share: $${totalShare.toFixed(2)}`;
         }
     });
+    
+    // Check balance after updating prorations
+    checkAndDisplayBalance();
 }
 
 function addItem() {
@@ -282,11 +378,20 @@ async function saveReceipt() {
             body: JSON.stringify(data)
         });
         
+        const result = await response.json();
+        
         if (response.ok) {
-            alert('Receipt saved successfully!');
+            // Check validation status from backend
+            if (result.is_balanced) {
+                alert('Receipt saved successfully!');
+            } else {
+                alert('Receipt saved, but it doesn\'t balance. Please review the errors shown above.');
+            }
+            
+            // Update UI based on backend validation
+            checkAndDisplayBalance();
         } else {
-            const error = await response.json();
-            alert('Error saving receipt: ' + error.error);
+            alert('Error saving receipt: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         alert('Error saving receipt: ' + error.message);
@@ -294,6 +399,12 @@ async function saveReceipt() {
 }
 
 async function finalizeReceipt() {
+    // Check balance before allowing finalization
+    if (!receiptIsBalanced) {
+        alert('Cannot finalize receipt: The receipt doesn\'t balance. Please fix the errors shown above.');
+        return;
+    }
+    
     if (!confirm('Once finalized, this receipt cannot be edited. Continue?')) {
         return;
     }
@@ -315,7 +426,12 @@ async function finalizeReceipt() {
             document.getElementById('share-modal').classList.remove('hidden');
         } else {
             const error = await response.json();
-            alert('Error finalizing receipt: ' + error.error);
+            // Format validation errors nicely
+            let errorMessage = error.error || 'Unknown error';
+            if (error.validation_errors) {
+                console.error('Validation errors:', error.validation_errors);
+            }
+            alert('Error finalizing receipt: ' + errorMessage);
         }
     } catch (error) {
         alert('Error finalizing receipt: ' + error.message);
@@ -350,10 +466,23 @@ function getCookie(name) {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.item-row').forEach(attachItemListeners);
-    document.getElementById('subtotal').addEventListener('input', updateProrations);
-    document.getElementById('tax').addEventListener('input', updateProrations);
-    document.getElementById('tip').addEventListener('input', updateProrations);
+    
+    // Add event listeners for all fields that affect balance
+    const fieldsToWatch = ['subtotal', 'tax', 'tip', 'total'];
+    fieldsToWatch.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', () => {
+                updateProrations();
+                checkAndDisplayBalance();
+            });
+        }
+    });
+    
     updateProrations();
+    
+    // Initial balance check
+    checkAndDisplayBalance();
 });
 </script>
 {% endblock %}
