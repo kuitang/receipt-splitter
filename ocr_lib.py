@@ -3,14 +3,16 @@ OCR Library for Receipt Processing using OpenAI Vision API
 """
 
 import base64
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Tuple
 import re
 
 from PIL import Image
@@ -186,18 +188,28 @@ class ReceiptData:
 class ReceiptOCR:
     """Main OCR class for processing receipt images"""
     
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-4o", cache_size: int = 128):
         """
-        Initialize the OCR processor
+        Initialize the OCR processor with optional caching
         
         Args:
             api_key: OpenAI API key
             model: OpenAI model to use (default: gpt-4o for vision)
+            cache_size: Number of cached OCR results (default: 128, set to 0 to disable)
         """
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.max_image_size = 2048  # Max dimension in pixels
         self.jpeg_quality = 85
+        self.cache_size = cache_size
+        self._cache_hits = 0
+        self._cache_misses = 0
+        
+        # Initialize the cached OCR function
+        if cache_size > 0:
+            self._cached_ocr_call = lru_cache(maxsize=cache_size)(self._ocr_api_call)
+        else:
+            self._cached_ocr_call = self._ocr_api_call  # No caching
     
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
         """
@@ -232,6 +244,87 @@ class ReceiptOCR:
         buffer = BytesIO()
         image.save(buffer, format='JPEG', quality=self.jpeg_quality)
         return base64.b64encode(buffer.getvalue()).decode('utf-8')
+    
+    def _compute_image_hash(self, base64_image: str) -> str:
+        """
+        Compute a hash of the image for caching
+        
+        Args:
+            base64_image: Base64 encoded image string
+            
+        Returns:
+            SHA256 hash of the image
+        """
+        return hashlib.sha256(base64_image.encode()).hexdigest()
+    
+    def _ocr_api_call(self, image_hash: str, base64_image: str) -> str:
+        """
+        Make the actual OCR API call (cached based on image hash)
+        
+        Args:
+            image_hash: Hash of the image (used for caching)
+            base64_image: Base64 encoded image
+            
+        Returns:
+            Response text from OpenAI
+        """
+        logger.info(f"Making OpenAI API call for image hash: {image_hash[:8]}...")
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": self._create_prompt()},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=2000,
+                temperature=0.1
+            )
+            
+            response_text = response.choices[0].message.content
+            logger.debug(f"API Response: {response_text[:200]}...")
+            return response_text
+            
+        except Exception as e:
+            logger.error(f"OpenAI API error: {e}")
+            raise ValueError(f"Failed to process image with OpenAI: {e}")
+    
+    def get_cache_stats(self) -> Dict[str, int]:
+        """
+        Get cache statistics
+        
+        Returns:
+            Dictionary with cache hits, misses, and hit rate
+        """
+        total = self._cache_hits + self._cache_misses
+        hit_rate = (self._cache_hits / total * 100) if total > 0 else 0
+        
+        return {
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "total_calls": total,
+            "hit_rate": round(hit_rate, 2),
+            "cache_size": self.cache_size,
+            "cache_info": getattr(self._cached_ocr_call, 'cache_info', lambda: None)()
+        }
+    
+    def clear_cache(self):
+        """Clear the OCR cache"""
+        if hasattr(self._cached_ocr_call, 'cache_clear'):
+            self._cached_ocr_call.cache_clear()
+            logger.info("OCR cache cleared")
+            self._cache_hits = 0
+            self._cache_misses = 0
     
     def _create_prompt(self) -> str:
         """Create the prompt for OpenAI Vision API"""
@@ -352,34 +445,24 @@ Return ONLY valid JSON, no other text."""
         # Convert to base64
         base64_image = self._image_to_base64(image)
         
-        # Call OpenAI API
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": self._create_prompt()},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=2000,
-                temperature=0.1
-            )
-            
-            response_text = response.choices[0].message.content
-            logger.debug(f"API Response: {response_text}")
-            
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise ValueError(f"Failed to process image with OpenAI: {e}")
+        # Compute hash for caching
+        image_hash = self._compute_image_hash(base64_image)
+        
+        # Check if we have a cached result
+        cache_info_before = getattr(self._cached_ocr_call, 'cache_info', lambda: None)()
+        
+        # Make the (potentially cached) API call
+        response_text = self._cached_ocr_call(image_hash, base64_image)
+        
+        # Update cache statistics
+        cache_info_after = getattr(self._cached_ocr_call, 'cache_info', lambda: None)()
+        if cache_info_before and cache_info_after:
+            if cache_info_after.hits > cache_info_before.hits:
+                self._cache_hits += 1
+                logger.info(f"Cache HIT for image: {image_path.name}")
+            else:
+                self._cache_misses += 1
+                logger.info(f"Cache MISS for image: {image_path.name}")
         
         # Parse response
         try:
@@ -413,7 +496,7 @@ Return ONLY valid JSON, no other text."""
     
     def process_image_bytes(self, image_bytes: bytes, format: str = "JPEG") -> ReceiptData:
         """
-        Process receipt image from bytes
+        Process receipt image from bytes (with caching)
         
         Args:
             image_bytes: Image data as bytes
@@ -431,34 +514,24 @@ Return ONLY valid JSON, no other text."""
         # Convert to base64
         base64_image = self._image_to_base64(image)
         
-        # Rest is the same as process_image
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": self._create_prompt()},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=2000,
-                temperature=0.1
-            )
-            
-            response_text = response.choices[0].message.content
-            logger.debug(f"API Response: {response_text}")
-            
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise ValueError(f"Failed to process image with OpenAI: {e}")
+        # Compute hash for caching
+        image_hash = self._compute_image_hash(base64_image)
+        
+        # Check if we have a cached result
+        cache_info_before = getattr(self._cached_ocr_call, 'cache_info', lambda: None)()
+        
+        # Make the (potentially cached) API call
+        response_text = self._cached_ocr_call(image_hash, base64_image)
+        
+        # Update cache statistics
+        cache_info_after = getattr(self._cached_ocr_call, 'cache_info', lambda: None)()
+        if cache_info_before and cache_info_after:
+            if cache_info_after.hits > cache_info_before.hits:
+                self._cache_hits += 1
+                logger.info(f"Cache HIT for image hash: {image_hash[:8]}...")
+            else:
+                self._cache_misses += 1
+                logger.info(f"Cache MISS for image hash: {image_hash[:8]}...")
         
         # Parse response
         try:

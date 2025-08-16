@@ -64,6 +64,12 @@ def process_receipt_with_ocr(image_input, format_hint=None):
         logger.info(f"Processing receipt image: {filename} (format: {format_hint})")
         receipt_data = ocr.process_image_bytes(image_bytes, format=format_hint)
         
+        # Log cache statistics
+        cache_stats = ocr.get_cache_stats()
+        logger.info(f"OCR Cache Stats - Hits: {cache_stats['cache_hits']}, "
+                   f"Misses: {cache_stats['cache_misses']}, "
+                   f"Hit Rate: {cache_stats['hit_rate']}%")
+        
         # Validate the extracted data
         is_valid, errors = receipt_data.validate()
         if not is_valid:
