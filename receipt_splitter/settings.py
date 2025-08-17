@@ -60,6 +60,13 @@ fly_internal_ranges = [
 ]
 allowed_hosts.extend(fly_internal_ranges)
 
+# Add development-specific hosts when DEBUG is True
+if DEBUG:
+    allowed_hosts.extend([
+        '192.168.0.0/16',  # Local network range in CIDR notation
+        '.local',          # .local domains (with leading dot for subdomains)
+    ])
+
 # For production, also allow specific internal IPs we've seen in logs
 if not DEBUG:
     allowed_hosts.extend([
