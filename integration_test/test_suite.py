@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import test utilities
 from integration_test.base_test import (
-    IntegrationTestBase, TestDataGenerator, SecurityTestHelper,
-    print_test_header, print_test_result, print_test_summary, TestResult
+    IntegrationTestBase,
+    print_test_header, print_test_result, print_test_summary, TestResult, test_wrapper
 )
 from integration_test.mock_ocr import patch_ocr_for_tests, get_ocr_status
 
@@ -98,7 +98,7 @@ class ReceiptWorkflowTest(IntegrationTestBase):
             # Step 4: Edit receipt - try invalid data first
             print("\n✏️ Step 4: Edit Receipt")
             print("   Testing invalid data...")
-            invalid_data = TestDataGenerator.unbalanced_receipt()
+            invalid_data = IntegrationTestBase.TestData.unbalanced_receipt()
             update_response = self.update_receipt(receipt_slug, invalid_data)
             assert update_response['status_code'] == 200, "Update should succeed"
             assert update_response['data']['is_balanced'] == False, "Should detect unbalanced receipt"
@@ -106,7 +106,7 @@ class ReceiptWorkflowTest(IntegrationTestBase):
             
             # Step 5: Fix and save valid data
             print("   Saving valid data...")
-            valid_data = TestDataGenerator.balanced_receipt()
+            valid_data = IntegrationTestBase.TestData.balanced_receipt()
             update_response = self.update_receipt(receipt_slug, valid_data)
             assert update_response['status_code'] == 200, "Update should succeed"
             assert update_response['data']['is_balanced'] == True, "Should be balanced"
@@ -207,7 +207,7 @@ class SecurityValidationTest(IntegrationTestBase):
             import time
             # Test XSS in uploader name
             print("\n🛡️ Testing XSS Prevention")
-            xss_payloads = SecurityTestHelper.get_xss_payloads()
+            xss_payloads = IntegrationTestBase.TestData.xss_payloads()
             
             for i, payload in enumerate(xss_payloads[:2]):  # Test first 2 payloads to avoid rate limit
                 if i > 0:
@@ -234,9 +234,9 @@ class SecurityValidationTest(IntegrationTestBase):
             receipt_slug = upload_response['receipt_slug']
             self.wait_for_processing(receipt_slug)
             
-            sql_payloads = SecurityTestHelper.get_sql_injection_payloads()
+            sql_payloads = IntegrationTestBase.TestData.sql_injection_payloads()
             for i, payload in enumerate(sql_payloads[:2]):  # Test first 2 payloads to avoid rate limit
-                data = TestDataGenerator.balanced_receipt()
+                data = IntegrationTestBase.TestData.balanced_receipt()
                 data['restaurant_name'] = payload
                 
                 response = self.update_receipt(receipt_slug, data)
@@ -262,7 +262,7 @@ class SecurityValidationTest(IntegrationTestBase):
         try:
             # Test oversized file
             print("\n📁 Testing File Size Limits")
-            oversized = SecurityTestHelper.get_oversized_data(11)  # 11MB
+            oversized = IntegrationTestBase.TestData.oversized_data(11)  # 11MB
             response = self.upload_receipt(
                 uploader_name="Test File Security",
                 image_bytes=oversized
@@ -335,7 +335,7 @@ class SecurityValidationTest(IntegrationTestBase):
             # User B tries to edit User A's receipt
             print("   Testing unauthorized edit attempt...")
             user_b = self.create_new_session()
-            data = TestDataGenerator.balanced_receipt()
+            data = IntegrationTestBase.TestData.balanced_receipt()
             response = user_b.update_receipt(receipt_slug, data)
             
             assert response['status_code'] == 403, \
@@ -429,10 +429,10 @@ class SecurityValidationTest(IntegrationTestBase):
             mixed_results = []
             
             # Create different test data for each user to avoid conflicts
-            user_a_data = TestDataGenerator.balanced_receipt()
+            user_a_data = IntegrationTestBase.TestData.balanced_receipt()
             user_a_data['restaurant_name'] = 'User A Edit'
             
-            user_b_data = TestDataGenerator.balanced_receipt()
+            user_b_data = IntegrationTestBase.TestData.balanced_receipt()
             user_b_data['restaurant_name'] = 'User B Edit'
             
             # Start mixed concurrent edit attempts
@@ -603,9 +603,9 @@ class ValidationTest(IntegrationTestBase):
             
             # Test various validation scenarios
             test_cases = [
-                ("Balanced receipt", TestDataGenerator.balanced_receipt(), True),
-                ("Unbalanced total", TestDataGenerator.unbalanced_receipt(), False),
-                ("Negative tip (discount)", TestDataGenerator.receipt_with_negative_tip(), True),
+                ("Balanced receipt", IntegrationTestBase.TestData.balanced_receipt(), True),
+                ("Unbalanced total", IntegrationTestBase.TestData.unbalanced_receipt(), False),
+                ("Negative tip (discount)", IntegrationTestBase.TestData.receipt_with_negative_tip(), True),
             ]
             
             for name, data, should_balance in test_cases:
@@ -826,7 +826,7 @@ class PermissionTest(IntegrationTestBase):
             assert uploader.wait_for_processing(receipt_slug), "Processing should complete"
             
             # Update with test data
-            test_data = TestDataGenerator.balanced_receipt()
+            test_data = IntegrationTestBase.TestData.balanced_receipt()
             test_data['restaurant_name'] = 'The Gin Mill'
             test_data['subtotal'] = '64.00'
             test_data['tax'] = '0.00'
@@ -969,7 +969,7 @@ class PermissionTest(IntegrationTestBase):
             assert uploader.wait_for_processing(receipt_slug), "Processing should complete"
             
             # Verify uploader can edit
-            test_data = TestDataGenerator.balanced_receipt()
+            test_data = IntegrationTestBase.TestData.balanced_receipt()
             response = uploader.update_receipt(receipt_slug, test_data)
             assert response['status_code'] == 200, "Uploader should be able to edit"
             print("   ✓ Uploader can edit their receipt")
@@ -1081,7 +1081,7 @@ class PerformanceTest(IntegrationTestBase):
                 raise AssertionError("Receipt processing failed")
             
             # Update with many items
-            large_data = TestDataGenerator.large_receipt(50)
+            large_data = IntegrationTestBase.TestData.large_receipt(50)
             start_time = time.time()
             response = self.update_receipt(receipt_slug, large_data)
             update_time = time.time() - start_time
