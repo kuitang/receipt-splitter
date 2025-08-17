@@ -21,7 +21,6 @@ DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
-        conn_health_checks=True,
     )
 }
 ```
@@ -156,7 +155,7 @@ fly logs
 ### fly.toml
 - Configures app name and region
 - Sets environment variables for production
-- Configures HTTP service with health checks
+- Configures HTTP service
 - Sets up static file serving
 - Defines release command for migrations
 
@@ -177,7 +176,7 @@ fly logs
 1. **Environment Variables**: All sensitive data (SECRET_KEY, API keys) stored as Fly.io secrets
 2. **HTTPS**: Force HTTPS enabled in fly.toml
 3. **Security Headers**: Production security settings enabled when DEBUG=False
-4. **Database**: PostgreSQL with connection health checks
+4. **Database**: PostgreSQL with connection pooling
 
 ## Monitoring and Maintenance
 
@@ -209,7 +208,7 @@ fly postgres connect -a receipt-splitter-db
 1. **Static files not loading**: Ensure `collectstatic` runs in Dockerfile
 2. **Database connection errors**: Verify PostgreSQL attachment and environment variables
 3. **Migration failures**: Run migrations manually via SSH console
-4. **Health check failures**: Check that app responds on port 8000
+4. **Connection failures**: Check that app responds on port 8000
 
 ### Debug Commands:
 ```bash

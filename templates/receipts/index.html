@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto py-4 px-4">
@@ -19,7 +20,7 @@
         
         <!-- Images and arrows row -->
         <div class="flex flex-row items-center justify-center gap-1 md:gap-2 mb-4">
-            <img src="/media/step_upload_mobile.png" 
+            <img src="{% static 'images/step_upload_mobile.png' %}" 
                  alt="Upload receipt" 
                  class="w-20 h-20 sm:w-32 sm:h-32 md:w-40 md:h-40 object-cover rounded-lg">
             
@@ -27,7 +28,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
             </svg>
             
-            <img src="/media/step_share_mobile.png" 
+            <img src="{% static 'images/step_share_mobile.png' %}" 
                  alt="Share link" 
                  class="w-20 h-20 sm:w-32 sm:h-32 md:w-40 md:h-40 object-cover rounded-lg">
             
@@ -35,7 +36,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
             </svg>
             
-            <img src="/media/step_split_mobile.png" 
+            <img src="{% static 'images/step_split_mobile.png' %}" 
                  alt="Split fairly" 
                  class="w-20 h-20 sm:w-32 sm:h-32 md:w-40 md:h-40 object-cover rounded-lg">
         </div>

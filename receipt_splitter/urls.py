@@ -17,14 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
-from django.conf.urls.static import static  # Needed for sample images
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("receipts.urls")),
 ]
 
-# Media files served for generated sample images
-# Receipt images are still served from memory via views
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Media files no longer needed - step images moved to static files

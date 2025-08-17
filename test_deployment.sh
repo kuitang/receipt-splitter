@@ -62,7 +62,7 @@ fi
 # Test 4: Media Files Work
 echo ""
 echo "🖼️ Test 4: Media files are served"
-response=$(curl -s -w "%{http_code}" -o /dev/null "$APP_URL/media/step_upload_mobile.png")
+response=$(curl -s -w "%{http_code}" -o /dev/null "$APP_URL/static/images/step_upload_mobile.png")
 if [ "$response" = "200" ]; then
     test_passed "Media image loads (HTTP $response)"
 else
@@ -89,9 +89,9 @@ else
     test_warning "Admin page response: HTTP $response"
 fi
 
-# Test 7: Health Check
+# Test 7: Content Validation
 echo ""
-echo "💚 Test 7: Health check endpoint"
+echo "💚 Test 7: Homepage content validation"
 # Test if homepage contains expected content
 content=$(curl -s "$APP_URL/")
 if echo "$content" | grep -q "Communist Style"; then

@@ -777,9 +777,9 @@ class UIValidationTest(IntegrationTestBase):
             
             # Verify expected mobile-optimized step images are present
             expected_mobile_images = [
-                '/media/step_upload_mobile.png',
-                '/media/step_share_mobile.png', 
-                '/media/step_split_mobile.png'
+                '/static/images/step_upload_mobile.png',
+                '/static/images/step_share_mobile.png', 
+                '/static/images/step_split_mobile.png'
             ]
             
             for expected_img in expected_mobile_images:

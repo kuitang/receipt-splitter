@@ -45,6 +45,21 @@ else:
     # Fallback for any .fly.dev domain
     allowed_hosts.append('.fly.dev')
 
+# Add Fly.io internal network ranges for health checks and internal routing
+fly_internal_ranges = [
+    '172.16.0.0/12',  # Fly.io private network range
+    '10.0.0.0/8',     # Common private network range
+    '192.168.0.0/16', # Private network range
+]
+allowed_hosts.extend(fly_internal_ranges)
+
+# For production, also allow specific internal IPs we've seen in logs
+if not DEBUG:
+    allowed_hosts.extend([
+        '172.19.4.18',  # Specific IP from error logs
+        '172.19.0.0/16', # Broader range for Fly.io internal
+    ])
+
 ALLOWED_HOSTS = allowed_hosts
 
 # CSRF trusted origins for Fly.io (both HTTP and HTTPS for internal routing)
@@ -132,7 +147,6 @@ DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
-        conn_health_checks=True,
     )
 }
 
@@ -177,13 +191,30 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
-# Static files storage for production
-if not DEBUG:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Static files storage configuration
+if DEBUG:
+    # Development: Use simple static files storage
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+else:
+    # Production: Use whitenoise with manifest
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
-# Media files for step images and generated content
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Media files no longer needed - step images moved to static files
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
