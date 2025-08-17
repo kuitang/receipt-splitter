@@ -64,7 +64,7 @@ Context variables:
         {% endif %}
     </div>
     
-    {% if show_claims and not is_uploader and viewer_name %}
+    {% if show_claims and viewer_name %}{% if not is_uploader or receipt.is_finalized %}
     <div class="ml-4">
         {% if available_quantity > 0 %}
         <div class="flex items-center space-x-2">
@@ -81,6 +81,6 @@ Context variables:
         <span class="text-red-600 font-semibold">Fully Claimed</span>
         {% endif %}
     </div>
-    {% endif %}
+    {% endif %}{% endif %}
 </div>
 {% endif %}
