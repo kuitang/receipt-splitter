@@ -7,7 +7,6 @@ import os
 import sys
 import json
 import time
-import requests
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from decimal import Decimal

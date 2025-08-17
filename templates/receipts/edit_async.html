@@ -205,7 +205,7 @@
         <div class="space-y-6">
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <h2 class="text-2xl font-semibold mb-4">Receipt Image</h2>
-                <img src="{% url 'serve_receipt_image_by_slug' receipt.slug %}" alt="Receipt" class="w-full rounded" onerror="this.style.display='none'">
+                <img src="{% url 'serve_receipt_image_by_slug' receipt.slug %}" alt="Receipt" class="w-full rounded" data-onerror-hide="true">
             </div>
 
             <div class="bg-white rounded-lg shadow-lg p-6">
@@ -279,7 +279,7 @@
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Line Items</h2>
-                    <button onclick="addItem()" class="bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
+                    <button data-action="add-item" class="bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
                         + Add Item
                     </button>
                 </div>
@@ -333,7 +333,7 @@
                                 <p class="text-gray-500 text-xs item-proration"></p>
                             </div>
                         </div>
-                        <button onclick="removeItem(this)" class="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors mt-3">
+                        <button data-action="remove-item" class="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors mt-3">
                             <div class="w-5 h-5 flex items-center justify-center text-lg font-bold">×</div>
                         </button>
                     </div>
@@ -343,10 +343,10 @@
 
                 <div class="mt-6 pt-4 border-t">
                     <div class="flex justify-end space-x-4">
-                        <button onclick="saveReceipt()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium transition-colors {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
+                        <button data-action="save" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium transition-colors {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
                             Save Changes
                         </button>
-                        <button onclick="finalizeReceipt()" class="bg-green-600 text-white px-8 py-2 rounded-lg hover:bg-green-700 font-medium transition-colors {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
+                        <button data-action="finalize" class="bg-green-600 text-white px-8 py-2 rounded-lg hover:bg-green-700 font-medium transition-colors {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
                             Finalize & Share
                         </button>
                     </div>
@@ -377,7 +377,7 @@
         <div class="mt-4 text-center">
             <canvas id="qr-code"></canvas>
         </div>
-        <button onclick="closeShareModal()" class="mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-medium">
+        <button data-action="close-share-modal" class="mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-medium">
             Close
         </button>
     </div>
@@ -385,334 +385,18 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- Data attributes for JavaScript -->
+<div id="edit-page-data" 
+     data-receipt-slug="{{ receipt.slug }}"
+     data-receipt-id="{{ receipt.id }}"
+     data-is-processing="{{ is_processing|lower }}"
+     style="display: none;">
+</div>
+
 {% load static %}
-<script src="{% static 'js/receipt-editor.js' %}"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-<script>
-const receiptSlug = "{{ receipt.slug }}";
-const receiptId = "{{ receipt.id }}";  // Keep for backward compatibility
-const isProcessing = {{ is_processing|lower }};
-
-// Security: HTML escaping function for user content
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Functions from receipt-editor.js are now available:
-// validateReceipt, checkAndDisplayBalance, updateItemTotal, updateProrations,
-// addItem, removeItem, attachItemListeners, getReceiptData, calculateSubtotal, updateSubtotal
-
-// Override checkAndDisplayBalance to handle isProcessing state
-const originalCheckAndDisplayBalance = checkAndDisplayBalance;
-function checkAndDisplayBalance() {
-    const errors = validateReceipt();
-    const warningDiv = document.getElementById('balance-warning');
-    const errorDetails = document.getElementById('balance-error-details');
-    const finalizeBtn = document.querySelector('button[onclick="finalizeReceipt()"]');
-    
-    if (errors.length > 0) {
-        // Show warning banner
-        warningDiv.classList.remove('hidden');
-        errorDetails.innerHTML = '<ul class="list-disc list-inside space-y-1">' + 
-            errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + 
-            '</ul>';
-        
-        // Disable finalize button
-        if (finalizeBtn) {
-            finalizeBtn.disabled = true;
-            finalizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        }
-        
-        receiptIsBalanced = false;
-    } else {
-        // Hide warning banner
-        warningDiv.classList.add('hidden');
-        
-        // Enable finalize button (but only if not processing)
-        if (finalizeBtn && !isProcessing) {
-            finalizeBtn.disabled = false;
-            finalizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-        
-        receiptIsBalanced = true;
-    }
-}
-
-// Polling for processing status (Safari-compatible)
-if (isProcessing) {
-    let pollCount = 0;
-    const maxPolls = 60; // 60 seconds max
-    
-    function pollStatus() {
-        pollCount++;
-        
-        // Use XMLHttpRequest for better Safari compatibility
-        const xhr = new XMLHttpRequest();
-        xhr.timeout = 10000; // 10 second timeout
-        
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        
-                        if (data.status === 'completed') {
-                            // Reload the page to show the processed content
-                            window.location.reload();
-                        } else if (data.status === 'failed') {
-                            document.getElementById('processing-status').innerHTML = 
-                                '<div class="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">×</div>' +
-                                '<span class="text-sm text-red-600">Processing failed. Please try again.</span>';
-                            setTimeout(function() {
-                                window.location.href = '/';
-                            }, 3000);
-                        } else if (pollCount < maxPolls) {
-                            // Continue polling
-                            setTimeout(pollStatus, 1000);
-                        } else {
-                            document.getElementById('processing-status').innerHTML = 
-                                '<span class="text-sm text-orange-600">Taking longer than expected...</span>';
-                        }
-                    } catch (e) {
-                        console.error('Error parsing status response:', e);
-                        if (pollCount < maxPolls) {
-                            setTimeout(pollStatus, 2000); // Retry with longer delay
-                        }
-                    }
-                } else {
-                    console.error('Status check failed:', xhr.status, xhr.statusText);
-                    if (pollCount < maxPolls) {
-                        setTimeout(pollStatus, 2000); // Retry with longer delay
-                    }
-                }
-            }
-        };
-        
-        xhr.ontimeout = function() {
-            console.error('Status check timed out');
-            if (pollCount < maxPolls) {
-                setTimeout(pollStatus, 2000); // Retry with longer delay
-            }
-        };
-        
-        xhr.onerror = function() {
-            console.error('Status check network error');
-            if (pollCount < maxPolls) {
-                setTimeout(pollStatus, 2000); // Retry with longer delay
-            }
-        };
-        
-        xhr.open('GET', '/status/' + receiptSlug + '/', true);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.send();
-    }
-    
-    // Start polling
-    setTimeout(pollStatus, 1000);
-}
-
-// Don't override functions here - we'll do it in DOMContentLoaded at the bottom
-
-async function saveReceipt(skipReload = false) {
-    if (isProcessing) return;
-    
-    const data = getReceiptData();
-    
-    try {
-        const response = await fetch(`/update/${receiptSlug}/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            // Check validation status from backend
-            if (result.is_balanced) {
-                // Only reload if not called from finalize flow
-                if (!skipReload) {
-                    location.reload();
-                }
-            } else {
-                // Keep this alert as it warns about balance issues
-                alert('Receipt saved, but it doesn\'t balance. Please review the errors shown above.');
-            }
-            
-            // Update UI based on backend validation
-            checkAndDisplayBalance();
-        } else {
-            // Keep error alerts as they require user attention
-            alert('Error saving receipt: ' + (result.error || 'Unknown error'));
-        }
-    } catch (error) {
-        // Keep error alerts as they require user attention
-        alert('Error saving receipt: ' + error.message);
-    }
-}
-
-async function finalizeReceipt() {
-    if (isProcessing) return;
-    
-    // Check balance before allowing finalization
-    if (!receiptIsBalanced) {
-        // Keep this alert as it prevents invalid finalization
-        alert('Cannot finalize receipt: The receipt doesn\'t balance. Please fix the errors shown above.');
-        return;
-    }
-    
-    if (!confirm('Once finalized, this receipt cannot be edited. Continue?')) {
-        return;
-    }
-    
-    // Pass true to skip reload when saving during finalization
-    await saveReceipt(true);
-    
-    try {
-        const response = await fetch(`/finalize/${receiptSlug}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            document.getElementById('share-url').value = data.share_url;
-            QRCode.toCanvas(document.getElementById('qr-code'), data.share_url);
-            document.getElementById('share-modal').classList.remove('hidden');
-        } else {
-            const error = await response.json();
-            // Format validation errors nicely
-            let errorMessage = error.error || 'Unknown error';
-            if (error.validation_errors) {
-                console.error('Validation errors:', error.validation_errors);
-            }
-            // Keep error alerts as they require user attention
-            alert('Error finalizing receipt: ' + errorMessage);
-        }
-    } catch (error) {
-        // Keep error alerts as they require user attention
-        alert('Error finalizing receipt: ' + error.message);
-    }
-}
-
-// copyShareUrl is now defined in base.html
-
-function closeShareModal() {
-    window.location.href = document.getElementById('share-url').value;
-}
-
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Add fun rotating messages for the processing modal
-    if (isProcessing) {
-        const messages = [
-            "🚀 Our AI is scanning faster than a caffeinated cashier!",
-            "🤖 Teaching robots to read receipts since 2024...",
-            "🔍 Zooming in on those tiny printed numbers...",
-            "⚡ Processing at the speed of light (almost)!",
-            "🎯 Extracting prices with laser precision...",
-            "🧮 Crunching numbers like a hungry calculator...",
-            "📸 Pixels to prices in progress...",
-            "🎪 Watch as we turn images into itemized lists!",
-            "🌟 Making receipt magic happen..."
-        ];
-        
-        let messageIndex = 0;
-        const messageElement = document.getElementById('fun-message');
-        
-        // Rotate messages every 2 seconds
-        if (messageElement) {
-            setInterval(() => {
-                messageIndex = (messageIndex + 1) % messages.length;
-                messageElement.innerHTML = `<p class="text-gray-600 font-medium">${messages[messageIndex]}</p>`;
-                messageElement.classList.add('wiggle');
-                setTimeout(() => messageElement.classList.remove('wiggle'), 500);
-            }, 2000);
-        }
-        
-        // Show "Almost done" message after 5 seconds
-        setTimeout(() => {
-            const almostDone = document.getElementById('almost-done');
-            if (almostDone) {
-                almostDone.style.opacity = '1';
-            }
-        }, 5000);
-        
-        // Update time estimate countdown
-        let timeLeft = 10;
-        const timeEstimate = document.getElementById('time-estimate');
-        if (timeEstimate) {
-            const countdown = setInterval(() => {
-                timeLeft--;
-                if (timeLeft > 0) {
-                    timeEstimate.textContent = `Estimated time: ${timeLeft} seconds`;
-                } else {
-                    timeEstimate.textContent = "Just a moment more...";
-                    clearInterval(countdown);
-                }
-            }, 1000);
-        }
-    }
-    
-    // Wrap addItem and removeItem to check isProcessing
-    if (isProcessing && window.addItem) {
-        const originalAddItem = window.addItem;
-        window.addItem = function() {
-            if (isProcessing) return;
-            return originalAddItem();
-        };
-    }
-    
-    if (isProcessing && window.removeItem) {
-        const originalRemoveItem = window.removeItem;
-        window.removeItem = function(button) {
-            if (isProcessing) return;
-            return originalRemoveItem(button);
-        };
-    }
-    
-    if (!isProcessing) {
-        document.querySelectorAll('.item-row').forEach(attachItemListeners);
-        
-        // Also update prorations on load
-        updateProrations();
-        
-        // Add event listeners for all fields that affect balance
-        const fieldsToWatch = ['subtotal', 'tax', 'tip', 'total'];
-        fieldsToWatch.forEach(fieldId => {
-            const field = document.getElementById(fieldId);
-            if (field) {
-                field.addEventListener('input', () => {
-                    updateProrations();
-                    checkAndDisplayBalance();
-                });
-            }
-        });
-        
-        // Initial balance check
-        checkAndDisplayBalance();
-    }
-});
-</script>
+<!-- QRCode library with Subresource Integrity -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"
+        integrity="sha384-HGmnkDZJy7mRkoARekrrj0VjEFSh9a0Z8qxGri/kTTAJkgR8hqD1lHsYSh3JdzRi"
+        crossorigin="anonymous"></script>
+<script src="{% static 'js/edit-page.js' %}"></script>
 {% endblock %}

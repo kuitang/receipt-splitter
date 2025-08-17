@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "description": "An ironically named web application that helps groups split bills based on actual consumption rather than equally. Uses OCR technology to digitize receipts and provides a frictionless, account-free experience.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "node static/js/receipt-editor-node-test.js",
-    "test:browser": "echo 'Open http://localhost:8000/static/run_tests.html in your browser'",
-    "test:watch": "nodemon static/js/receipt-editor-node-test.js"
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:watch": "vitest --watch",
+    "test:legacy": "node test/js/receipt-editor-node-test.js",
+    "test:browser": "echo 'Open http://localhost:8000/static/run_tests.html in your browser'"
   },
   "repository": {
     "type": "git",
@@ -23,6 +27,11 @@
     "jsdom": "^26.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@testing-library/dom": "^9.3.3",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@vitest/ui": "^1.2.0",
+    "happy-dom": "^12.10.3",
+    "nodemon": "^3.1.10",
+    "vitest": "^1.2.0"
   }
 }

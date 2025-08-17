@@ -117,7 +117,20 @@ This test plan ensures that the deployment-related changes work correctly with b
   print("All deployment dependencies imported successfully")
   ```
 
-#### Test 6.2: Dependency Compatibility
+#### Test 6.2: Multi-Stage Build Verification
+- **Commands**:
+  ```bash
+  # Build multi-stage image
+  DOCKER_BUILDKIT=1 docker build -t receipt-test .
+  
+  # Verify image size (should be ~150-180MB)
+  docker images receipt-test
+  
+  # Test non-root user
+  docker run --rm receipt-test whoami  # Should output: appuser
+  ```
+
+#### Test 6.3: Dependency Compatibility
 - **Commands**:
   ```bash
   pip check
@@ -152,25 +165,34 @@ This test plan ensures that the deployment-related changes work correctly with b
    python manage.py test
    ```
 
-3. **Static Files Tests**
+3. **Multi-Stage Docker Build Tests**
+   ```bash
+   # Build and test optimized image
+   DOCKER_BUILDKIT=1 docker build -t receipt-optimized .
+   docker run -d -p 8000:8000 --name receipt-test receipt-optimized
+   curl -f http://localhost:8000/ || echo "Health check failed"
+   docker stop receipt-test && docker rm receipt-test
+   ```
+
+4. **Static Files Tests**
    ```bash
    python manage.py collectstatic --noinput --clear
    ```
 
-4. **Production Configuration Tests**
+5. **Production Configuration Tests**
    ```bash
    export DEBUG="False"
    export DATABASE_URL="postgres://user:pass@localhost:5432/testdb"
    python manage.py check --deploy
    ```
 
-5. **Integration Tests**
+6. **Integration Tests**
    ```bash
    export INTEGRATION_TEST_REAL_OPENAI_OCR=false
    python integration_test/test_suite.py
    ```
 
-6. **JavaScript Tests**
+7. **JavaScript Tests**
    ```bash
    npm test
    ```

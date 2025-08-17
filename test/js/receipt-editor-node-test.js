@@ -29,6 +29,13 @@ global.document = dom.window.document;
 global.window = dom.window;
 global.HTMLElement = dom.window.HTMLElement;
 
+// Provide escapeHtml function that receipt-editor.js depends on
+global.escapeHtml = function(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+};
+
 // Load the receipt editor module
 console.log('Loading receipt-editor.js...');
 const receiptEditor = require('./receipt-editor.js');

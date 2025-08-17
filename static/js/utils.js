@@ -17,6 +17,19 @@ const CONFIG = {
 };
 
 // ==========================================================================
+// Security Utilities
+// ==========================================================================
+
+/**
+ * Security: HTML escaping function for user content
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ==========================================================================
 // DOM Utilities
 // ==========================================================================
 
@@ -158,10 +171,9 @@ function calculatePercentage(amount, percentage) {
 // ==========================================================================
 
 /**
- * Get CSRF token from cookies
+ * Get cookie value by name
  */
-function getCsrfToken() {
-  const name = 'csrftoken';
+function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
     const cookies = document.cookie.split(';');
@@ -174,6 +186,13 @@ function getCsrfToken() {
     }
   }
   return cookieValue;
+}
+
+/**
+ * Get CSRF token from cookies
+ */
+function getCsrfToken() {
+  return getCookie('csrftoken');
 }
 
 /**
@@ -208,6 +227,47 @@ async function apiRequest(url, options = {}) {
     }
     throw new ApiError('Network error', 0, { message: error.message });
   }
+}
+
+/**
+ * Authenticated fetch with CSRF token
+ * Returns the raw response (for compatibility with existing code)
+ */
+async function authenticatedFetch(url, options = {}) {
+  const defaults = {
+    headers: {
+      'X-CSRFToken': getCsrfToken()
+    },
+    credentials: 'same-origin'
+  };
+  
+  const config = { ...defaults, ...options };
+  if (options.headers) {
+    config.headers = { ...defaults.headers, ...options.headers };
+  }
+  
+  return fetch(url, config);
+}
+
+/**
+ * Authenticated JSON fetch with CSRF token and Content-Type
+ * Returns the raw response (for compatibility with existing code)
+ */
+async function authenticatedJsonFetch(url, options = {}) {
+  const defaults = {
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+      'Content-Type': 'application/json'
+    },
+    credentials: 'same-origin'
+  };
+  
+  const config = { ...defaults, ...options };
+  if (options.headers) {
+    config.headers = { ...defaults.headers, ...options.headers };
+  }
+  
+  return fetch(url, config);
 }
 
 /**
@@ -348,6 +408,56 @@ function showSuccess(message, container = null) {
   }, 3000);
 }
 
+/**
+ * Copy text to clipboard with visual feedback
+ */
+function copyShareUrl(inputId, event) {
+    inputId = inputId || 'share-url';
+    const input = document.getElementById(inputId);
+    input.select();
+    input.setSelectionRange(0, 99999); // For mobile devices
+    
+    // Get the button that was clicked
+    const button = event ? event.currentTarget : null;
+    
+    // Function to show success feedback
+    function showSuccessFeedback() {
+        if (button) {
+            const originalTitle = button.title;
+            button.title = 'Copied!';
+            button.classList.add('bg-green-100');
+            
+            setTimeout(() => {
+                button.title = originalTitle;
+                button.classList.remove('bg-green-100');
+            }, 2000);
+        }
+    }
+    
+    // Try modern clipboard API first, fall back to execCommand
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(() => {
+            showSuccessFeedback();
+        }).catch(err => {
+            // If clipboard API fails, try execCommand
+            try {
+                document.execCommand('copy');
+                showSuccessFeedback();
+            } catch (e) {
+                console.error('Failed to copy:', e);
+            }
+        });
+    } else {
+        // Use legacy execCommand for older browsers or non-HTTPS
+        try {
+            document.execCommand('copy');
+            showSuccessFeedback();
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    }
+}
+
 // ==========================================================================
 // Receipt-Specific Utilities
 // ==========================================================================
@@ -455,6 +565,15 @@ function generateId() {
 // ==========================================================================
 // Export for use in other scripts
 // ==========================================================================
+
+// Make critical functions globally available for backward compatibility
+window.escapeHtml = escapeHtml;
+window.getCookie = getCookie;
+window.getCsrfToken = getCsrfToken;
+window.authenticatedFetch = authenticatedFetch;
+window.authenticatedJsonFetch = authenticatedJsonFetch;
+window.copyShareUrl = copyShareUrl;
+
 window.ReceiptUtils = {
   // DOM
   $,
@@ -476,6 +595,8 @@ window.ReceiptUtils = {
   // API
   getCsrfToken,
   apiRequest,
+  authenticatedFetch,
+  authenticatedJsonFetch,
   ApiError,
   
   // State

@@ -4,7 +4,7 @@
            readonly 
            id="{{ widget_id }}"
            class="flex-1 px-3 py-2 {{ border_color|default:'border-gray-300' }} border rounded-l-lg {{ input_bg|default:'bg-gray-50' }}">
-    <button onclick="copyShareUrl(this.getAttribute('data-widget-id'), event)" 
+    <button data-action="copy-share-url"
             data-widget-id="{{ widget_id }}"
             class="px-3 py-2 {{ border_color|default:'border-gray-300' }} border border-l-0 rounded-r-lg {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors"
             title="Copy to clipboard">

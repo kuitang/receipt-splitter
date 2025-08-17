@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSP Test Page</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>CSP Security Test Results</h1>
+    
+    <h2>Attack Vectors (Should All Be Blocked):</h2>
+    
+    <div id="test-results"></div>
+    
+    <script>
+        // This inline script should be BLOCKED by CSP
+        document.getElementById('test-results').innerHTML = '❌ FAIL: Inline script executed!';
+    </script>
+    
+    <div onclick="alert('XSS via onclick')">
+        Click me (should be blocked)
+    </div>
+    
+    <img src="x" onerror="document.body.style.background='red'">
+    
+    <script src="https://evil-site.com/malware.js"></script>
+    
+    <h2>If you see this text and no red background, CSP is working!</h2>
+    
+    <p>Check browser console for CSP violation reports.</p>
+</body>
+</html>

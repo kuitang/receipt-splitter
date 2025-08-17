@@ -194,7 +194,13 @@ class InputValidator:
                 max_length=100
             )
         except ValidationError as e:
-            errors.append(str(e))
+            # Extract the actual message, not the string representation
+            if hasattr(e, 'messages') and e.messages:
+                errors.extend(e.messages)
+            elif hasattr(e, 'message'):
+                errors.append(e.message)
+            else:
+                errors.append(str(e).strip("[]'\""))
         
         # Validate monetary fields
         for field in ['subtotal', 'tax', 'tip', 'total']:
@@ -205,7 +211,13 @@ class InputValidator:
                     allow_negative=(field in ['tax', 'tip'])  # Allow negative for discounts
                 )
             except ValidationError as e:
-                errors.append(str(e))
+                # Extract the actual message, not the string representation
+                if hasattr(e, 'messages') and e.messages:
+                    errors.extend(e.messages)
+                elif hasattr(e, 'message'):
+                    errors.append(e.message)
+                else:
+                    errors.append(str(e).strip("[]'\""))
         
         # Validate items
         if 'items' in data:
@@ -229,7 +241,13 @@ class InputValidator:
                         field_name=f"Item {i+1} total"
                     )
                 except ValidationError as e:
-                    errors.append(str(e))
+                    # Extract the actual message, not the string representation
+                    if hasattr(e, 'messages') and e.messages:
+                        errors.extend(e.messages)
+                    elif hasattr(e, 'message'):
+                        errors.append(e.message)
+                    else:
+                        errors.append(str(e).strip("[]'\""))
         
         if errors:
             raise ValidationError(errors)

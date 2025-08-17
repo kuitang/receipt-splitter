@@ -185,7 +185,7 @@
                 </p>
                 {% endif %}
             </div>
-            <button onclick="confirmClaims()" 
+            <button data-action="confirm-claims" 
                     class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors">
                 Confirm Claims
             </button>
@@ -199,100 +199,13 @@
 
 {% block extra_scripts %}
 {% if viewer_name %}{% if not is_uploader or receipt.is_finalized %}
-<script>
-const receiptSlug = "{{ receipt.slug }}";
-const receiptId = "{{ receipt.id }}";  // Keep for backward compatibility
-let currentClaims = {};
-
-function updateTotal() {
-    let total = 0;
-    document.querySelectorAll('.claim-quantity').forEach(input => {
-        const quantity = parseInt(input.value) || 0;
-        if (quantity > 0) {
-            const itemId = input.dataset.itemId;
-            const itemContainer = document.querySelector(`[data-item-id="${itemId}"]`);
-            const shareElement = itemContainer.querySelector('.item-share-amount');
-            if (shareElement) {
-                const sharePerItem = parseFloat(shareElement.dataset.amount) || 0;
-                total += sharePerItem * quantity;
-            }
-        }
-    });
-    document.getElementById('my-total').textContent = `$${total.toFixed(2)}`;
-}
-
-async function confirmClaims() {
-    const claims = [];
-    document.querySelectorAll('.claim-quantity').forEach(input => {
-        const quantity = parseInt(input.value) || 0;
-        if (quantity > 0) {
-            claims.push({
-                line_item_id: input.dataset.itemId,
-                quantity: quantity
-            });
-        }
-    });
-    
-    if (claims.length === 0) {
-        // Keep this alert as it requires user action
-        alert('Please select items to claim');
-        return;
-    }
-    
-    const total = document.getElementById('my-total').textContent;
-    if (!confirm(`You're committing to pay ${total}. Continue?`)) {
-        return;
-    }
-    
-    for (const claim of claims) {
-        try {
-            const response = await fetch(`/claim/${receiptSlug}/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify(claim)
-            });
-            
-            if (!response.ok) {
-                const error = await response.json();
-                // Keep error alerts as they require user attention
-                alert('Error claiming item: ' + error.error);
-                return;
-            }
-        } catch (error) {
-            // Keep error alerts as they require user attention
-            alert('Error claiming items: ' + error.message);
-            return;
-        }
-    }
-    
-    // Just reload the page to show the updated claims
-    location.reload();
-}
-
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.claim-quantity').forEach(input => {
-        input.addEventListener('input', updateTotal);
-    });
-});
-</script>
+<!-- Data attributes for JavaScript -->
+<div id="view-page-data" 
+     data-receipt-slug="{{ receipt.slug }}"
+     data-receipt-id="{{ receipt.id }}"
+     style="display: none;">
+</div>
+{% load static %}
+<script src="{% static 'js/view-page.js' %}"></script>
 {% endif %}{% endif %}
-
 {% endblock %}

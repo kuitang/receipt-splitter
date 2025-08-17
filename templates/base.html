@@ -5,64 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}Communist Style - Smart Receipt Splitter{% endblock %}</title>
     
+    <!-- Tailwind CSS via CDN - Note: Consider building Tailwind for production -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
     
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     
     {% block extra_head %}{% endblock %}
-    
-    <script>
-    // Global copy function for share links
-    function copyShareUrl(inputId, event) {
-        inputId = inputId || 'share-url';
-        const input = document.getElementById(inputId);
-        input.select();
-        input.setSelectionRange(0, 99999); // For mobile devices
-        
-        // Get the button that was clicked
-        const button = event ? event.currentTarget : null;
-        
-        // Function to show success feedback
-        function showSuccess() {
-            if (button) {
-                const originalTitle = button.title;
-                button.title = 'Copied!';
-                button.classList.add('bg-green-100');
-                
-                setTimeout(() => {
-                    button.title = originalTitle;
-                    button.classList.remove('bg-green-100');
-                }, 2000);
-            }
-        }
-        
-        // Try modern clipboard API first, fall back to execCommand
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(input.value).then(() => {
-                showSuccess();
-            }).catch(err => {
-                // If clipboard API fails, try execCommand
-                try {
-                    document.execCommand('copy');
-                    showSuccess();
-                } catch (e) {
-                    console.error('Failed to copy:', e);
-                }
-            });
-        } else {
-            // Use legacy execCommand for older browsers or non-HTTPS
-            try {
-                document.execCommand('copy');
-                showSuccess();
-            } catch (err) {
-                console.error('Failed to copy:', err);
-            }
-        }
-    }
-    </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="container mx-auto px-4">

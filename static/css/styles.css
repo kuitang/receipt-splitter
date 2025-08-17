@@ -294,23 +294,14 @@
 }
 
 /* ==========================================================================
-   Print Styles
+   Print Styles - Using Tailwind print: modifier
    ========================================================================== */
+
+/* Tailwind print: modifier classes in HTML templates replace most print styles.
+   These remaining styles handle special cases not easily done with utilities. */
+
 @media print {
-  /* Hide non-essential elements */
-  .no-print,
-  button,
-  .btn,
-  input[type="button"],
-  input[type="submit"],
-  nav,
-  footer,
-  .alert,
-  .badge {
-    display: none !important;
-  }
-  
-  /* Remove backgrounds and shadows */
+  /* Global print resets - things that need * selector */
   * {
     background: transparent !important;
     color: black !important;
@@ -321,9 +312,6 @@
   /* Ensure proper page breaks */
   .card {
     page-break-inside: avoid;
-    border: 1px solid #000;
-    padding: 10px;
-    margin-bottom: 10px;
   }
   
   /* Show URLs for links */
@@ -331,42 +319,58 @@
     content: " (" attr(href) ")";
   }
   
-  /* Optimize for printing */
-  body {
-    font-size: 12pt;
-    line-height: 1.5;
-  }
-  
-  h1 { font-size: 18pt; }
-  h2 { font-size: 16pt; }
-  h3 { font-size: 14pt; }
-  
   /* Page margins */
   @page {
     margin: 1in;
   }
+}
+
+/* Print utility classes using Tailwind @layer */
+@layer utilities {
+  /* Elements to hide when printing - use class="print:hidden" in HTML instead */
+  .no-print {
+    @apply print:hidden;
+  }
   
-  /* Receipt-specific print styles */
+  /* Receipt print layout - use these with print: modifier in HTML */
   .receipt-print {
-    width: 100%;
-    max-width: none;
+    @apply print:w-full print:max-w-none;
   }
   
   .receipt-print .page-container {
-    max-width: none;
-    padding: 0;
+    @apply print:max-w-none print:p-0;
   }
   
-  /* Show receipt totals clearly */
+  /* Receipt totals for print */
   .receipt-totals {
-    border-top: 2px solid #000;
-    padding-top: 10px;
-    margin-top: 20px;
+    @apply print:border-t-2 print:border-black print:pt-2.5 print:mt-5;
   }
   
-  /* Format monetary values for print */
-  .tabular-nums {
-    font-family: 'Courier New', monospace;
+  /* Card print styles */
+  .card-print {
+    @apply print:border print:border-black print:p-2.5 print:mb-2.5;
+  }
+  
+  /* Typography for print - can be applied directly in HTML with print: modifier */
+  .print-body {
+    @apply print:text-base print:leading-relaxed;
+  }
+  
+  .print-h1 {
+    @apply print:text-2xl;
+  }
+  
+  .print-h2 {
+    @apply print:text-xl;
+  }
+  
+  .print-h3 {
+    @apply print:text-lg;
+  }
+  
+  /* Monetary values for print */
+  .print-mono {
+    @apply print:font-mono;
   }
 }
 

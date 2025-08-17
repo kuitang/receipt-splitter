@@ -27,9 +27,16 @@ from django.core.management.utils import get_random_secret_key
 SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     if os.getenv('DEBUG', 'False').lower() == 'true':
-        SECRET_KEY = get_random_secret_key()
+        # Development only: generate a random key or use a dev key
+        SECRET_KEY = "django-insecure-2@f+(h+c6&_gvyyoxj7%v5@-a2tksqx9tt6ty(v76vl@9&)94k"
+        print("WARNING: Using development SECRET_KEY. Never use in production!")
     else:
-        SECRET_KEY = "django-insecure-2@f+(h+c6&_gvyyoxj7%v5@-a2tksqx9tt6ty(v76vl@9&)94k"  # Fallback for now
+        # Production: MUST have SECRET_KEY environment variable
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "SECRET_KEY environment variable must be set in production! "
+            "Generate one with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+        )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
@@ -79,10 +86,16 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 
-# No SSL handling at Django level
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+# SSL/HTTPS Security Settings
+SECURE_SSL_REDIRECT = False  # Fly.io handles redirect at proxy level
+
+# Critical: Secure cookies in production!
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True  # Only send session cookie over HTTPS
+    CSRF_COOKIE_SECURE = True     # Only send CSRF cookie over HTTPS
+else:
+    SESSION_COOKIE_SECURE = False  # Allow HTTP in development
+    CSRF_COOKIE_SECURE = False     # Allow HTTP in development
 
 
 # Application definition
@@ -103,12 +116,14 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "receipts.middleware.session_middleware.ReceiptSessionMiddleware",  # Session management
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_ratelimit.middleware.RatelimitMiddleware",
+    "receipts.middleware.SimpleStrictCSPMiddleware",  # Strict CSP without unsafe-inline
 ]
 
 ROOT_URLCONF = "receipt_splitter.urls"
@@ -225,10 +240,19 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 DATA_RETENTION_DAYS = 30
 
+# Rate limiting configuration for django-ratelimit
+RATELIMIT_ENABLE = True  # Enable rate limiting
+RATELIMIT_VIEW = None    # Use default 429 view
+RATELIMIT_FAIL_OPEN = False  # Fail closed (block if rate limit check fails)
+
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_AGE = 86400 * 30
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
+SESSION_COOKIE_SAMESITE = "Lax"  # CSRF protection
+SESSION_COOKIE_AGE = 86400 * 30  # 30 days for convenience (receipts are low-risk)
+SESSION_SAVE_EVERY_REQUEST = True  # Update session expiry on each request (rolling timeout)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep sessions for returning users
+SESSION_COOKIE_NAME = 'sessionid'  # Standard name
+SESSION_COOKIE_PATH = '/'  # Available across entire site
 
 # Logging configuration
 import logging
