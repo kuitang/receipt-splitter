@@ -1024,50 +1024,40 @@ class PermissionTest(IntegrationTestBase):
             print(f"\n❌ Unexpected error: {e}")
             return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
 
+    @test_wrapper
     def test_claim_before_finalized(self) -> TestResult:
         """Test that nobody can claim items before a receipt is finalized."""
-        print_test_header("Permissions: Claim Before Finalized Test")
+        # Step 1: Upload a receipt
+        print("\n📤 Step 1: Upload receipt")
+        uploader = self.create_new_session()
+        upload_response = uploader.upload_receipt("Uploader")
+        assert upload_response['status_code'] == 302, "Upload should redirect"
+        receipt_slug = upload_response['receipt_slug']
+        print(f"   ✓ Receipt uploaded, slug: {receipt_slug}")
 
-        try:
-            # Step 1: Upload a receipt
-            print("\n📤 Step 1: Upload receipt")
-            uploader = self.create_new_session()
-            upload_response = uploader.upload_receipt("Uploader")
-            assert upload_response['status_code'] == 302, "Upload should redirect"
-            receipt_slug = upload_response['receipt_slug']
-            print(f"   ✓ Receipt uploaded, slug: {receipt_slug}")
+        # Step 2: Wait for processing
+        assert uploader.wait_for_processing(receipt_slug), "Processing should complete"
+        print("   ✓ Receipt processed")
 
-            # Step 2: Wait for processing
-            assert uploader.wait_for_processing(receipt_slug), "Processing should complete"
-            print("   ✓ Receipt processed")
+        # Step 3: Uploader tries to claim an item (should fail)
+        print("\n👤 Step 3: Uploader attempts to claim before finalization")
+        receipt_data = uploader.get_receipt_data(receipt_slug)
+        item_id = receipt_data['items'][0]['id']
 
-            # Step 3: Uploader tries to claim an item (should fail)
-            print("\n👤 Step 3: Uploader attempts to claim before finalization")
-            receipt_data = uploader.get_receipt_data(receipt_slug)
-            item_id = receipt_data['items'][0]['id']
+        claim_response = uploader.claim_item(receipt_slug, item_id, 1)
+        assert claim_response['status_code'] == 400, "Uploader claim should be rejected before finalization"
+        print("   ✓ Uploader claim correctly rejected")
 
-            claim_response = uploader.claim_item(receipt_slug, item_id, 1)
-            assert claim_response['status_code'] == 400, "Uploader claim should be rejected before finalization"
-            print("   ✓ Uploader claim correctly rejected")
+        # Step 4: Another user tries to claim an item (should also fail)
+        print("\n👤 Step 4: Another user attempts to claim before finalization")
+        viewer = self.create_new_session()
+        assert viewer.set_viewer_name(receipt_slug, "Viewer"), "Should set viewer name"
 
-            # Step 4: Another user tries to claim an item (should also fail)
-            print("\n👤 Step 4: Another user attempts to claim before finalization")
-            viewer = self.create_new_session()
-            assert viewer.set_viewer_name(receipt_slug, "Viewer"), "Should set viewer name"
+        claim_response = viewer.claim_item(receipt_slug, item_id, 1)
+        assert claim_response['status_code'] == 400, "Viewer claim should be rejected before finalization"
+        print("   ✓ Viewer claim correctly rejected")
 
-            claim_response = viewer.claim_item(receipt_slug, item_id, 1)
-            assert claim_response['status_code'] == 400, "Viewer claim should be rejected before finalization"
-            print("   ✓ Viewer claim correctly rejected")
-
-            print("\n✅ Claim before finalized test PASSED")
-            return TestResult(TestResult.PASSED)
-
-        except AssertionError as e:
-            print(f"\n❌ Test failed: {e}")
-            return TestResult(TestResult.FAILED, str(e))
-        except Exception as e:
-            print(f"\n❌ Unexpected error: {e}")
-            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+        print("\n✅ Claim before finalized test PASSED")
 
 
 class PerformanceTest(IntegrationTestBase):
