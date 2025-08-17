@@ -20,7 +20,14 @@ python manage.py test receipts.test_javascript_security -v 2
 ## Integration Tests
 ```bash
 source venv/bin/activate
+# Run all tests
 python integration_test/test_suite.py
+
+# Run specific test classes
+python integration_test/test_suite.py ValidationTest SecurityValidationTest
+
+# List available classes
+python integration_test/test_suite.py --list
 ```
 
 ## OCR Unit Tests

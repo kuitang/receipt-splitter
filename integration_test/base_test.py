@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
+import functools
 
 # Setup Django environment
 # Use test settings if available to disable rate limiting
@@ -24,8 +25,173 @@ django.setup()
 from django.test import Client
 
 
+def test_wrapper(func):
+    """Decorator to handle common test exception handling"""
+    @functools.wraps(func)
+    def wrapper(self):
+        # Extract test name from docstring or function name
+        test_name = (func.__doc__ or func.__name__.replace('_', ' ').title()).strip()
+        print_test_header(test_name)
+        
+        try:
+            # Run the actual test
+            result = func(self)
+            # If test doesn't return a result, assume passed
+            if result is None:
+                return TestResult(TestResult.PASSED)
+            return result
+            
+        except AssertionError as e:
+            # Use generic "Test" or extract category from class name
+            category = self.__class__.__name__.replace('Test', '').replace('Validation', '')
+            print(f"\n❌ {category} test failed: {e}")
+            return TestResult(TestResult.FAILED, str(e))
+            
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}")
+            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+    
+    return wrapper
+
+
 class IntegrationTestBase:
     """Base class for all integration tests"""
+    
+    class TestData:
+        """Common test data used across all test classes"""
+        
+        @staticmethod
+        def balanced_receipt():
+            """Generate balanced receipt data"""
+            return {
+                'restaurant_name': 'Test Restaurant',
+                'items': [
+                    {'name': 'Item 1', 'quantity': 1, 'unit_price': '10.00', 'total_price': '10.00'},
+                    {'name': 'Item 2', 'quantity': 2, 'unit_price': '5.00', 'total_price': '10.00'},
+                ],
+                'subtotal': '20.00',
+                'tax': '1.60',
+                'tip': '3.40',
+                'total': '25.00'
+            }
+        
+        @staticmethod
+        def unbalanced_receipt():
+            """Generate unbalanced receipt data for validation testing"""
+            return {
+                'restaurant_name': 'Test Restaurant',
+                'items': [
+                    {'name': 'Item 1', 'quantity': 1, 'unit_price': '10.00', 'total_price': '10.00'},
+                    {'name': 'Item 2', 'quantity': 2, 'unit_price': '5.00', 'total_price': '10.00'},
+                ],
+                'subtotal': '20.00',
+                'tax': '1.60',
+                'tip': '3.40',
+                'total': '30.00'  # Wrong total for testing validation
+            }
+        
+        @staticmethod
+        def large_receipt(num_items=50):
+            """Generate a large receipt with many items"""
+            items = []
+            subtotal = Decimal('0')
+            
+            for i in range(num_items):
+                price = Decimal(f"{5 + (i % 20)}.99")
+                items.append({
+                    'name': f'Item {i+1}',
+                    'quantity': 1,
+                    'unit_price': str(price),
+                    'total_price': str(price)
+                })
+                subtotal += price
+            
+            tax = (subtotal * Decimal('0.08')).quantize(Decimal('0.01'))
+            tip = (subtotal * Decimal('0.15')).quantize(Decimal('0.01'))
+            total = subtotal + tax + tip
+            
+            return {
+                'restaurant_name': 'Large Order Restaurant',
+                'items': items,
+                'subtotal': str(subtotal),
+                'tax': str(tax),
+                'tip': str(tip),
+                'total': str(total)
+            }
+        
+        @staticmethod
+        def receipt_with_negative_tip():
+            """Generate receipt with negative tip (discount)"""
+            return {
+                'restaurant_name': 'Discount Restaurant',
+                'items': [
+                    {'name': 'Meal', 'quantity': 1, 'unit_price': '25.00', 'total_price': '25.00'},
+                ],
+                'subtotal': '25.00',
+                'tax': '2.00',
+                'tip': '-5.00',  # Negative tip represents discount
+                'total': '22.00'
+            }
+        
+        @staticmethod
+        def xss_payloads():
+            """Get XSS test payloads"""
+            return [
+                '<script>alert("XSS")</script>',
+                '<img src=x onerror=alert(1)>',
+                'javascript:alert("XSS")',
+                '<svg onload=alert(1)>',
+                '"><script>alert(document.cookie)</script>',
+                '<iframe src="javascript:alert(1)"></iframe>',
+                '<body onload=alert(1)>',
+                '{{7*7}}<%=7*7%>${{7*7}}#{7*7}',
+                "';alert('XSS');//",
+                '<img src=x onerror=alert("XSS")>',
+                '<svg onload=alert("XSS")>',
+                '<iframe src="javascript:alert(\'XSS\')">',
+                '<body onload=alert("XSS")>'
+            ]
+        
+        @staticmethod
+        def sql_injection_payloads():
+            """Get SQL injection test payloads"""
+            return [
+                "'; DROP TABLE receipts; --",
+                "' OR '1'='1",
+                "1; UPDATE receipts SET total=999999; --",
+                "' UNION SELECT password FROM users; --",
+                "'; INSERT INTO receipts VALUES (999, 'hack', 0); --",
+                "1' AND '1' = '1",
+                "admin'--",
+                "' UNION SELECT * FROM users--",
+                "1' OR '1' = '1' /*"
+            ]
+        
+        @staticmethod
+        def path_traversal_payloads():
+            """Get path traversal test payloads"""
+            return [
+                "../../../etc/passwd",
+                "..\\\\..\\\\..\\\\windows\\\\system32\\\\config\\\\sam",
+                "....//....//....//etc/passwd",
+                "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+            ]
+        
+        @staticmethod
+        def oversized_data(mb_size=10):
+            """Generate oversized file data"""
+            return b'A' * (mb_size * 1024 * 1024)
+        
+        @staticmethod
+        def malicious_file_contents():
+            """Get various malicious file contents"""
+            return {
+                'php_shell': b'<?php system($_GET["cmd"]); ?>',
+                'html_xss': b'<html><script>alert(1)</script></html>',
+                'svg_xss': b'<svg onload="alert(1)"/>',
+                'fake_image': b'GIF89a\\x01\\x00\\x01\\x00\\x00\\x00\\x00!\\xf9\\x04\\x01\\x00\\x00\\x00\\x00,\\x00\\x00\\x00\\x00\\x01\\x00\\x01\\x00\\x00\\x02\\x02\\x04\\x01\\x00;<?php system($_GET["cmd"]); ?>',
+                'zip_bomb': b'PK\\x03\\x04' + b'\\x00' * 1000 + b'malicious_content'
+            }
     
     def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
@@ -313,154 +479,60 @@ class IntegrationTestBase:
         count = receipts.count()
         receipts.delete()
         return count
-
-
-class SecurityTestHelper:
-    """Helper methods for security testing"""
     
-    @staticmethod
-    def get_xss_payloads() -> List[str]:
-        """Get XSS test payloads"""
-        return [
-            '<script>alert("XSS")</script>',
-            '<img src=x onerror=alert(1)>',
-            'javascript:alert("XSS")',
-            '<svg onload=alert(1)>',
-            '"><script>alert(document.cookie)</script>',
-            '<iframe src="javascript:alert(1)"></iframe>',
-            '<body onload=alert(1)>',
-            '{{7*7}}<%=7*7%>${{7*7}}#{7*7}',
-            "';alert('XSS');//",
-            '<img src=x onerror=alert("XSS")>',
-            '<svg onload=alert("XSS")>',
-            '<iframe src="javascript:alert(\'XSS\')">',
-            '<body onload=alert("XSS")>'
-        ]
-    
-    @staticmethod
-    def get_sql_injection_payloads() -> List[str]:
-        """Get SQL injection test payloads"""
-        return [
-            "'; DROP TABLE receipts; --",
-            "' OR '1'='1",
-            "1; UPDATE receipts SET total=999999; --",
-            "' UNION SELECT password FROM users; --",
-            "'; INSERT INTO receipts VALUES (999, 'hack', 0); --",
-            "1' AND '1' = '1",
-            "admin'--",
-            "' UNION SELECT * FROM users--",
-            "1' OR '1' = '1' /*"
-        ]
-    
-    @staticmethod
-    def get_path_traversal_payloads() -> List[str]:
-        """Get path traversal test payloads"""
-        return [
-            "../../../etc/passwd",
-            "..\\..\\..\\windows\\system32\\config\\sam",
-            "....//....//....//etc/passwd",
-            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
-        ]
-    
-    @staticmethod
-    def get_oversized_data(mb_size: int) -> bytes:
-        """Generate oversized file data"""
-        return b'A' * (mb_size * 1024 * 1024)
-    
-    @staticmethod
-    def get_malicious_file_contents() -> Dict[str, bytes]:
-        """Get various malicious file contents"""
-        return {
-            'php_shell': b'<?php system($_GET["cmd"]); ?>',
-            'html_xss': b'<html><script>alert(1)</script></html>',
-            'svg_xss': b'<svg onload="alert(1)"/>',
-            'fake_image': b'GIF89a\x01\x00\x01\x00\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x04\x01\x00;<?php system($_GET["cmd"]); ?>',
-            'zip_bomb': b'PK\x03\x04' + b'\x00' * 1000 + b'malicious_content'
-        }
-    
-    @staticmethod
-    def get_rate_limit_test_count() -> int:
-        """Get number of requests to trigger rate limit"""
-        return 12  # Above the 10/min limit for uploads
-
-
-class TestDataGenerator:
-    """Generate test data for various scenarios"""
-    
-    @staticmethod
-    def balanced_receipt() -> Dict[str, Any]:
-        """Generate balanced receipt data"""
-        return {
-            'restaurant_name': 'Test Restaurant',
-            'items': [
-                {'name': 'Item 1', 'quantity': 1, 'unit_price': '10.00', 'total_price': '10.00'},
-                {'name': 'Item 2', 'quantity': 2, 'unit_price': '5.00', 'total_price': '10.00'},
-            ],
-            'subtotal': '20.00',
-            'tax': '1.60',
-            'tip': '3.40',
-            'total': '25.00'
-        }
-    
-    @staticmethod
-    def unbalanced_receipt() -> Dict[str, Any]:
-        """Generate unbalanced receipt data for validation testing"""
-        return {
-            'restaurant_name': 'Test Restaurant',
-            'items': [
-                {'name': 'Item 1', 'quantity': 1, 'unit_price': '10.00', 'total_price': '10.00'},
-                {'name': 'Item 2', 'quantity': 2, 'unit_price': '5.00', 'total_price': '10.00'},
-            ],
-            'subtotal': '20.00',
-            'tax': '1.60',
-            'tip': '3.40',
-            'total': '30.00'  # Wrong total for testing validation
-        }
-    
-    @staticmethod
-    def receipt_with_negative_tip() -> Dict[str, Any]:
-        """Generate receipt with negative tip (discount)"""
-        return {
-            'restaurant_name': 'Discount Restaurant',
-            'items': [
-                {'name': 'Meal', 'quantity': 1, 'unit_price': '25.00', 'total_price': '25.00'},
-            ],
-            'subtotal': '25.00',
-            'tax': '2.00',
-            'tip': '-5.00',  # Negative tip represents discount
-            'total': '22.00'
-        }
-    
-    @staticmethod
-    def large_receipt(num_items: int = 50) -> Dict[str, Any]:
-        """Generate a large receipt with many items"""
-        items = []
-        subtotal = Decimal('0')
+    def run_tests(self) -> List[tuple[str, 'TestResult']]:
+        """Run all test methods in this class and return results"""
+        import inspect
+        results = []
         
-        for i in range(num_items):
-            price = Decimal(f"{5 + (i % 20)}.99")
-            items.append({
-                'name': f'Item {i+1}',
-                'quantity': 1,
-                'unit_price': str(price),
-                'total_price': str(price)
-            })
-            subtotal += price
+        # Find all methods that start with 'test_' and are callable
+        test_methods = [
+            method for method_name, method in inspect.getmembers(self, predicate=inspect.ismethod)
+            if method_name.startswith('test_') and callable(method)
+        ]
         
-        tax = (subtotal * Decimal('0.08')).quantize(Decimal('0.01'))
-        tip = (subtotal * Decimal('0.15')).quantize(Decimal('0.01'))
-        total = subtotal + tax + tip
+        for method in test_methods:
+            method_name = method.__name__
+            try:
+                result = method()
+                # Ensure result is a TestResult object
+                if not isinstance(result, TestResult):
+                    result = TestResult(TestResult.PASSED)
+                results.append((method_name, result))
+            except Exception as e:
+                results.append((method_name, TestResult(TestResult.FAILED, str(e))))
         
-        return {
-            'restaurant_name': 'Large Order Restaurant',
-            'items': items,
-            'subtotal': str(subtotal),
-            'tax': str(tax),
-            'tip': str(tip),
-            'total': str(total)
-        }
-
-
+        return results
+    
+    def setup_receipt(self, uploader_name="Test User", wait=True, user_instance=None):
+        """Helper method to upload receipt and wait for processing"""
+        instance = user_instance or self
+        response = instance.upload_receipt(uploader_name)
+        
+        if response['status_code'] != 302 or not response['receipt_slug']:
+            raise AssertionError(f"Upload failed: {response['status_code']}")
+        
+        receipt_slug = response['receipt_slug']
+        
+        if wait:
+            if not instance.wait_for_processing(receipt_slug):
+                raise AssertionError("Receipt processing failed")
+        
+        return receipt_slug
+    
+    def calculate_claims_by_user(self, receipt_data):
+        """Calculate claims grouped by user name"""
+        claims_by_user = {}
+        total_claimed = Decimal('0')
+        
+        for item in receipt_data['items']:
+            for claim in item.get('claims', []):
+                user = claim['claimer_name']
+                amount = Decimal(str(claim['share_amount']))
+                claims_by_user[user] = claims_by_user.get(user, Decimal('0')) + amount
+                total_claimed += amount
+        
+        return claims_by_user, total_claimed
 
 
 def print_test_header(test_name: str):
