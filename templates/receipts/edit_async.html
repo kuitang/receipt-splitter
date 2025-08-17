@@ -433,41 +433,77 @@ function checkAndDisplayBalance() {
     }
 }
 
-// Polling for processing status
+// Polling for processing status (Safari-compatible)
 if (isProcessing) {
     let pollCount = 0;
     const maxPolls = 60; // 60 seconds max
     
-    const pollInterval = setInterval(async () => {
+    function pollStatus() {
         pollCount++;
         
-        try {
-            const response = await fetch(`/status/${receiptSlug}/`);
-            const data = await response.json();
-            
-            if (data.status === 'completed') {
-                clearInterval(pollInterval);
-                // Reload the page to show the processed content
-                window.location.reload();
-            } else if (data.status === 'failed') {
-                clearInterval(pollInterval);
-                document.getElementById('processing-status').innerHTML = `
-                    <div class="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">×</div>
-                    <span class="text-sm text-red-600">Processing failed. Please try again.</span>
-                `;
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 3000);
-            } else if (pollCount >= maxPolls) {
-                clearInterval(pollInterval);
-                document.getElementById('processing-status').innerHTML = `
-                    <span class="text-sm text-orange-600">Taking longer than expected...</span>
-                `;
+        // Use XMLHttpRequest for better Safari compatibility
+        const xhr = new XMLHttpRequest();
+        xhr.timeout = 10000; // 10 second timeout
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        
+                        if (data.status === 'completed') {
+                            // Reload the page to show the processed content
+                            window.location.reload();
+                        } else if (data.status === 'failed') {
+                            document.getElementById('processing-status').innerHTML = 
+                                '<div class="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">×</div>' +
+                                '<span class="text-sm text-red-600">Processing failed. Please try again.</span>';
+                            setTimeout(function() {
+                                window.location.href = '/';
+                            }, 3000);
+                        } else if (pollCount < maxPolls) {
+                            // Continue polling
+                            setTimeout(pollStatus, 1000);
+                        } else {
+                            document.getElementById('processing-status').innerHTML = 
+                                '<span class="text-sm text-orange-600">Taking longer than expected...</span>';
+                        }
+                    } catch (e) {
+                        console.error('Error parsing status response:', e);
+                        if (pollCount < maxPolls) {
+                            setTimeout(pollStatus, 2000); // Retry with longer delay
+                        }
+                    }
+                } else {
+                    console.error('Status check failed:', xhr.status, xhr.statusText);
+                    if (pollCount < maxPolls) {
+                        setTimeout(pollStatus, 2000); // Retry with longer delay
+                    }
+                }
             }
-        } catch (error) {
-            console.error('Error polling status:', error);
-        }
-    }, 1000); // Poll every second
+        };
+        
+        xhr.ontimeout = function() {
+            console.error('Status check timed out');
+            if (pollCount < maxPolls) {
+                setTimeout(pollStatus, 2000); // Retry with longer delay
+            }
+        };
+        
+        xhr.onerror = function() {
+            console.error('Status check network error');
+            if (pollCount < maxPolls) {
+                setTimeout(pollStatus, 2000); // Retry with longer delay
+            }
+        };
+        
+        xhr.open('GET', '/status/' + receiptSlug + '/', true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.send();
+    }
+    
+    // Start polling
+    setTimeout(pollStatus, 1000);
 }
 
 // Don't override functions here - we'll do it in DOMContentLoaded at the bottom

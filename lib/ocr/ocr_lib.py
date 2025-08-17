@@ -199,7 +199,7 @@ class ReceiptOCR:
         """
         self.client = OpenAI(api_key=api_key)
         self.model = model
-        self.max_image_size = 2048  # Max dimension in pixels
+        self.max_image_size = 2048  # Max dimension in pixels - optimal for GPT-4o vision processing
         self.jpeg_quality = 85
         self.cache_size = cache_size
         self._cache_hits = 0
@@ -242,8 +242,12 @@ class ReceiptOCR:
     def _image_to_base64(self, image: Image.Image) -> str:
         """Convert PIL Image to base64 string"""
         buffer = BytesIO()
-        image.save(buffer, format='JPEG', quality=self.jpeg_quality)
-        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        try:
+            image.save(buffer, format='JPEG', quality=self.jpeg_quality)
+            image_data = buffer.getvalue()
+            return base64.b64encode(image_data).decode('utf-8')
+        finally:
+            buffer.close()
     
     def _compute_image_hash(self, base64_image: str) -> str:
         """
