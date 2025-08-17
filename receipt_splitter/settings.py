@@ -37,39 +37,37 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 # Get base allowed hosts
 allowed_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,testserver').split(',')
 
-# Add Fly.io app domain if deployed on Fly.io
+# Add Fly.io app domain
 app_name = os.getenv('FLY_APP_NAME')
 if app_name:
     allowed_hosts.append(f"{app_name}.fly.dev")
 else:
-    # Fallback for local development
+    # Fallback for any .fly.dev domain
     allowed_hosts.append('.fly.dev')
 
 ALLOWED_HOSTS = allowed_hosts
 
-# CSRF trusted origins for Fly.io
+# CSRF trusted origins for Fly.io (both HTTP and HTTPS for internal routing)
 CSRF_TRUSTED_ORIGINS = [
     'https://*.fly.dev',
+    'http://*.fly.dev',  # Fly.io internal routing
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
 
-# Security settings for production
-if not DEBUG:
-    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
-    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
-    CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True').lower() == 'true'
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
-    SECURE_HSTS_SECONDS = 31536000 if os.getenv('SECURE_HSTS', 'True').lower() == 'true' else 0
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS', 'True').lower() == 'true'
-    SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS', 'True').lower() == 'true'
-else:
-    # Development settings - no HTTPS enforcement
-    SECURE_SSL_REDIRECT = False
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
+# Security settings - external services handle SSL
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# Trust proxy headers from Fly.io in production
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+# No SSL handling at Django level
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
 
 # Application definition

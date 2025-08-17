@@ -8,10 +8,6 @@ primary_region = "ord"
 [env]
   DEBUG = "False"
   DJANGO_SETTINGS_MODULE = "receipt_splitter.settings"
-  SECURE_SSL_REDIRECT = "True"
-  SESSION_COOKIE_SECURE = "True"
-  CSRF_COOKIE_SECURE = "True"
-  SECURE_HSTS = "True"
 
 [http_service]
   internal_port = 8000
