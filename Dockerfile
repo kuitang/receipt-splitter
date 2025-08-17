@@ -43,6 +43,7 @@ WORKDIR /build
 COPY . .
 
 # Collect static files
+ENV SECRET_KEY="doesnt matter"
 RUN python manage.py collectstatic --noinput
 
 # ============================================
