@@ -263,7 +263,39 @@ class ViewTests(TestCase):
         claims = Claim.objects.filter(line_item=self.item)
         self.assertEqual(claims.count(), 1)
         self.assertEqual(claims.first().quantity_claimed, 1)
-    
+
+    def test_claim_item_on_unfinalized_receipt(self):
+        self.receipt.is_finalized = False
+        self.receipt.save()
+
+        # Simulate the uploader making the claim
+        session = self.client.session
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {
+            'is_uploader': True,
+            'viewer_name': self.receipt.uploader_name
+        }
+        session.save()
+
+        url = reverse('claim_item', kwargs={'receipt_slug': self.receipt.slug})
+        data = {
+            'line_item_id': self.item.id,
+            'quantity': 1
+        }
+
+        response = self.client.post(
+            url,
+            json.dumps(data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertIn('error', response_data)
+        self.assertEqual(response_data['error'], 'Receipt must be finalized first')
+        self.assertEqual(Claim.objects.count(), 0)
+
     def test_receipt_share_calculation_display(self):
         """Test that share amounts are correctly calculated and displayed in HTML"""
         # Create a receipt with simple numbers for easy verification
