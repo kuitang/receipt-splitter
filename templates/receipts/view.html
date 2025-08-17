@@ -3,6 +3,23 @@
 {% block title %}{{ receipt.restaurant_name }} - Receipt{% endblock %}
 
 {% block content %}
+<!-- Claiming Validation Warning Banner (Sticky) -->
+<div id="claiming-warning" class="hidden fixed top-0 left-0 right-0 z-50 bg-red-50 border-b-4 border-red-500 p-4">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <div class="w-5 h-5 bg-red-400 text-white rounded-full flex items-center justify-center text-xs font-bold">×</div>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800">Invalid claims</h3>
+                <div class="mt-2 text-sm text-red-700" id="claiming-error-details">
+                    <!-- Validation errors will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="max-w-4xl mx-auto py-8">
     {% if show_name_form %}
     <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
@@ -178,7 +195,7 @@
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div class="flex-1">
                 <p class="text-sm text-gray-600 mb-1">Your Total ({{ viewer_name }})</p>
-                <p class="text-3xl font-bold text-green-600" id="my-total">${{ my_total|floatformat:2 }}</p>
+                <p class="text-3xl font-bold text-green-600" id="my-total" data-existing-total="{{ my_total|floatformat:2 }}">${{ my_total|floatformat:2 }}</p>
                 {% if my_claims %}
                 <p class="text-xs text-gray-500 mt-1">
                     {% for claim in my_claims %}{{ claim.line_item.name }} ({{ claim.quantity_claimed }}){% if not forloop.last %}, {% endif %}{% endfor %}
@@ -186,8 +203,10 @@
                 {% endif %}
             </div>
             <button data-action="confirm-claims" 
-                    class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors">
-                Confirm Claims
+                    id="claim-button"
+                    class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                Claim
             </button>
         </div>
     </div>

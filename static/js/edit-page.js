@@ -591,3 +591,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
+// ==========================================================================
+// Module Exports for Testing
+// ==========================================================================
+
+// Export for use in Node.js/ES modules (for testing)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        // Initialization
+        initializeEditPage,
+        
+        // Calculation and Validation
+        calculateSubtotal,
+        updateSubtotal,
+        updateItemTotal,
+        updateProrations,
+        validateReceipt,
+        checkAndDisplayBalance,
+        
+        // Item Management
+        addItem,
+        removeItem,
+        attachItemListeners,
+        getReceiptData,
+        
+        // Server Communication
+        saveReceipt,
+        finalizeReceipt,
+        closeShareModal,
+        
+        // Processing
+        startProcessingPoll,
+        initializeProcessingAnimations,
+        
+        // State variables (for testing)
+        _getState: () => ({ receiptSlug, receiptId, isProcessing, receiptIsBalanced }),
+        _setState: (state) => {
+            if (state.receiptSlug !== undefined) receiptSlug = state.receiptSlug;
+            if (state.receiptId !== undefined) receiptId = state.receiptId;
+            if (state.isProcessing !== undefined) isProcessing = state.isProcessing;
+            if (state.receiptIsBalanced !== undefined) receiptIsBalanced = state.receiptIsBalanced;
+        }
+    };
+}

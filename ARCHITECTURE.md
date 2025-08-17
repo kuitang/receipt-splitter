@@ -1,50 +1,64 @@
 # System Architecture
 
-## Key Files & Locations
+## File Location Guide
 
-### Core Application
-- **models.py:18** - Receipt model with UUID/slug, 30-day expiry
-- **models.py:77** - LineItem with prorated tax/tip calculations  
-- **models.py:111** - Claim model with 30-second grace period
-- **views.py:66** - upload_receipt with OCR processing
-- **views.py:136** - update_receipt with validation
-- **views.py:253** - view_receipt with claiming interface
-- **ocr_service.py** - OpenAI Vision API integration via lib/ocr/
+### Core Application Logic
+- **receipts/models.py** - Django models (Receipt, LineItem, Claim)
+- **receipts/views.py** - HTTP request handlers 
+- **receipts/urls.py** - URL routing patterns
 
-### URL Routing
-- **urls.py** - Dual UUID/slug support for backward compatibility
-- **receipt_splitter/urls.py** - Main project routing
+### Service Layer (Business Logic)
+- **receipts/services/receipt_service.py** - Receipt operations
+- **receipts/services/claim_service.py** - Claim management
+- **receipts/services/validation_pipeline.py** - Centralized validation
 
-### Configuration
-- **settings.py** - Django config with rate limiting, security headers
-- **CLAUDE.md** - Development instructions and workflow
+### Data Access Layer
+- **receipts/repositories/receipt_repository.py** - Receipt data access
+- **receipts/repositories/claim_repository.py** - Claim data access
+
+### OCR & Image Processing
+- **receipts/ocr_service.py** - OpenAI Vision API integration
+- **receipts/async_processor.py** - Background OCR processing
+- **receipts/image_utils.py** - Image compression/validation
+- **lib/ocr/ocr_lib.py** - Core OCR implementation with caching
+
+### Frontend Assets
+- **templates/receipts/** - Django templates (index, view, edit)
+- **static/js/** - JavaScript modules (edit-page, view-page, utils)
+- **static/css/styles.css** - Tailwind CSS styles
+
+### Configuration & Security
+- **receipt_splitter/settings.py** - Django settings
+- **receipts/middleware/csp_middleware.py** - Content Security Policy
+- **receipts/middleware/session_middleware.py** - Session handling
+- **receipts/validators.py** - Legacy validation (being deprecated)
+- **receipts/validation.py** - Additional validation rules
+
+### Testing
+- **receipts/tests.py** - Unit tests
+- **integration_test/test_suite.py** - Integration tests
+- **lib/ocr/tests/** - OCR unit tests
+
+### Deployment
+- **Dockerfile** - Container configuration
+- **fly.toml** - Fly.io deployment config
+- **requirements.txt** - Python dependencies
 
 ## Technology Stack
-- Django 5.2.5, SQLite, HTMX + Tailwind CSS
-- OpenAI Vision API (GPT-4o), DALL-E 3 for images
-- Session-based auth, no user accounts required
+- **Backend**: Django 5.2.5 + SQLite
+- **Frontend**: HTMX + Tailwind CSS
+- **OCR**: OpenAI Vision API (GPT-4o)
+- **Hosting**: Fly.io
+- **Auth**: Session-based (no user accounts)
 
-## Data Flow
-1. Upload → OCR processing → placeholder receipt with slug
-2. Edit → validation → save (allows invalid data) 
-3. Finalize → validation required → shareable URL
-4. Claim → name entry → item selection → 30s undo window
+## Request Flow
+1. **Upload**: views.py → async_processor.py → ocr_service.py → Receipt created
+2. **Edit**: views.py → ReceiptService → ValidationPipeline → ReceiptRepository
+3. **Claim**: views.py → ClaimService → ClaimRepository
+4. **View**: views.py → Templates with session-based permissions
 
-## Security Features
-- UUID4 + 6-char slug for receipt URLs
-- Session-based access control with edit tokens  
-- Rate limiting (10/min upload, 30/min update, 15/min claim)
-- Input validation and XSS protection
-- Images stored in memory cache, not filesystem
-
-## API Endpoints
-- POST /upload/ → creates receipt, returns edit URL
-- GET /r/{slug}/ → view/claim interface
-- POST /update/{slug}/ → save changes (edit permission required)
-- POST /finalize/{slug}/ → lock receipt (uploader only)
-- POST /claim/{slug}/ → claim items (session-based)
-
-## Testing & Validation
-- Unit tests in receipts/tests.py (15 tests)
-- Integration tests in integration_test/
-- Balance validation prevents finalization of unbalanced receipts
+## Key Design Patterns
+- **Service Layer**: Business logic separated from views
+- **Repository Pattern**: Data access abstraction
+- **Validation Pipeline**: Centralized validation logic
+- **Session-based Auth**: Edit tokens and viewer names in sessions

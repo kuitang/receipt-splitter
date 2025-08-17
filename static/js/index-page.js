@@ -76,7 +76,7 @@ function initializeFileUpload() {
         }
         
         // Remove any existing file info
-        const existingInfo = e.target.parentElement.querySelector('.text-green-600, .text-blue-600');
+        const existingInfo = e.target.parentElement.querySelector('.text-blue-600');
         if (existingInfo) existingInfo.remove();
         
         // Show processing message
@@ -88,9 +88,8 @@ function initializeFileUpload() {
         try {
             // Only resize if it's not HEIC (let server handle HEIC conversion)
             if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
-                // Show file info for HEIC files (processed on server)
-                processingInfo.className = 'text-sm text-green-600 mt-2';
-                processingInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) - HEIC format will be processed on server`;
+                // Remove processing message for HEIC files
+                processingInfo.remove();
                 return;
             }
             
@@ -108,15 +107,13 @@ function initializeFileUpload() {
             dt.items.add(resizedFile);
             e.target.files = dt.files;
             
-            // Show success info
-            processingInfo.className = 'text-sm text-green-600 mt-2';
-            processingInfo.textContent = `Optimized: ${resizedFile.name} (${(resizedFile.size / 1024 / 1024).toFixed(2)} MB) - Resized to max 2048px for GPT-4o vision processing`;
+            // Remove processing message after optimization
+            processingInfo.remove();
             
         } catch (error) {
             // If resizing fails, use original file
             console.warn('Image resizing failed, using original:', error);
-            processingInfo.className = 'text-sm text-green-600 mt-2';
-            processingInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) - Using original file`;
+            processingInfo.remove();
         }
     });
 }
@@ -127,3 +124,15 @@ function initializeFileUpload() {
 document.addEventListener('DOMContentLoaded', () => {
     initializeFileUpload();
 });
+
+// ==========================================================================
+// Module Exports for Testing
+// ==========================================================================
+
+// Export for use in Node.js/ES modules (for testing)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        resizeImage,
+        initializeFileUpload
+    };
+}

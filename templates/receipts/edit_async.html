@@ -211,14 +211,27 @@
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <div class="space-y-4">
                         {% if is_processing %}
-                        <!-- Placeholder content while processing -->
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
-                            <div class="h-10 bg-gray-200 rounded animate-pulse"></div>
+                        <!-- Placeholder content matching current layout while processing -->
+                        <div class="mt-4">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-3 opacity-50">Receipt Total</h3>
+                            <div class="space-y-1">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600 opacity-50">Subtotal</span>
+                                    <div class="w-32 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600 opacity-50">+ Tax</span>
+                                    <div class="w-32 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600 opacity-50">+ Tip</span>
+                                    <div class="w-32 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                </div>
+                                <div class="flex justify-between items-center border-t pt-2 mt-2">
+                                    <span class="text-gray-900 font-semibold opacity-50">Total</span>
+                                    <div class="w-32 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                                </div>
+                            </div>
                         </div>
                         {% else %}
                         <!-- Actual content when ready -->
@@ -278,7 +291,7 @@
 
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Line Items</h2>
+                    <h2 class="text-2xl font-semibold {% if is_processing %}opacity-50{% endif %}">Line Items</h2>
                     <button data-action="add-item" class="bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
                         + Add Item
                     </button>
@@ -286,11 +299,71 @@
 
                 <div id="items-container" class="space-y-3">
                     {% if is_processing %}
-                    <!-- Placeholder items while processing -->
-                    <div class="space-y-2">
-                        <div class="h-16 bg-gray-200 rounded animate-pulse"></div>
-                        <div class="h-16 bg-gray-200 rounded animate-pulse"></div>
-                        <div class="h-16 bg-gray-200 rounded animate-pulse"></div>
+                    <!-- Placeholder items matching current layout while processing -->
+                    <div class="space-y-3">
+                        <div class="item-row flex gap-2 items-start opacity-50">
+                            <div class="flex-1 border rounded-lg p-4">
+                                <div class="flex gap-2 items-center">
+                                    <div class="flex-1">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <div class="w-16">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <span class="text-gray-500 font-medium opacity-50">×</span>
+                                    <div class="w-24">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <span class="text-gray-500 font-medium opacity-50">=</span>
+                                    <div class="w-28">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="w-9 h-9 bg-gray-200 rounded-lg animate-pulse mt-3"></div>
+                        </div>
+                        <div class="item-row flex gap-2 items-start opacity-50">
+                            <div class="flex-1 border rounded-lg p-4">
+                                <div class="flex gap-2 items-center">
+                                    <div class="flex-1">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <div class="w-16">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <span class="text-gray-500 font-medium opacity-50">×</span>
+                                    <div class="w-24">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <span class="text-gray-500 font-medium opacity-50">=</span>
+                                    <div class="w-28">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="w-9 h-9 bg-gray-200 rounded-lg animate-pulse mt-3"></div>
+                        </div>
+                        <div class="item-row flex gap-2 items-start opacity-50">
+                            <div class="flex-1 border rounded-lg p-4">
+                                <div class="flex gap-2 items-center">
+                                    <div class="flex-1">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <div class="w-16">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <span class="text-gray-500 font-medium opacity-50">×</span>
+                                    <div class="w-24">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                    <span class="text-gray-500 font-medium opacity-50">=</span>
+                                    <div class="w-28">
+                                        <div class="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="w-9 h-9 bg-gray-200 rounded-lg animate-pulse mt-3"></div>
+                        </div>
                     </div>
                     {% else %}
                     <!-- Actual items when ready -->

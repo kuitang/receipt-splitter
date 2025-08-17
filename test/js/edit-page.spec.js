@@ -4,30 +4,74 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import fs from 'fs';
-import path from 'path';
+import { JSDOM } from 'jsdom';
 
-// Mock global functions that edit-page.js depends on
-global.escapeHtml = (text) => {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+// Set up DOM environment
+const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+  url: 'http://localhost',
+  pretendToBeVisual: true,
+  resources: 'usable'
+});
+
+global.window = dom.window;
+global.document = window.document;
+global.navigator = window.navigator;
+
+// Mock QRCode library
+global.QRCode = {
+  toCanvas: vi.fn()
 };
 
-global.authenticatedFetch = vi.fn();
-global.authenticatedJsonFetch = vi.fn();
-global.getCookie = vi.fn(() => 'test-csrf-token');
-global.getCsrfToken = vi.fn(() => 'test-csrf-token');
+// Mock alert and confirm
+global.alert = vi.fn();
+global.confirm = vi.fn(() => true);
 
-// Load and execute edit-page.js from the actual source location
-const editPagePath = path.join(process.cwd(), 'static/js/edit-page.js');
-const editPageCode = fs.readFileSync(editPagePath, 'utf8');
+// Import the modules properly
+const utilsModule = await import('../../static/js/utils.js');
 
-// Execute in global scope to define functions
-eval(editPageCode);
+// Set up global functions that edit-page.js expects
+global.escapeHtml = utilsModule.escapeHtml;
+global.authenticatedFetch = utilsModule.authenticatedFetch;
+global.authenticatedJsonFetch = utilsModule.authenticatedJsonFetch;
+global.copyShareUrl = utilsModule.copyShareUrl;
+global.getCookie = utilsModule.getCookie;
+global.getCsrfToken = utilsModule.getCsrfToken;
+
+// Now import edit-page which will use the globals
+const editPageModule = await import('../../static/js/edit-page.js');
+
+// Destructure the functions we need
+const {
+  initializeEditPage,
+  calculateSubtotal,
+  updateSubtotal,
+  updateItemTotal,
+  updateProrations,
+  validateReceipt,
+  checkAndDisplayBalance,
+  addItem,
+  removeItem,
+  attachItemListeners,
+  getReceiptData,
+  saveReceipt,
+  finalizeReceipt,
+  _getState,
+  _setState
+} = editPageModule;
+
+const {
+  escapeHtml,
+  authenticatedFetch,
+  authenticatedJsonFetch,
+  getCookie,
+  getCsrfToken
+} = utilsModule;
 
 describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
   beforeEach(() => {
+    // Reset mocks
+    vi.clearAllMocks();
+    
     // Set up DOM
     document.body.innerHTML = `
       <div id="edit-page-data" 
@@ -43,7 +87,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       <input id="tip" type="number" value="0">
       <input id="total" type="number" value="0">
       <div id="items-container"></div>
-      <button onclick="finalizeReceipt()">Finalize & Share</button>
+      <button data-action="finalize">Finalize & Share</button>
     `;
     
     // Initialize the page
@@ -204,6 +248,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
     it('should prevent double-save race condition', async () => {
       let callCount = 0;
       
+      // Mock the authenticated fetch
       global.authenticatedJsonFetch = vi.fn(async () => {
         callCount++;
         // Simulate network delay
@@ -213,6 +258,9 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
           json: async () => ({ success: true, is_balanced: true })
         };
       });
+
+      // Set initial state
+      _setState({ receiptSlug: 'test-receipt', isProcessing: false });
 
       // Try to save 10 times simultaneously
       const saves = [];

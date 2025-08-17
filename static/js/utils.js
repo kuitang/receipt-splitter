@@ -624,3 +624,66 @@ window.ReceiptUtils = {
   // Config
   CONFIG
 };
+
+// ==========================================================================
+// Module Exports for Testing
+// ==========================================================================
+
+// Export for use in Node.js/ES modules (for testing)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    // Security
+    escapeHtml,
+    
+    // DOM
+    $,
+    $$,
+    on,
+    delegate,
+    
+    // Forms
+    getFormData,
+    serializeForm,
+    validateRequired,
+    
+    // Numbers
+    formatCurrency,
+    parseCurrency,
+    roundCurrency,
+    calculatePercentage,
+    
+    // API
+    getCookie,
+    getCsrfToken,
+    apiRequest,
+    authenticatedFetch,
+    authenticatedJsonFetch,
+    ApiError,
+    
+    // State
+    StateManager,
+    
+    // UI
+    showLoading,
+    hideLoading,
+    toggleVisibility,
+    showError,
+    showSuccess,
+    copyShareUrl,
+    
+    // Receipt
+    calculateItemTotal,
+    calculateProrations,
+    validateReceiptBalance,
+    
+    // Utilities
+    debounce,
+    throttle,
+    deepClone,
+    isEmpty,
+    generateId,
+    
+    // Config
+    CONFIG
+  };
+}
