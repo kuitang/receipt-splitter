@@ -6,6 +6,13 @@
 // Global state
 let receiptIsBalanced = true;
 
+// Security: HTML escaping function for user content
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 /**
  * Calculate the subtotal from all line items
  * @returns {number} The calculated subtotal
@@ -200,7 +207,7 @@ function checkAndDisplayBalance() {
         if (warningDiv) warningDiv.classList.remove('hidden');
         if (errorDetails) {
             errorDetails.innerHTML = '<ul class="list-disc list-inside space-y-1">' + 
-                errors.map(e => `<li>${e}</li>`).join('') + 
+                errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + 
                 '</ul>';
         }
         

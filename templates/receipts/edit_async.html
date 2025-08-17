@@ -393,6 +393,13 @@ const receiptSlug = "{{ receipt.slug }}";
 const receiptId = "{{ receipt.id }}";  // Keep for backward compatibility
 const isProcessing = {{ is_processing|lower }};
 
+// Security: HTML escaping function for user content
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Functions from receipt-editor.js are now available:
 // validateReceipt, checkAndDisplayBalance, updateItemTotal, updateProrations,
 // addItem, removeItem, attachItemListeners, getReceiptData, calculateSubtotal, updateSubtotal
@@ -409,7 +416,7 @@ function checkAndDisplayBalance() {
         // Show warning banner
         warningDiv.classList.remove('hidden');
         errorDetails.innerHTML = '<ul class="list-disc list-inside space-y-1">' + 
-            errors.map(e => `<li>${e}</li>`).join('') + 
+            errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + 
             '</ul>';
         
         // Disable finalize button
