@@ -22,6 +22,40 @@ pillow_heif.register_heif_opener()
 logger = logging.getLogger(__name__)
 
 
+def _calculate_openai_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """
+    Calculate the cost of an OpenAI API call based on current pricing.
+    Source: https://www.helicone.ai/llm-cost/provider/openai/model/gpt-4o
+    
+    Args:
+        model: The model used (e.g., "gpt-4o")
+        prompt_tokens: Number of input tokens
+        completion_tokens: Number of output tokens
+        
+    Returns:
+        Total cost in USD
+    """
+    # Current GPT-4o pricing (as of 2024-2025)
+    pricing = {
+        "gpt-4o": {
+            "input_per_1k": 0.005,   # $0.005 per 1K input tokens
+            "output_per_1k": 0.015   # $0.015 per 1K output tokens
+        },
+        "gpt-4o-mini": {
+            "input_per_1k": 0.00015,  # $0.00015 per 1K input tokens
+            "output_per_1k": 0.0006   # $0.0006 per 1K output tokens
+        }
+    }
+    
+    # Default to gpt-4o pricing if model not found
+    model_pricing = pricing.get(model, pricing["gpt-4o"])
+    
+    input_cost = (prompt_tokens / 1000) * model_pricing["input_per_1k"]
+    output_cost = (completion_tokens / 1000) * model_pricing["output_per_1k"]
+    
+    return input_cost + output_cost
+
+
 class ReceiptOCR:
     """Main OCR class for processing receipt images with structured output"""
     
@@ -189,14 +223,17 @@ class ReceiptOCR:
                 temperature=0.1
             )
             
-            # Log usage information
+            # Log usage information with cost
             if response.usage:
                 usage = response.usage
+                cost = _calculate_openai_cost(self.model, usage.prompt_tokens, usage.completion_tokens)
                 logger.info(
-                    f"OpenAI API Usage - Model: {self.model}, "
+                    f"💵 OpenAI API Call Complete - Model: {self.model}, "
+                    f"Image Hash: {image_hash}, "
                     f"Prompt tokens: {usage.prompt_tokens}, "
                     f"Completion tokens: {usage.completion_tokens}, "
-                    f"Total tokens: {usage.total_tokens}"
+                    f"Total tokens: {usage.total_tokens}, "
+                    f"Cost: ${cost:.4f}"
                 )
             
             return response.choices[0].message.content
