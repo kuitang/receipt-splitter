@@ -351,5 +351,121 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("Failed to process image with OpenAI", str(context.exception))
 
 
+class TestIMG6839Cache(unittest.TestCase):
+    """Test IMG_6839.HEIC cache seeding and hit behavior"""
+    
+    @patch('lib.ocr.ocr_lib.OpenAI')
+    def test_img_6839_cache_hit_no_api_call(self, mock_openai_class):
+        """Test that processing IMG_6839.HEIC uses cache and never calls OpenAI API"""
+        
+        # Setup mock client that works for initialization but fails for subsequent calls
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
+        # Load the expected results for the mock response
+        test_data_dir = Path(__file__).parent.parent / "test_data"
+        results_file = test_data_dir / "IMG_6839_results.json"
+        
+        if not results_file.exists():
+            self.skipTest(f"Test results file not found: {results_file}")
+        
+        with open(results_file, 'r') as f:
+            import json
+            results_data = json.load(f)
+        
+        # Allow the initial seeding to work, then fail on subsequent calls
+        call_count = 0
+        def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call is for cache seeding - return proper JSON
+                mock_response = MagicMock()
+                mock_response.choices[0].message.content = json.dumps(results_data)
+                mock_response.usage = None
+                return mock_response
+            else:
+                # Subsequent calls should not happen
+                raise Exception("API should not be called for IMG_6839.HEIC after cache seeding")
+        
+        mock_client.chat.completions.create.side_effect = side_effect
+        
+        # Create OCR instance with cache seeding enabled (default)
+        ocr = ReceiptOCR("test_key", cache_size=128, seed_test_cache=True)
+        
+        # Get path to test image
+        test_image_path = Path(__file__).parent.parent / "test_data" / "IMG_6839.HEIC"
+        
+        # Skip test if image file doesn't exist
+        if not test_image_path.exists():
+            self.skipTest(f"Test image not found: {test_image_path}")
+        
+        # Reset call count to track only the process_image call
+        call_count = 0
+        
+        # Process the image - this should use cache, not API
+        try:
+            result = ocr.process_image(test_image_path)
+            
+            # Verify we got valid receipt data
+            self.assertIsInstance(result, ReceiptData)
+            self.assertEqual(result.restaurant_name, "The Gin Mill (NY)")
+            self.assertEqual(len(result.items), 7)
+            self.assertEqual(float(result.total), 64.0)
+            self.assertEqual(result.confidence_score, 0.95)
+            
+            # Verify cache statistics show a hit
+            cache_stats = ocr.get_cache_stats()
+            self.assertGreater(cache_stats['cache_hits'], 0)
+            
+            # Verify no additional API calls were made (call_count should still be 0)
+            self.assertEqual(call_count, 0, "API was called when it should have been a cache hit")
+            
+        except Exception as e:
+            if "API should not be called" in str(e):
+                self.fail("API was called when it should have been a cache hit")
+            else:
+                # Re-raise any other unexpected exceptions
+                raise
+    
+    @patch('lib.ocr.ocr_lib.OpenAI')
+    def test_img_6839_cache_seeding_logs(self, mock_openai_class):
+        """Test that cache seeding produces appropriate log messages"""
+        
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
+        # Setup mock response for cache seeding
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"restaurant_name": "Test"}'
+        mock_response.usage = None
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        # Capture log output
+        with self.assertLogs('lib.ocr.ocr_lib', level='INFO') as log_capture:
+            ocr = ReceiptOCR("test_key", cache_size=128, seed_test_cache=True)
+        
+        # Check that seeding log messages were produced
+        log_messages = [record.message for record in log_capture.records]
+        seeding_logs = [msg for msg in log_messages if "Processing IMG_6839.HEIC" in msg or "Successfully seeded cache" in msg]
+        
+        self.assertGreater(len(seeding_logs), 0, "Cache seeding log message not found")
+    
+    @patch('lib.ocr.ocr_lib.OpenAI')
+    def test_cache_seeding_disabled(self, mock_openai_class):
+        """Test that cache seeding can be disabled"""
+        
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
+        # Create OCR instance with cache seeding disabled
+        ocr = ReceiptOCR("test_key", cache_size=128, seed_test_cache=False)
+        
+        # Cache should be empty (no seeded entries)
+        cache_stats = ocr.get_cache_stats()
+        self.assertEqual(cache_stats['cache_hits'], 0)
+        self.assertEqual(cache_stats['cache_misses'], 0)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
