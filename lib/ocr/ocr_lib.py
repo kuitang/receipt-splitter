@@ -295,6 +295,35 @@ class ReceiptOCR:
                 temperature=0.1
             )
             
+            # Log cost information from the usage field
+            if response.usage:
+                usage = response.usage
+                logger.warning(
+                    f"OpenAI API Usage - Model: {self.model}, "
+                    f"Prompt tokens: {usage.prompt_tokens}, "
+                    f"Completion tokens: {usage.completion_tokens}, "
+                    f"Total tokens: {usage.total_tokens}"
+                )
+                
+                # Log detailed token breakdown if available
+                if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
+                    details = usage.prompt_tokens_details
+                    if hasattr(details, 'cached_tokens') and details.cached_tokens:
+                        logger.info(f"Cached tokens used: {details.cached_tokens}")
+                    if hasattr(details, 'audio_tokens') and details.audio_tokens:
+                        logger.info(f"Audio tokens: {details.audio_tokens}")
+                
+                if hasattr(usage, 'completion_tokens_details') and usage.completion_tokens_details:
+                    details = usage.completion_tokens_details
+                    if hasattr(details, 'reasoning_tokens') and details.reasoning_tokens:
+                        logger.info(f"Reasoning tokens: {details.reasoning_tokens}")
+                    if hasattr(details, 'accepted_prediction_tokens') and details.accepted_prediction_tokens:
+                        logger.info(f"Accepted prediction tokens: {details.accepted_prediction_tokens}")
+                    if hasattr(details, 'rejected_prediction_tokens') and details.rejected_prediction_tokens:
+                        logger.info(f"Rejected prediction tokens: {details.rejected_prediction_tokens}")
+            else:
+                logger.warning("No usage information returned from OpenAI API")
+            
             response_text = response.choices[0].message.content
             logger.debug(f"API Response: {response_text[:200]}...")
             return response_text

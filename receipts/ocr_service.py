@@ -48,6 +48,7 @@ def process_receipt_with_ocr(image_input, format_hint=None):
     ocr = get_ocr_instance()
     if ocr is None:
         logger.warning("OpenAI API key not configured, using mock data")
+        logger.info("Returning hardcoded mock receipt data - no API costs incurred")
         return get_mock_receipt_data()
     
     try:
@@ -95,6 +96,7 @@ def process_receipt_with_ocr(image_input, format_hint=None):
     except Exception as e:
         logger.error(f"OCR processing failed: {str(e)}")
         logger.info("Falling back to mock data")
+        logger.info("Returning hardcoded mock receipt data - no API costs incurred")
         return get_mock_receipt_data()
 
 
