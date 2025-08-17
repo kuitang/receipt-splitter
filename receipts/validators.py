@@ -4,7 +4,7 @@ Provides comprehensive validation for file uploads and user inputs
 """
 
 from django.core.exceptions import ValidationError
-from django.utils.html import escape
+# escape import removed - Django templates handle HTML escaping on output
 from PIL import Image
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -135,8 +135,9 @@ class InputValidator:
             if pattern.lower() in name.lower():
                 raise ValidationError(f"{field_name} contains invalid characters")
         
-        # HTML escape for extra safety
-        return escape(name)
+        # Return the cleaned name without HTML escaping
+        # Django templates will handle escaping on output
+        return name
     
     @staticmethod
     def validate_decimal(value, field_name="Value", max_digits=12, decimal_places=6, allow_negative=False):

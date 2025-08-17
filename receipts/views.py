@@ -9,7 +9,7 @@ from django.core.signing import Signer, BadSignature
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from django.utils.html import escape
+# escape import removed - Django templates handle HTML escaping on output
 from django.conf import settings
 from decimal import Decimal
 import json
@@ -67,9 +67,11 @@ def upload_receipt(request):
     uploader_name = request.POST.get('uploader_name', '').strip()
     receipt_image = request.FILES.get('receipt_image')
     
-    # Basic validation to maintain backward compatibility with tests
-    if not uploader_name or len(uploader_name) < 2 or len(uploader_name) > 50:
-        messages.error(request, 'Please provide a valid name (2-50 characters)')
+    # Validate and sanitize uploader name using InputValidator
+    try:
+        uploader_name = InputValidator.validate_name(uploader_name, field_name="Your name")
+    except ValidationError as e:
+        messages.error(request, str(e))
         return HttpResponse('Invalid name', status=400)
     
     if not receipt_image:
@@ -91,10 +93,8 @@ def upload_receipt(request):
         messages.error(request, str(e))
         return HttpResponse(str(e), status=400)
     
-    # Escape HTML to prevent XSS
-    uploader_name = escape(uploader_name)
-    
     # Create placeholder receipt immediately
+    # uploader_name has been sanitized by InputValidator.validate_name()
     receipt = create_placeholder_receipt(uploader_name, receipt_image)
     
     # Store session info and create edit token
