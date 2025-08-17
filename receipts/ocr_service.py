@@ -86,7 +86,7 @@ def process_receipt_with_ocr(image_input, format_hint=None):
                    f"Hit Rate: {cache_stats['hit_rate']}%")
         
         # Validate the extracted data
-        is_valid, errors = receipt_data.validate()
+        is_valid, errors = receipt_data.validate_totals()
         if not is_valid:
             logger.warning(f"Receipt validation issues: {errors}")
         

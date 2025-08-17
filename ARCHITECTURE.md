@@ -17,10 +17,12 @@
 - **receipts/repositories/claim_repository.py** - Claim data access
 
 ### OCR & Image Processing
-- **receipts/ocr_service.py** - OpenAI Vision API integration
+- **receipts/ocr_service.py** - Django integration for OCR
 - **receipts/async_processor.py** - Background OCR processing
 - **receipts/image_utils.py** - Image compression/validation
-- **lib/ocr/ocr_lib.py** - Core OCR implementation with caching
+- **lib/ocr/models.py** - Pydantic models for receipt validation
+- **lib/ocr/ocr_lib.py** - OpenAI Vision API with structured outputs & caching
+- **lib/ocr/test_data/** - IMG_6839.HEIC test image for hardcoded results
 
 ### Frontend Assets
 - **templates/receipts/** - Django templates (index, view, edit)

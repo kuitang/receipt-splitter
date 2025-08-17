@@ -23,7 +23,7 @@ class TestTotalCorrection(unittest.TestCase):
         if items is None:
             # Create items that sum to subtotal
             items = [
-                LineItem("Item 1", 1, Decimal(str(subtotal)), Decimal(str(subtotal)))
+                LineItem(name="Item 1", quantity=1, unit_price=Decimal(str(subtotal)), total_price=Decimal(str(subtotal)))
             ]
         
         return ReceiptData(
@@ -41,13 +41,13 @@ class TestTotalCorrection(unittest.TestCase):
         """Test the actual Gin Mill receipt case: zero tax/tip with discrepancy"""
         # Create receipt matching the real Gin Mill data
         items = [
-            LineItem("WELL TEQUILA", 1, Decimal("5.00"), Decimal("5.00")),
-            LineItem("AMARETTO", 1, Decimal("17.00"), Decimal("17.00")),
-            LineItem("PALOMA", 1, Decimal("8.50"), Decimal("8.50")),
-            LineItem("HAPPY HOUR BEER", 1, Decimal("5.00"), Decimal("5.00")),
-            LineItem("WELL GIN", 1, Decimal("5.00"), Decimal("5.00")),
-            LineItem("CONEY ISLAND DRAFT", 1, Decimal("8.00"), Decimal("8.00")),
-            LineItem("MEZCAL ME GINGER", 1, Decimal("12.00"), Decimal("12.00"))
+            LineItem(name="WELL TEQUILA", quantity=1, unit_price=Decimal("5.00"), total_price=Decimal("5.00")),
+            LineItem(name="AMARETTO", quantity=1, unit_price=Decimal("17.00"), total_price=Decimal("17.00")),
+            LineItem(name="PALOMA", quantity=1, unit_price=Decimal("8.50"), total_price=Decimal("8.50")),
+            LineItem(name="HAPPY HOUR BEER", quantity=1, unit_price=Decimal("5.00"), total_price=Decimal("5.00")),
+            LineItem(name="WELL GIN", quantity=1, unit_price=Decimal("5.00"), total_price=Decimal("5.00")),
+            LineItem(name="CONEY ISLAND DRAFT", quantity=1, unit_price=Decimal("8.00"), total_price=Decimal("8.00")),
+            LineItem(name="MEZCAL ME GINGER", quantity=1, unit_price=Decimal("12.00"), total_price=Decimal("12.00"))
         ]
         
         receipt = ReceiptData(
@@ -156,8 +156,8 @@ class TestTotalCorrection(unittest.TestCase):
     def test_subtotal_items_mismatch(self):
         """Test when subtotal doesn't match items sum"""
         items = [
-            LineItem("Item 1", 2, Decimal("10.00"), Decimal("20.00")),
-            LineItem("Item 2", 1, Decimal("15.00"), Decimal("15.00"))
+            LineItem(name="Item 1", quantity=2, unit_price=Decimal("10.00"), total_price=Decimal("20.00")),
+            LineItem(name="Item 2", quantity=1, unit_price=Decimal("15.00"), total_price=Decimal("15.00"))
         ]
         
         receipt = ReceiptData(
@@ -250,7 +250,7 @@ class TestOCRInterfaceCorrection(unittest.TestCase):
         receipt = ReceiptData(
             restaurant_name="Test",
             date=datetime.now(),
-            items=[LineItem("Item", 1, Decimal("10"), Decimal("10"))],
+            items=[LineItem(name="Item", quantity=1, unit_price=Decimal("10"), total_price=Decimal("10"))],
             subtotal=Decimal("10"),
             tax=Decimal("0"),
             tip=Decimal("0"),

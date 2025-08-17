@@ -271,13 +271,7 @@ class ReceiptOCR:
     # Backwards compatibility alias
     def process_image_bytes(self, image_bytes: bytes, format: str = "JPEG") -> ReceiptData:
         """Process receipt image from bytes - redirects to unified process_image method"""
-        # The format parameter is ignored now since PIL auto-detects
-        try:
-            return self.process_image(image_bytes)
-        except Exception as e:
-            # If it fails, it might be invalid image data
-            logger.error(f"Failed to process image bytes: {e}")
-            raise
+        return self.process_image(image_bytes)
     
     def get_cache_stats(self) -> dict:
         """Get cache statistics from LRU cache"""
