@@ -25,13 +25,14 @@ DATABASES = {
 }
 ```
 
-### 2. Add PostgreSQL Dependencies
+### 2. Add PostgreSQL and Redis Dependencies
 Update `requirements.txt` to include:
 ```
 dj-database-url
 psycopg2-binary
 gunicorn
 whitenoise
+redis==5.0.1
 ```
 
 Note: `python-dotenv` is not required as Fly.io sets environment variables directly.
@@ -69,16 +70,44 @@ CSRF_TRUSTED_ORIGINS = [
 
 ## Local Development Setup
 
+### Redis Setup (Required for Real-Time Updates)
+
+1. **Create docker-compose.yml** in project root:
+```yaml
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+```
+
+2. **Start Redis**:
+```bash
+docker-compose up -d redis
+```
+
+3. **Verify Redis is running**:
+```bash
+docker-compose ps
+redis-cli ping  # Should return PONG
+```
+
+### Environment Variables
+
 For local development, set environment variables directly:
 
 ```bash
 # Option 1: Export in your shell
 export OPENAI_API_KEY="your-key-here"
 export DEBUG="True"
+export REDIS_URL="redis://localhost:6379/0"
 
 # Option 2: Create a script (not tracked by git)
 echo 'export OPENAI_API_KEY="your-key"' > set_env.sh
 echo 'export DEBUG="True"' >> set_env.sh
+echo 'export REDIS_URL="redis://localhost:6379/0"' >> set_env.sh
 source set_env.sh
 
 # Option 3: Use your shell's profile (.bashrc, .zshrc, etc.)
@@ -100,6 +129,16 @@ This will:
 fly secrets set SECRET_KEY="your-secret-key-here"
 fly secrets set OPENAI_API_KEY="your-openai-api-key"
 fly secrets set DEBUG="False"
+```
+
+### 2a. Set up Redis (Upstash) for Real-Time Updates
+```bash
+# Create Upstash Redis instance (free tier)
+fly redis create
+
+# This will output a REDIS_URL - it's automatically set as a secret
+# Alternatively, create manually at upstash.com and set:
+# fly secrets set REDIS_URL="redis://default:password@fly-receipt-splitter-redis.upstash.io:6379"
 ```
 
 ### 3. Configure Database
