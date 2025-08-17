@@ -56,7 +56,7 @@ def upload_receipt(request):
         receipt_service.create_edit_token(receipt.id, user_context.session_id)
         
         # Redirect to edit page
-        return redirect('edit_receipt_by_slug', receipt_slug=receipt.slug)
+        return redirect('edit_receipt', receipt_slug=receipt.slug)
         
     except ValidationError as e:
         # Check if this is a file size error
@@ -77,16 +77,16 @@ def upload_receipt(request):
         return HttpResponse('Upload failed', status=500)
 
 
-def edit_receipt(request, receipt_id):
-    """Edit receipt page"""
-    receipt = receipt_service.get_receipt_by_id(receipt_id)
+def edit_receipt(request, receipt_slug):
+    """Edit receipt by slug"""
+    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
     
     if not receipt:
         messages.error(request, 'Receipt not found')
         return redirect('index')
     
     if receipt.is_finalized:
-        return redirect('view_receipt_by_slug', receipt_slug=receipt.slug)
+        return redirect('view_receipt', receipt_slug=receipt.slug)
     
     # Check edit permission using new session management
     user_context = request.user_context(receipt.id)
@@ -102,30 +102,24 @@ def edit_receipt(request, receipt_id):
     })
 
 
-def edit_receipt_by_slug(request, receipt_slug):
-    """Edit receipt by slug - redirects to ID-based edit"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        messages.error(request, 'Receipt not found')
-        return redirect('index')
-    
-    return edit_receipt(request, str(receipt.id))
-
-
 @rate_limit_edit
 @require_http_methods(["POST"])
-def update_receipt(request, receipt_id):
+def update_receipt(request, receipt_slug):
     """Update receipt data via AJAX"""
     try:
+        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+        
+        if not receipt:
+            return JsonResponse({'error': 'Receipt not found'}, status=404)
+        
         data = json.loads(request.body)
         
         # Get session context using new system
-        user_context = request.user_context(receipt_id)
+        user_context = request.user_context(receipt.id)
         session_context = user_context.get_session_context()
         
         # Update through service
-        result = receipt_service.update_receipt(receipt_id, data, session_context)
+        result = receipt_service.update_receipt(str(receipt.id), data, session_context)
         
         return JsonResponse(result)
         
@@ -141,28 +135,23 @@ def update_receipt(request, receipt_id):
         return JsonResponse({'error': str(e)}, status=400)
 
 
-def update_receipt_by_slug(request, receipt_slug):
-    """Update receipt by slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return JsonResponse({'error': 'Receipt not found'}, status=404)
-    
-    return update_receipt(request, str(receipt.id))
-
-
 @rate_limit_finalize
 @require_http_methods(["POST"])
-def finalize_receipt(request, receipt_id):
+def finalize_receipt(request, receipt_slug):
     """Finalize a receipt"""
     try:
-        user_context = request.user_context(receipt_id)
+        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+        
+        if not receipt:
+            return JsonResponse({'error': 'Receipt not found'}, status=404)
+        
+        user_context = request.user_context(receipt.id)
         session_context = user_context.get_session_context()
         
-        result = receipt_service.finalize_receipt(receipt_id, session_context)
+        result = receipt_service.finalize_receipt(str(receipt.id), session_context)
         
         # Build absolute URL for sharing
-        receipt = receipt_service.get_receipt_by_id(receipt_id)
+        receipt = receipt_service.get_receipt_by_id(str(receipt.id))
         result['share_url'] = request.build_absolute_uri(receipt.get_absolute_url())
         
         return JsonResponse(result)
@@ -188,20 +177,16 @@ def finalize_receipt(request, receipt_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def finalize_receipt_by_slug(request, receipt_slug):
-    """Finalize receipt by slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return JsonResponse({'error': 'Receipt not found'}, status=404)
-    
-    return finalize_receipt(request, str(receipt.id))
-
-
 @rate_limit_view
-def view_receipt(request, receipt_id):
+def view_receipt(request, receipt_slug):
     """View and claim items on a receipt"""
     try:
+        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+        
+        if not receipt:
+            return HttpResponse('Receipt not found', status=404)
+        
+        receipt_id = str(receipt.id)
         receipt_data = receipt_service.get_receipt_for_viewing(receipt_id)
         receipt = receipt_data['receipt']
         
@@ -264,14 +249,14 @@ def view_receipt(request, receipt_id):
         my_claims = []
         my_total = Decimal('0')
         
-        if viewer_name and user_context.session_id:
-            my_claims = claim_service.get_claims_for_session(
+        if viewer_name:
+            my_claims = claim_service.get_claims_for_name(
                 receipt_id, 
-                user_context.session_id
+                viewer_name
             )
-            my_total = claim_service.calculate_session_total(
+            my_total = claim_service.calculate_name_total(
                 receipt_id,
-                user_context.session_id
+                viewer_name
             )
         
         # Prepare context
@@ -299,30 +284,23 @@ def view_receipt(request, receipt_id):
         return redirect('index')
 
 
-def view_receipt_by_slug(request, receipt_slug):
-    """View receipt by slug"""
+@rate_limit_claim
+@require_http_methods(["POST"])
+def claim_item(request, receipt_slug):
+    """Claim items on a receipt"""
     receipt = receipt_service.get_receipt_by_slug(receipt_slug)
     
     if not receipt:
-        messages.error(request, 'Receipt not found')
-        return redirect('index')
+        return JsonResponse({'error': 'Receipt not found'}, status=404)
     
-    return view_receipt(request, str(receipt.id))
-
-
-@rate_limit_claim
-@require_http_methods(["POST"])
-def claim_item(request, receipt_id):
-    """Claim items on a receipt"""
+    receipt_id = str(receipt.id)
     user_context = request.user_context(receipt_id)
     viewer_name = user_context.name
     
     if not viewer_name:
         # Check if uploader
         if user_context.is_uploader:
-            receipt = receipt_service.get_receipt_by_id(receipt_id)
-            if receipt:
-                viewer_name = receipt.uploader_name
+            viewer_name = receipt.uploader_name
     
     if not viewer_name:
         return JsonResponse({'error': 'Please enter your name first'}, status=400)
@@ -342,9 +320,9 @@ def claim_item(request, receipt_id):
         )
         
         # Get updated totals
-        my_total = claim_service.calculate_session_total(
+        my_total = claim_service.calculate_name_total(
             receipt_id,
-            user_context.session_id
+            viewer_name
         )
         
         participant_totals = claim_service.get_participant_totals(receipt_id)
@@ -369,81 +347,10 @@ def claim_item(request, receipt_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def claim_item_by_slug(request, receipt_slug):
-    """Claim item by receipt slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return JsonResponse({'error': 'Receipt not found'}, status=404)
-    
-    return claim_item(request, str(receipt.id))
-
-
-@require_http_methods(["POST", "DELETE"])
-def undo_claim(request, receipt_id):
-    """Undo a claim within grace period"""
-    try:
-        # Handle both POST with JSON body and our synthetic body from unclaim_item
-        if request.body:
-            data = json.loads(request.body)
-            claim_id = data.get('claim_id')
-        else:
-            # Empty body - claim_id should be set by unclaim_item wrapper
-            claim_id = None
-        
-        user_context = request.user_context(receipt_id)
-        if not user_context.session_id:
-            return JsonResponse({'error': 'Session not found'}, status=400)
-        
-        # Undo through service
-        success = claim_service.undo_claim(claim_id, user_context.session_id)
-        
-        if success:
-            # Get updated totals
-            my_total = claim_service.calculate_session_total(
-                receipt_id,
-                user_context.session_id
-            )
-            
-            participant_totals = claim_service.get_participant_totals(receipt_id)
-            
-            return JsonResponse({
-                'success': True,
-                'my_total': float(my_total),
-                'participant_totals': {
-                    name: float(amount)
-                    for name, amount in participant_totals.items()
-                }
-            })
-        else:
-            return JsonResponse({'error': 'Failed to undo claim'}, status=400)
-            
-    except ClaimNotFoundError:
-        return JsonResponse({'error': 'Claim not found'}, status=404)
-    except PermissionError as e:
-        return JsonResponse({'error': str(e)}, status=403)
-    except GracePeriodExpiredError as e:
-        return JsonResponse({'error': str(e)}, status=400)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid request data'}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-def undo_claim_by_slug(request, receipt_slug):
-    """Undo claim by receipt slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return JsonResponse({'error': 'Receipt not found'}, status=404)
-    
-    return undo_claim(request, str(receipt.id))
-
-
 @require_http_methods(["GET"])
-def check_processing_status(request, receipt_id):
+def check_processing_status(request, receipt_slug):
     """Check if receipt OCR processing is complete"""
-    receipt = receipt_service.get_receipt_by_id(receipt_id)
+    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
     
     if not receipt:
         return JsonResponse({'error': 'Receipt not found'}, status=404)
@@ -455,51 +362,20 @@ def check_processing_status(request, receipt_id):
     })
 
 
-def check_processing_status_by_slug(request, receipt_slug):
-    """Check processing status by slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return JsonResponse({'error': 'Receipt not found'}, status=404)
-    
-    return check_processing_status(request, str(receipt.id))
-
-
-@require_http_methods(["GET"])
-def get_receipt_image(request, receipt_id):
-    """Get receipt image from memory storage"""
-    from .image_storage import get_receipt_image_from_memory
-    
-    receipt = receipt_service.get_receipt_by_id(receipt_id)
-    
-    if not receipt:
-        return HttpResponse('Receipt not found', status=404)
-    
-    image_data = get_receipt_image_from_memory(receipt_id)
-    
-    if image_data:
-        return HttpResponse(image_data, content_type='image/jpeg')
-    else:
-        return HttpResponse('Image not found', status=404)
-
-
-def get_receipt_image_by_slug(request, receipt_slug):
-    """Get receipt image by slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return HttpResponse('Receipt not found', status=404)
-    
-    return get_receipt_image(request, str(receipt.id))
-
-
-# Legacy unclaim_item functions for URL compatibility
-def unclaim_item(request, receipt_id, claim_id):
-    """Legacy unclaim function - calls claim service directly"""
+def unclaim_item(request, receipt_slug, claim_id):
+    """Unclaim an item by receipt slug"""
     if request.method in ['POST', 'DELETE']:
+        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+        
+        if not receipt:
+            return JsonResponse({'error': 'Receipt not found'}, status=404)
+        
+        receipt_id = str(receipt.id)
         user_context = request.user_context(receipt_id)
         if not user_context.session_id:
             return JsonResponse({'error': 'Session not found'}, status=400)
+        
+        viewer_name = user_context.name
         
         try:
             # Call service directly since claim_id is in URL
@@ -507,10 +383,10 @@ def unclaim_item(request, receipt_id, claim_id):
             
             if success:
                 # Get updated totals
-                my_total = claim_service.calculate_session_total(
+                my_total = claim_service.calculate_name_total(
                     receipt_id,
-                    user_context.session_id
-                )
+                    viewer_name
+                ) if viewer_name else Decimal('0')
                 
                 participant_totals = claim_service.get_participant_totals(receipt_id)
                 
@@ -537,19 +413,9 @@ def unclaim_item(request, receipt_id, claim_id):
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
-def unclaim_item_by_slug(request, receipt_slug, claim_id):
-    """Legacy unclaim by slug - redirects to undo_claim"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return JsonResponse({'error': 'Receipt not found'}, status=404)
-    
-    return unclaim_item(request, str(receipt.id), claim_id)
-
-
-def get_receipt_content(request, receipt_id):
+def get_receipt_content(request, receipt_slug):
     """Get the receipt content partial for HTMX"""
-    receipt = receipt_service.get_receipt_by_id(receipt_id)
+    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
     
     if not receipt:
         return HttpResponse("", status=404)
@@ -564,27 +430,19 @@ def get_receipt_content(request, receipt_id):
     })
 
 
-def get_receipt_content_by_slug(request, receipt_slug):
-    """Get receipt content by slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return HttpResponse("", status=404)
-    
-    return get_receipt_content(request, str(receipt.id))
-
-
-def serve_receipt_image(request, receipt_id):
+def serve_receipt_image(request, receipt_slug):
     """
     Serve receipt image from memory.
     Only accessible to the uploader during editing.
     """
     from .image_storage import get_receipt_image_from_memory
     
-    receipt = receipt_service.get_receipt_by_id(receipt_id)
+    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
     
     if not receipt:
         return HttpResponse('Receipt not found', status=404)
+    
+    receipt_id = str(receipt.id)
     
     # Check if user is the uploader (for security)
     user_context = request.user_context(receipt_id)
@@ -599,16 +457,6 @@ def serve_receipt_image(request, receipt_id):
         return HttpResponse(image_bytes, content_type=content_type)
     else:
         return HttpResponse('Image not found in memory', status=404)
-
-
-def serve_receipt_image_by_slug(request, receipt_slug):
-    """Serve receipt image by slug"""
-    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
-    if not receipt:
-        return HttpResponse('Receipt not found', status=404)
-    
-    return serve_receipt_image(request, str(receipt.id))
 
 
 def ratelimit_exceeded(request, exception):

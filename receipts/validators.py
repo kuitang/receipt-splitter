@@ -129,8 +129,13 @@ class InputValidator:
         if len(name) > max_length:
             raise ValidationError(f"{field_name} must not exceed {max_length} characters")
         
-        # Check for suspicious patterns
-        suspicious_patterns = ['<script', 'javascript:', 'onclick', 'onerror', '\x00', '../', '..\\']
+        # Check for suspicious patterns (expanded list for security)
+        suspicious_patterns = [
+            '<script', 'javascript:', 'onclick', 'onerror', 'onload',
+            'alert(', 'eval(', 'document.', 'window.', 'console.',
+            '<iframe', '<embed', '<object', '<img', '<svg',
+            '\x00', '../', '..\\', 'onfocus', 'onmouse'
+        ]
         for pattern in suspicious_patterns:
             if pattern.lower() in name.lower():
                 raise ValidationError(f"{field_name} contains invalid characters")

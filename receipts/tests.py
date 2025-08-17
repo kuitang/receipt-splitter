@@ -180,7 +180,7 @@ class ViewTests(TestCase):
     
     def test_view_receipt(self):
         # First, submit a name to view the receipt
-        url = reverse('view_receipt', kwargs={'receipt_id': self.receipt.id})
+        url = reverse('view_receipt', kwargs={'receipt_slug': self.receipt.slug})
         response = self.client.post(url, {'viewer_name': 'Test Viewer'})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.receipt.restaurant_name)
@@ -196,13 +196,12 @@ class ViewTests(TestCase):
         self.assertContains(response, '$12.50</span> per item')
     
     def test_view_nonexistent_receipt(self):
-        from uuid import uuid4
-        url = reverse('view_receipt', kwargs={'receipt_id': uuid4()})
+        url = reverse('view_receipt', kwargs={'receipt_slug': 'nonexistent-slug'})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
     
     def test_edit_receipt_unauthorized(self):
-        url = reverse('edit_receipt', kwargs={'receipt_id': self.receipt.id})
+        url = reverse('edit_receipt', kwargs={'receipt_slug': self.receipt.slug})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
     
@@ -219,7 +218,7 @@ class ViewTests(TestCase):
         item2.save()
         
         # Submit a name to view the receipt
-        url = reverse('view_receipt', kwargs={'receipt_id': self.receipt.id})
+        url = reverse('view_receipt', kwargs={'receipt_slug': self.receipt.slug})
         response = self.client.post(url, {'viewer_name': 'Test Viewer'})
         self.assertEqual(response.status_code, 200)
         
@@ -239,10 +238,13 @@ class ViewTests(TestCase):
         
     def test_claim_item(self):
         session = self.client.session
-        session[f'viewer_name_{self.receipt.id}'] = "Test Viewer"
+        # Set up session with correct structure: session['receipts'][receipt_id]['viewer_name']
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {'viewer_name': 'Test Viewer'}
         session.save()
         
-        url = reverse('claim_item', kwargs={'receipt_id': self.receipt.id})
+        url = reverse('claim_item', kwargs={'receipt_slug': self.receipt.slug})
         data = {
             'line_item_id': self.item.id,
             'quantity': 1
@@ -299,7 +301,7 @@ class ViewTests(TestCase):
         item2.save()
         
         # Submit a name to view the receipt
-        url = reverse('view_receipt', kwargs={'receipt_id': receipt.id})
+        url = reverse('view_receipt', kwargs={'receipt_slug': receipt.slug})
         response = self.client.post(url, {'viewer_name': 'Test Viewer'})
         
         # Item 1: 20.00 + (40% of 5.00 tax) + (40% of 10.00 tip) = 20 + 2 + 4 = 26.00 total
@@ -341,7 +343,7 @@ class ViewTests(TestCase):
         )
         
         # View the receipt
-        url = reverse('view_receipt', kwargs={'receipt_id': self.receipt.id})
+        url = reverse('view_receipt', kwargs={'receipt_slug': self.receipt.slug})
         response = self.client.post(url, {'viewer_name': 'Charlie'})
         
         # Check that participants are shown

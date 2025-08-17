@@ -139,7 +139,7 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
         with mock.patch('builtins.open', side_effect=monitor_open):
             # Request image
             response = self.client.get(
-                reverse('serve_receipt_image_by_slug', args=[receipt.slug])
+                reverse('serve_receipt_image', args=[receipt.slug])
             )
             
             # Should succeed

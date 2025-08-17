@@ -103,6 +103,12 @@ class ClaimService:
         """
         return list(self.repository.get_claims_by_session(receipt_id, session_id))
     
+    def get_claims_for_name(self, receipt_id: str, claimer_name: str) -> List[Claim]:
+        """
+        Get all claims for a specific claimer name on a receipt
+        """
+        return list(self.repository.get_claims_by_name(receipt_id, claimer_name))
+    
     def get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
         """
         Calculate total amounts claimed by each participant
@@ -114,6 +120,18 @@ class ClaimService:
         Calculate total amount for a specific session
         """
         claims = self.repository.get_claims_by_session(receipt_id, session_id)
+        total = Decimal('0')
+        
+        for claim in claims:
+            total += claim.get_share_amount()
+        
+        return total
+    
+    def calculate_name_total(self, receipt_id: str, claimer_name: str) -> Decimal:
+        """
+        Calculate total amount for a specific claimer name
+        """
+        claims = self.repository.get_claims_by_name(receipt_id, claimer_name)
         total = Decimal('0')
         
         for claim in claims:

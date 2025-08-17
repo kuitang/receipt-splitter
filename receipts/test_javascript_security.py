@@ -104,7 +104,7 @@ class JavaScriptInjectionTests(TestCase):
                 
                 # Try to set malicious viewer name
                 response = client.post(
-                    reverse('view_receipt_by_slug', kwargs={'receipt_slug': self.receipt.slug}),
+                    reverse('view_receipt', kwargs={'receipt_slug': self.receipt.slug}),
                     {'viewer_name': xss_payload}
                 )
                 
@@ -121,7 +121,13 @@ class JavaScriptInjectionTests(TestCase):
         
         client = Client()
         session = client.session
-        session['receipt_id'] = str(self.receipt.id)
+        # Set up session with correct structure
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {
+            'is_uploader': True,
+            'edit_token': 'test-token'
+        }
         session.save()
         
         # Make receipt editable
@@ -148,7 +154,7 @@ class JavaScriptInjectionTests(TestCase):
                 }
                 
                 response = client.post(
-                    reverse('update_receipt_by_slug', kwargs={'receipt_slug': self.receipt.slug}),
+                    reverse('update_receipt', kwargs={'receipt_slug': self.receipt.slug}),
                     data=json.dumps(update_data),
                     content_type='application/json'
                 )
@@ -169,7 +175,13 @@ class JavaScriptInjectionTests(TestCase):
         
         client = Client()
         session = client.session
-        session['receipt_id'] = str(self.receipt.id)
+        # Set up session with correct structure
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {
+            'is_uploader': True,
+            'edit_token': 'test-token'
+        }
         session.save()
         
         # Make receipt editable
@@ -188,7 +200,7 @@ class JavaScriptInjectionTests(TestCase):
                 }
                 
                 response = client.post(
-                    reverse('update_receipt_by_slug', kwargs={'receipt_slug': self.receipt.slug}),
+                    reverse('update_receipt', kwargs={'receipt_slug': self.receipt.slug}),
                     data=json.dumps(update_data),
                     content_type='application/json'
                 )
@@ -225,7 +237,7 @@ class JavaScriptInjectionTests(TestCase):
         session[f'viewer_name_{receipt.id}'] = "Safe Viewer"
         session.save()
         
-        response = client.get(reverse('view_receipt_by_slug', kwargs={'receipt_slug': receipt.slug}))
+        response = client.get(reverse('view_receipt', kwargs={'receipt_slug': receipt.slug}))
         content = response.content.decode()
         
         # Templates should escape the content, so dangerous scripts should not be executable
@@ -241,7 +253,7 @@ class JavaScriptInjectionTests(TestCase):
         session[f'viewer_name_{self.receipt.id}'] = "Test Viewer"
         session.save()
         
-        response = client.get(reverse('view_receipt_by_slug', kwargs={'receipt_slug': self.receipt.slug}))
+        response = client.get(reverse('view_receipt', kwargs={'receipt_slug': self.receipt.slug}))
         content = response.content.decode()
         
         # Check that JavaScript constants are properly formatted
@@ -276,10 +288,16 @@ class JavaScriptFunctionSecurityTests(TestCase):
         
         client = Client()
         session = client.session
-        session['receipt_id'] = str(receipt.id)
+        # Set up session with correct structure
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(receipt.id)] = {
+            'is_uploader': True,
+            'edit_token': 'test-token'
+        }
         session.save()
         
-        response = client.get(reverse('edit_receipt_by_slug', kwargs={'receipt_slug': receipt.slug}))
+        response = client.get(reverse('edit_receipt', kwargs={'receipt_slug': receipt.slug}))
         content = response.content.decode()
         
         # Verify escapeHtml function is defined
@@ -308,7 +326,7 @@ class JavaScriptFunctionSecurityTests(TestCase):
         session[f'viewer_name_{receipt.id}'] = "Test Viewer"
         session.save()
         
-        response = client.get(reverse('view_receipt_by_slug', kwargs={'receipt_slug': receipt.slug}))
+        response = client.get(reverse('view_receipt', kwargs={'receipt_slug': receipt.slug}))
         content = response.content.decode()
         
         # Should use data-widget-id instead of direct interpolation
@@ -346,7 +364,13 @@ class ValidationErrorSecurityTests(TestCase):
         
         client = Client()
         session = client.session
-        session['receipt_id'] = str(self.receipt.id)
+        # Set up session with correct structure
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {
+            'is_uploader': True,
+            'edit_token': 'test-token'
+        }
         session.save()
         
         # Try to update with malicious data that will trigger validation errors
@@ -367,7 +391,7 @@ class ValidationErrorSecurityTests(TestCase):
         }
         
         response = client.post(
-            reverse('update_receipt_by_slug', kwargs={'receipt_slug': self.receipt.slug}),
+            reverse('update_receipt', kwargs={'receipt_slug': self.receipt.slug}),
             data=json.dumps(malicious_data),
             content_type='application/json'
         )
@@ -436,7 +460,7 @@ class ValidationErrorSecurityTests(TestCase):
         }
         
         response = client.post(
-            reverse('claim_item_by_slug', kwargs={'receipt_slug': self.receipt.slug}),
+            reverse('claim_item', kwargs={'receipt_slug': self.receipt.slug}),
             data=json.dumps(malicious_claim_data),
             content_type='application/json'
         )
@@ -464,14 +488,20 @@ class ValidationErrorSecurityTests(TestCase):
             
             client = Client()
             session = client.session
-            session['receipt_id'] = str(self.receipt.id)
+            # Set up session with correct structure
+            if 'receipts' not in session:
+                session['receipts'] = {}
+            session['receipts'][str(self.receipt.id)] = {
+                'is_uploader': True,
+                'edit_token': 'test-token'
+            }
             session.save()
             
             # Make receipt editable
             self.receipt.is_finalized = False
             self.receipt.save()
             
-            response = client.get(reverse('edit_receipt_by_slug', kwargs={'receipt_slug': self.receipt.slug}))
+            response = client.get(reverse('edit_receipt', kwargs={'receipt_slug': self.receipt.slug}))
             content = response.content.decode()
             
             # Should not contain unescaped quotes or event handlers in HTML attributes
@@ -508,7 +538,7 @@ class WidgetSecurityTests(TestCase):
         session[f'viewer_name_{receipt.id}'] = "Test Viewer"
         session.save()
         
-        response = client.get(reverse('view_receipt_by_slug', kwargs={'receipt_slug': receipt.slug}))
+        response = client.get(reverse('view_receipt', kwargs={'receipt_slug': receipt.slug}))
         content = response.content.decode()
         
         # Verify copy widget uses data attribute approach for security

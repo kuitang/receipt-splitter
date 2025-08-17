@@ -279,13 +279,18 @@ class ViewsTestCase(NoFileSystemMixin, TransactionTestCase):
         cache.set(cache_key, test_image_data, timeout=IMAGE_CACHE_TIMEOUT)
         cache.set(f"{cache_key}_type", "image/png", timeout=IMAGE_CACHE_TIMEOUT)
         
-        # Set session as uploader
+        # Set session as uploader using correct session structure
         session = self.client.session
-        session['receipt_id'] = str(receipt.id)
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(receipt.id)] = {
+            'is_uploader': True,
+            'edit_token': 'test-token'
+        }
         session.save()
         
         # Request image
-        response = self.client.get(reverse('serve_receipt_image_by_slug', args=[receipt.slug]))
+        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
         
         # Verify response
         self.assertEqual(response.status_code, 200)
@@ -305,13 +310,18 @@ class ViewsTestCase(NoFileSystemMixin, TransactionTestCase):
             total=Decimal('13.00')
         )
         
-        # Set session as uploader
+        # Set session as uploader using correct session structure
         session = self.client.session
-        session['receipt_id'] = str(receipt.id)
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(receipt.id)] = {
+            'is_uploader': True,
+            'edit_token': 'test-token'
+        }
         session.save()
         
         # Request image
-        response = self.client.get(reverse('serve_receipt_image_by_slug', args=[receipt.slug]))
+        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
         
         # Should return 404
         self.assertEqual(response.status_code, 404)
@@ -336,7 +346,7 @@ class ViewsTestCase(NoFileSystemMixin, TransactionTestCase):
         cache.set(cache_key, test_image_data, timeout=IMAGE_CACHE_TIMEOUT)
         
         # Request without being uploader
-        response = self.client.get(reverse('serve_receipt_image_by_slug', args=[receipt.slug]))
+        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
         
         # Should return 403
         self.assertEqual(response.status_code, 403)
@@ -362,7 +372,7 @@ class ViewsTestCase(NoFileSystemMixin, TransactionTestCase):
         cache.set(f"{cache_key}_type", "image/jpeg", timeout=IMAGE_CACHE_TIMEOUT)
         
         # Request without being uploader
-        response = self.client.get(reverse('serve_receipt_image_by_slug', args=[receipt.slug]))
+        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
         
         # Should return 200 (public access)
         self.assertEqual(response.status_code, 200)

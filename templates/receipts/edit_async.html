@@ -205,7 +205,7 @@
         <div class="space-y-6">
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <h2 class="text-2xl font-semibold mb-4">Receipt Image</h2>
-                <img src="{% url 'serve_receipt_image_by_slug' receipt.slug %}" alt="Receipt" class="w-full rounded" data-onerror-hide="true">
+                <img src="{% url 'serve_receipt_image' receipt.slug %}" alt="Receipt" class="w-full rounded" data-onerror-hide="true">
             </div>
 
             <div class="bg-white rounded-lg shadow-lg p-6">

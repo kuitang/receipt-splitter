@@ -28,6 +28,13 @@ class ClaimRepository:
             session_id=session_id
         ).select_related('line_item')
     
+    def get_claims_by_name(self, receipt_id: str, claimer_name: str) -> QuerySet:
+        """Get claims for a specific claimer name"""
+        return Claim.objects.filter(
+            line_item__receipt_id=receipt_id,
+            claimer_name=claimer_name
+        ).select_related('line_item')
+    
     def get_claim_by_id(self, claim_id: str) -> Optional[Claim]:
         """Get a single claim by ID"""
         try:

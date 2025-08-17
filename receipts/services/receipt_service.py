@@ -131,7 +131,7 @@ class ReceiptService:
             raise ReceiptAlreadyFinalizedError("Receipt is already finalized")
         
         # Check permission (only uploader can finalize)
-        if session_context.get('receipt_id') != str(receipt_id):
+        if not session_context.get('is_uploader'):
             raise PermissionDeniedError("Only the uploader can finalize the receipt")
         
         # Get receipt data for validation
@@ -231,12 +231,12 @@ class ReceiptService:
         if receipt.is_finalized:
             return False
         
-        # Check if user uploaded this receipt
-        if session_context.get('receipt_id') == str(receipt.id):
+        # Check if user is the uploader (new session system)
+        if session_context.get('is_uploader'):
             return True
         
         # Check for edit token
-        stored_token = session_context.get(f'edit_token_{receipt.id}')
+        stored_token = session_context.get('edit_token')
         if not stored_token:
             return False
         

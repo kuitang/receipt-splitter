@@ -47,6 +47,7 @@ class ValidationPipeline:
         Validate receipt data for update operations
         Returns (validated_data, validation_errors)
         Allows saving even with validation errors (business requirement)
+        EXCEPT for security-related validation errors (XSS, etc.)
         """
         validation_errors = {}
         
@@ -54,7 +55,13 @@ class ValidationPipeline:
         try:
             validated_data = InputValidator.validate_receipt_data(data)
         except ValidationError as e:
-            # Collect input validation errors but don't block
+            # Check if this is a security-related error
+            error_msg = str(e).lower()
+            if 'invalid characters' in error_msg or 'dangerous' in error_msg or 'xss' in error_msg:
+                # For security errors, raise immediately - don't allow saving
+                raise e
+            
+            # For non-security validation errors, collect but don't block
             if hasattr(e, 'message_dict'):
                 validation_errors.update(e.message_dict)
             else:

@@ -12,7 +12,11 @@ from typing import Dict, Any, Optional, List
 from decimal import Decimal
 
 # Setup Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'receipt_splitter.settings')
+# Use test settings if available to disable rate limiting
+if os.path.exists('test_settings.py'):
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_settings')
+else:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'receipt_splitter.settings')
 import django
 django.setup()
 
@@ -72,12 +76,23 @@ class IntegrationTestBase:
         if image_bytes is None:
             image_bytes = self.create_test_image()
         
+        # Determine content type based on filename
+        filename_lower = filename.lower()
+        if filename_lower.endswith('.heic') or filename_lower.endswith('.heif'):
+            content_type = 'image/heic'
+        elif filename_lower.endswith('.png'):
+            content_type = 'image/png'
+        elif filename_lower.endswith('.webp'):
+            content_type = 'image/webp'
+        else:
+            content_type = 'image/jpeg'
+        
         # Create a proper file-like object for Django test client
         from django.core.files.uploadedfile import SimpleUploadedFile
         uploaded_file = SimpleUploadedFile(
             name=filename,
             content=image_bytes,
-            content_type='image/jpeg'
+            content_type=content_type
         )
         
         response = self.client.post('/upload/', {

@@ -34,22 +34,39 @@ class ReceiptWorkflowTest(IntegrationTestBase):
             # Step 1: Upload receipt using IMG_6839.HEIC
             print("\n📤 Step 1: Upload Receipt")
             
-            # Load the actual IMG_6839.HEIC file
+            # Check current working directory and ensure we're in the right place
             import os
+            cwd = os.getcwd()
+            print(f"   Current directory: {cwd}")
+            
+            # The test should be run from the project root where IMG_6839.HEIC is located
             heic_path = 'IMG_6839.HEIC'
-            if os.path.exists(heic_path):
-                with open(heic_path, 'rb') as f:
-                    image_bytes = f.read()
-                print(f"   Using {heic_path} ({len(image_bytes)/1024:.1f} KB)")
-            else:
-                # Fallback to test image if file not found
-                print("   ⚠️ IMG_6839.HEIC not found, using test image")
-                image_bytes = self.create_test_image(1000)
+            if not os.path.exists(heic_path):
+                # Try to find it in the parent directory if we're in integration_test/
+                if os.path.basename(cwd) == 'integration_test':
+                    heic_path = '../IMG_6839.HEIC'
+                    if os.path.exists(heic_path):
+                        print("   ⚠️ Running from integration_test/ directory, using ../IMG_6839.HEIC")
+                    else:
+                        print(f"   ❌ ERROR: IMG_6839.HEIC not found in current directory or parent.")
+                        print(f"   Please run this test from the project root directory:")
+                        print(f"   cd /home/kuitang/git/receipt-splitter && python integration_test/test_suite.py")
+                        raise AssertionError("IMG_6839.HEIC not found. Test must be run from project root.")
+                else:
+                    print(f"   ❌ ERROR: IMG_6839.HEIC not found in {cwd}")
+                    print(f"   Please ensure you run this test from the project root directory where IMG_6839.HEIC exists.")
+                    raise AssertionError("IMG_6839.HEIC not found. Test must be run from project root.")
+            
+            # Load the actual IMG_6839.HEIC file
+            with open(heic_path, 'rb') as f:
+                image_bytes = f.read()
+            print(f"   Using {heic_path} ({len(image_bytes)/1024:.1f} KB)")
+            filename = "IMG_6839.HEIC"
             
             upload_response = self.upload_receipt(
                 uploader_name="Test User Alice",
                 image_bytes=image_bytes,
-                filename="IMG_6839.HEIC"
+                filename=filename
             )
             
             assert upload_response['status_code'] == 302, "Upload should redirect"
@@ -788,6 +805,226 @@ class UIValidationTest(IntegrationTestBase):
             return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
 
 
+class PermissionTest(IntegrationTestBase):
+    """Test permission and claim calculation scenarios"""
+    
+    def test_name_based_claim_calculations(self) -> TestResult:
+        """Test the bug fix: claims calculated by name, not session"""
+        print_test_header("Permissions: Name-Based Claim Calculations Test")
+        
+        try:
+            # Step 1: Upload and finalize a receipt
+            print("\n📤 Step 1: Create and finalize receipt")
+            uploader = self.create_new_session()
+            upload_response = uploader.upload_receipt("Restaurant Owner")
+            
+            assert upload_response['status_code'] == 302, "Upload should redirect"
+            receipt_slug = upload_response['receipt_slug']
+            print(f"   ✓ Receipt uploaded, slug: {receipt_slug}")
+            
+            # Wait for processing
+            assert uploader.wait_for_processing(receipt_slug), "Processing should complete"
+            
+            # Update with test data
+            test_data = TestDataGenerator.balanced_receipt()
+            test_data['restaurant_name'] = 'The Gin Mill'
+            test_data['subtotal'] = '64.00'
+            test_data['tax'] = '0.00'
+            test_data['tip'] = '0.00'
+            test_data['total'] = '64.00'
+            test_data['items'] = [
+                {'name': 'PALOMA', 'quantity': 1, 'unit_price': '17.68', 'total_price': '17.68'},
+                {'name': 'HAPPY HOUR BEER', 'quantity': 1, 'unit_price': '5.20', 'total_price': '5.20'},
+                {'name': 'WELL TEQUILA', 'quantity': 1, 'unit_price': '5.20', 'total_price': '5.20'},
+                {'name': 'BURGER', 'quantity': 1, 'unit_price': '15.00', 'total_price': '15.00'},
+                {'name': 'FRIES', 'quantity': 1, 'unit_price': '8.00', 'total_price': '8.00'},
+                {'name': 'SALAD', 'quantity': 1, 'unit_price': '12.92', 'total_price': '12.92'}
+            ]
+            
+            uploader.update_receipt(receipt_slug, test_data)
+            uploader.finalize_receipt(receipt_slug)
+            print("   ✓ Receipt finalized with test items")
+            
+            # Step 2: User visits with name "Kui"
+            print("\n👤 Step 2: User claims items as 'Kui'")
+            user_session = self.create_new_session()
+            assert user_session.set_viewer_name(receipt_slug, "Kui"), "Should set name"
+            
+            receipt_data = user_session.get_receipt_data(receipt_slug)
+            items = receipt_data['items']
+            
+            # Claim PALOMA as "Kui"
+            paloma_id = next(item['id'] for item in items if item['name'] == 'PALOMA')
+            claim_resp = user_session.claim_item(receipt_slug, paloma_id, 1)
+            assert claim_resp['status_code'] == 200, "Should claim PALOMA"
+            print("   ✓ Claimed PALOMA as 'Kui' ($17.68)")
+            
+            # Check total for Kui
+            kui_total = Decimal(str(claim_resp['data']['my_total']))
+            assert kui_total == Decimal('17.68'), f"Kui total should be $17.68, got ${kui_total}"
+            print(f"   ✓ 'Kui' total: ${kui_total}")
+            
+            # Step 3: Simulate name collision - forced to use "Kui 5"
+            print("\n👤 Step 3: Same session forced to use 'Kui 5'")
+            # In real scenario, this happens when returning to receipt after session metadata expires
+            # but claims persist. We'll simulate by directly manipulating the session.
+            
+            # For testing, we'll create a scenario where the same session has to use a different name
+            # This simulates the bug where the session asked for a new name but kept the old session
+            
+            # Claim more items as "Kui 5" (simulating forced rename)
+            # In the real bug, this happened when the session metadata was lost but session_id persisted
+            beer_id = next(item['id'] for item in items if item['name'] == 'HAPPY HOUR BEER')
+            tequila_id = next(item['id'] for item in items if item['name'] == 'WELL TEQUILA')
+            
+            # Change the viewer name in session (simulating being forced to pick new name)
+            # We need to do this at the session level to simulate the bug
+            session = user_session.client.session
+            if 'receipts' in session and str(receipt_data['id']) in session['receipts']:
+                session['receipts'][str(receipt_data['id'])]['viewer_name'] = 'Kui 5'
+                session.save()
+            
+            # Now claim as "Kui 5"
+            claim_resp2 = user_session.claim_item(receipt_slug, beer_id, 1)
+            assert claim_resp2['status_code'] == 200, "Should claim BEER"
+            print("   ✓ Claimed HAPPY HOUR BEER as 'Kui 5' ($5.20)")
+            
+            claim_resp3 = user_session.claim_item(receipt_slug, tequila_id, 1)
+            assert claim_resp3['status_code'] == 200, "Should claim TEQUILA"
+            print("   ✓ Claimed WELL TEQUILA as 'Kui 5' ($5.20)")
+            
+            # Step 4: Verify totals are calculated by NAME not SESSION
+            print("\n💰 Step 4: Verify name-based calculations")
+            
+            # Get the final state
+            final_data = user_session.get_receipt_data(receipt_slug)
+            
+            # Check participant totals
+            kui_claims = []
+            kui5_claims = []
+            
+            for item in final_data['items']:
+                for claim in item.get('claims', []):
+                    if claim['claimer_name'] == 'Kui':
+                        kui_claims.append({
+                            'item': item['name'],
+                            'amount': Decimal(str(claim['share_amount']))
+                        })
+                    elif claim['claimer_name'] == 'Kui 5':
+                        kui5_claims.append({
+                            'item': item['name'],
+                            'amount': Decimal(str(claim['share_amount']))
+                        })
+            
+            # Calculate totals
+            kui_total = sum(c['amount'] for c in kui_claims)
+            kui5_total = sum(c['amount'] for c in kui5_claims)
+            
+            print(f"\n   Claims for 'Kui':")
+            for claim in kui_claims:
+                print(f"     - {claim['item']}: ${claim['amount']}")
+            print(f"   Total for 'Kui': ${kui_total}")
+            
+            print(f"\n   Claims for 'Kui 5':")
+            for claim in kui5_claims:
+                print(f"     - {claim['item']}: ${claim['amount']}")
+            print(f"   Total for 'Kui 5': ${kui5_total}")
+            
+            # Verify the fix: totals should be separate by name
+            assert kui_total == Decimal('17.68'), f"Kui should have $17.68, got ${kui_total}"
+            assert kui5_total == Decimal('10.40'), f"Kui 5 should have $10.40, got ${kui5_total}"
+            
+            # The bug would have shown total of $28.08 for "Your Total" 
+            # because it was summing by session_id not name
+            session_total = kui_total + kui5_total
+            print(f"\n   ✓ Name-based totals working correctly!")
+            print(f"   ✓ 'Kui' has ${kui_total} (not ${session_total})")
+            print(f"   ✓ 'Kui 5' has ${kui5_total} (not ${session_total})")
+            
+            print("\n✅ Name-based claim calculations test PASSED")
+            return TestResult(TestResult.PASSED)
+            
+        except AssertionError as e:
+            print(f"\n❌ Test failed: {e}")
+            return TestResult(TestResult.FAILED, str(e))
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}")
+            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+    
+    def test_uploader_permissions_with_name_change(self) -> TestResult:
+        """Test that uploader retains edit permissions even with name changes"""
+        print_test_header("Permissions: Uploader with Name Changes Test")
+        
+        try:
+            # Step 1: Upload as uploader
+            print("\n📤 Step 1: Upload receipt as uploader")
+            uploader = self.create_new_session()
+            upload_response = uploader.upload_receipt("Original Uploader")
+            
+            assert upload_response['status_code'] == 302, "Upload should redirect"
+            receipt_slug = upload_response['receipt_slug']
+            print(f"   ✓ Receipt uploaded by 'Original Uploader'")
+            
+            # Wait and verify can edit
+            assert uploader.wait_for_processing(receipt_slug), "Processing should complete"
+            
+            # Verify uploader can edit
+            test_data = TestDataGenerator.balanced_receipt()
+            response = uploader.update_receipt(receipt_slug, test_data)
+            assert response['status_code'] == 200, "Uploader should be able to edit"
+            print("   ✓ Uploader can edit their receipt")
+            
+            # Step 2: Simulate session metadata loss (but session persists)
+            print("\n🔄 Step 2: Simulate forced name change scenario")
+            
+            # In real scenario, the uploader returns after session metadata expires
+            # They're forced to enter a new name but session/permissions should persist
+            
+            # Get current session and modify viewer name (simulating forced rename)
+            session = uploader.client.session
+            receipt_data = uploader.get_receipt_data(receipt_slug)
+            
+            if 'receipts' in session and str(receipt_data['id']) in session['receipts']:
+                # Change name but keep is_uploader and edit_token
+                old_data = session['receipts'][str(receipt_data['id'])]
+                old_data['viewer_name'] = 'Original Uploader 2'  # Forced new name
+                session.save()
+                print("   ✓ Simulated name change to 'Original Uploader 2'")
+            
+            # Step 3: Verify permissions persist
+            print("\n🔐 Step 3: Verify permissions persist after name change")
+            
+            # Should still be able to edit
+            test_data['restaurant_name'] = 'Updated Restaurant Name'
+            response = uploader.update_receipt(receipt_slug, test_data)
+            assert response['status_code'] == 200, "Should still be able to edit after name change"
+            print("   ✓ Can still edit after name change")
+            
+            # Step 4: Verify non-uploader cannot edit (BEFORE finalization)
+            print("\n🚫 Step 4: Verify non-uploader cannot edit")
+            
+            other_user = self.create_new_session()
+            response = other_user.update_receipt(receipt_slug, test_data)
+            assert response['status_code'] == 403, "Non-uploader should not be able to edit"
+            print("   ✓ Non-uploader correctly blocked from editing")
+            
+            # Step 5: Verify uploader can still finalize
+            print("\n✅ Step 5: Verify uploader can finalize")
+            response = uploader.finalize_receipt(receipt_slug)
+            assert response['status_code'] == 200, "Should be able to finalize"
+            print("   ✓ Can finalize after all permission checks")
+            
+            print("\n✅ Uploader permissions test PASSED")
+            return TestResult(TestResult.PASSED)
+            
+        except AssertionError as e:
+            print(f"\n❌ Test failed: {e}")
+            return TestResult(TestResult.FAILED, str(e))
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}")
+            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+
+
 class PerformanceTest(IntegrationTestBase):
     """Test application performance with large data"""
     
@@ -879,6 +1116,7 @@ def run_all_tests():
         security_test = SecurityValidationTest()
         validation_test = ValidationTest()
         performance_test = PerformanceTest()
+        permission_test = PermissionTest()
         
         # Run tests
         results = []
@@ -887,6 +1125,13 @@ def run_all_tests():
         # Core workflow tests
         DELAY = 2  # Uniform 2 second delay
         results.append(("Complete Workflow", workflow_test.test_complete_workflow()))
+        time.sleep(DELAY)
+        
+        # Permission tests - critical bug fixes
+        results.append(("Name-Based Claim Calculations", permission_test.test_name_based_claim_calculations()))
+        time.sleep(DELAY)
+        
+        results.append(("Uploader Permissions with Name Change", permission_test.test_uploader_permissions_with_name_change()))
         time.sleep(DELAY)
         
         # Security tests - reduced uploads to avoid rate limit
