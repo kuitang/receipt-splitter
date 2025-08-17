@@ -153,7 +153,7 @@
                         </p>
                     </div>
                     
-                    {% if viewer_name %}{% if not is_uploader or receipt.is_finalized %}
+                    {% if viewer_name and receipt.is_finalized %}
                     <div class="ml-4">
                         {% if item_data.available_quantity > 0 %}
                         <div class="flex items-center space-x-2">
@@ -170,7 +170,7 @@
                         <span class="text-red-600 font-semibold">Fully Claimed</span>
                         {% endif %}
                     </div>
-                    {% endif %}{% endif %}
+                    {% endif %}
                 </div>
                 
                 {% if item_data.claims %}
@@ -190,7 +190,7 @@
         </div>
     </div>
 
-    {% if viewer_name %}{% if not is_uploader or receipt.is_finalized %}
+    {% if viewer_name and receipt.is_finalized %}
     <div class="bg-white rounded-lg shadow-lg p-6 sticky bottom-4 border-t-4 border-green-500">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div class="flex-1">
@@ -210,14 +210,14 @@
             </button>
         </div>
     </div>
-    {% endif %}{% endif %}
+    {% endif %}
     
     {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
-{% if viewer_name %}{% if not is_uploader or receipt.is_finalized %}
+{% if viewer_name and receipt.is_finalized %}
 <!-- Data attributes for JavaScript -->
 <div id="view-page-data" 
      data-receipt-slug="{{ receipt.slug }}"
@@ -226,5 +226,5 @@
 </div>
 {% load static %}
 <script src="{% static 'js/view-page.js' %}"></script>
-{% endif %}{% endif %}
+{% endif %}
 {% endblock %}
