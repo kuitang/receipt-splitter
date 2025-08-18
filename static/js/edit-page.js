@@ -198,14 +198,19 @@ function addItem() {
     const container = document.getElementById('items-container');
     if (!container) return;
     const newRow = document.createElement('div');
-    newRow.className = 'item-row flex gap-2 items-start';
+    newRow.className = 'item-row';
     // Note: item-name styling matches item-name-editable class in item_display.html template
     // Keep these styles synchronized for consistency
     newRow.innerHTML = `
-        <div class="flex-1 border rounded-lg p-4">
+        <div class="flex-1 border rounded-lg p-4 relative">
+            <!-- Delete button: inside box (top-right) -->
+            <button data-action="remove-item" class="absolute top-2 right-2 text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
+                <div class="w-5 h-5 flex items-center justify-center text-lg font-bold">×</div>
+            </button>
+            
             <!-- Mobile: stack name on top, quantity/price below -->
             <!-- Desktop: keep original single-line layout -->
-            <div class="flex flex-col sm:flex-row sm:gap-2 sm:items-center">
+            <div class="flex flex-col sm:flex-row sm:gap-2 sm:items-center pr-8">
                 <div class="flex-1 mb-2 sm:mb-0">
                     <input type="text" placeholder="Item name" class="item-name font-semibold text-lg text-gray-900 bg-transparent border-0 p-0 focus:bg-white focus:border focus:border-blue-500 focus:rounded-lg focus:px-3 focus:py-2 hover:bg-gray-50 hover:rounded-lg hover:px-3 hover:py-2 transition-all duration-200 outline-none w-full" style="cursor: text;">
                 </div>
@@ -228,17 +233,17 @@ function addItem() {
                 <p class="text-gray-500 text-xs item-proration"></p>
             </div>
         </div>
-        <button data-action="remove-item" class="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors mt-3 sm:mt-3">
-            <div class="w-5 h-5 flex items-center justify-center text-lg font-bold">×</div>
-        </button>
     `;
     container.appendChild(newRow);
     attachItemListeners(newRow);
     
     // Attach remove button listener
-    newRow.querySelector('[data-action="remove-item"]').addEventListener('click', function() {
-        removeItem(this);
-    });
+    const removeBtn = newRow.querySelector('[data-action="remove-item"]');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+            removeItem(this);
+        });
+    }
 }
 
 /**
@@ -608,13 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
         closeModalBtn.addEventListener('click', () => closeShareModal());
     }
     
-    // Attach copy share URL handlers
-    document.querySelectorAll('[data-action="copy-share-url"]').forEach(btn => {
-        btn.addEventListener('click', function(event) {
-            const widgetId = this.dataset.widgetId || 'share-url';
-            copyShareUrl(widgetId, event);
-        });
-    });
+    // Share buttons are initialized automatically by utils.js
     
     // Attach remove item handlers
     document.querySelectorAll('[data-action="remove-item"]').forEach(btn => {

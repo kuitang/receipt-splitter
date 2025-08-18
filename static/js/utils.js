@@ -409,6 +409,52 @@ function showSuccess(message, container = null) {
 }
 
 /**
+ * Show copy feedback toast
+ */
+function showCopyToast() {
+    // Remove any existing toast
+    const existingToast = document.getElementById('copy-toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.id = 'copy-toast';
+    toast.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-50 transition-all duration-300 opacity-0 flex items-center gap-2';
+    
+    // Add checkmark icon
+    const checkIcon = document.createElement('span');
+    checkIcon.innerHTML = '✓';
+    checkIcon.className = 'text-green-400';
+    
+    // Add text
+    const text = document.createElement('span');
+    text.textContent = 'Link copied!';
+    
+    toast.appendChild(checkIcon);
+    toast.appendChild(text);
+    
+    // Add to page
+    document.body.appendChild(toast);
+    
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0');
+        toast.classList.add('opacity-100', 'translate-y-2');
+    });
+    
+    // Remove after delay
+    setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-2');
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 2000);
+}
+
+/**
  * Copy text to clipboard with visual feedback
  */
 function copyShareUrl(inputId, event) {
@@ -417,32 +463,15 @@ function copyShareUrl(inputId, event) {
     input.select();
     input.setSelectionRange(0, 99999); // For mobile devices
     
-    // Get the button that was clicked
-    const button = event ? event.currentTarget : null;
-    
-    // Function to show success feedback
-    function showSuccessFeedback() {
-        if (button) {
-            const originalTitle = button.title;
-            button.title = 'Copied!';
-            button.classList.add('bg-green-100');
-            
-            setTimeout(() => {
-                button.title = originalTitle;
-                button.classList.remove('bg-green-100');
-            }, 2000);
-        }
-    }
-    
     // Try modern clipboard API first, fall back to execCommand
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(input.value).then(() => {
-            showSuccessFeedback();
+            showCopyToast();
         }).catch(err => {
             // If clipboard API fails, try execCommand
             try {
                 document.execCommand('copy');
-                showSuccessFeedback();
+                showCopyToast();
             } catch (e) {
                 console.error('Failed to copy:', e);
             }
@@ -451,10 +480,179 @@ function copyShareUrl(inputId, event) {
         // Use legacy execCommand for older browsers or non-HTTPS
         try {
             document.execCommand('copy');
-            showSuccessFeedback();
+            showCopyToast();
         } catch (err) {
             console.error('Failed to copy:', err);
         }
+    }
+}
+
+/**
+ * Native share using Web Share API (mobile)
+ */
+async function nativeShare(inputId, event) {
+    console.log('nativeShare called with inputId:', inputId);
+    
+    inputId = inputId || 'share-url';
+    const input = document.getElementById(inputId);
+    
+    if (!input) {
+        console.error('Share input not found:', inputId);
+        return;
+    }
+    
+    const url = input.value;
+    console.log('Sharing URL:', url);
+    
+    // Get the receipt name from the page
+    const restaurantName = document.getElementById('restaurant_name')?.value || 
+                          document.querySelector('.text-3xl')?.textContent || 
+                          'Receipt';
+    
+    console.log('Restaurant name:', restaurantName);
+    
+    if (navigator.share) {
+        try {
+            const shareData = {
+                title: `${restaurantName} - Receipt Splitter`,
+                text: `Let's split the receipt from ${restaurantName}`,
+                url: url
+            };
+            console.log('Sharing data:', shareData);
+            
+            await navigator.share(shareData);
+            console.log('Share successful');
+        } catch (err) {
+            // User cancelled or error occurred
+            if (err.name !== 'AbortError') {
+                console.error('Error sharing:', err);
+                alert('Failed to share: ' + err.message);
+            } else {
+                console.log('User cancelled share');
+            }
+        }
+    } else {
+        console.error('navigator.share not available');
+    }
+}
+
+/**
+ * Initialize share functionality
+ */
+function initializeShareButtons() {
+    try {
+        console.log('Initializing share buttons...');
+        
+        // Detect mobile devices
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isHTTPS = window.location.protocol === 'https:';
+        
+        console.log('Is mobile:', isMobile, 'Is HTTPS:', isHTTPS, 'Has Web Share:', !!navigator.share);
+        
+        // Check if Web Share API is available and we're on HTTPS
+        if (navigator.share && isHTTPS) {
+            console.log('Using native Web Share API');
+            
+            // Show native share buttons
+            document.querySelectorAll('.mobile-share-btn').forEach(btn => {
+                btn.classList.remove('hidden');
+            });
+            
+            // Hide fallback buttons
+            document.querySelectorAll('.mobile-fallback-share').forEach(div => {
+                div.classList.add('hidden');
+            });
+            
+            // Attach native share handlers
+            document.querySelectorAll('[data-action="native-share"]').forEach(btn => {
+                if (!btn.hasAttribute('data-initialized')) {
+                    btn.setAttribute('data-initialized', 'true');
+                    btn.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        const widgetId = this.dataset.widgetId || 'share-url';
+                        nativeShare(widgetId, event);
+                    });
+                }
+            });
+        } else if (isMobile && !isHTTPS) {
+            console.log('Mobile on HTTP - showing fallback buttons');
+            
+            // Hide native share button
+            document.querySelectorAll('.mobile-share-btn').forEach(btn => {
+                btn.classList.add('hidden');
+            });
+            
+            // Show fallback buttons
+            document.querySelectorAll('.mobile-fallback-share').forEach(div => {
+                div.classList.remove('hidden');
+            });
+            
+            // Attach WhatsApp handlers
+            document.querySelectorAll('[data-action="share-whatsapp"]').forEach(link => {
+                if (!link.hasAttribute('data-initialized')) {
+                    link.setAttribute('data-initialized', 'true');
+                    link.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        const widgetId = this.dataset.widgetId || 'share-url';
+                        const input = document.getElementById(widgetId);
+                        if (input) {
+                            const url = input.value;
+                            const text = encodeURIComponent(`Check out this receipt: ${url}`);
+                            window.open(`https://wa.me/?text=${text}`, '_blank');
+                        }
+                    });
+                }
+            });
+            
+            // Attach Messenger handlers
+            document.querySelectorAll('[data-action="share-messenger"]').forEach(link => {
+                if (!link.hasAttribute('data-initialized')) {
+                    link.setAttribute('data-initialized', 'true');
+                    link.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        const widgetId = this.dataset.widgetId || 'share-url';
+                        const input = document.getElementById(widgetId);
+                        if (input) {
+                            const url = encodeURIComponent(input.value);
+                            // Use Messenger's mobile web URL which auto-opens the app if installed
+                            window.open(`https://m.me/?text=${url}`, '_blank');
+                        }
+                    });
+                }
+            });
+            
+            // Attach SMS handlers
+            document.querySelectorAll('[data-action="share-sms"]').forEach(link => {
+                if (!link.hasAttribute('data-initialized')) {
+                    link.setAttribute('data-initialized', 'true');
+                    link.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        const widgetId = this.dataset.widgetId || 'share-url';
+                        const input = document.getElementById(widgetId);
+                        if (input) {
+                            const url = input.value;
+                            const text = encodeURIComponent(`Check out this receipt: ${url}`);
+                            window.location.href = `sms:?&body=${text}`;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Attach copy handlers (always available)
+        document.querySelectorAll('[data-action="copy-share-url"]').forEach(btn => {
+            if (!btn.hasAttribute('data-initialized')) {
+                btn.setAttribute('data-initialized', 'true');
+                btn.addEventListener('click', function(event) {
+                    const widgetId = this.dataset.widgetId || 'share-url';
+                    copyShareUrl(widgetId, event);
+                });
+            }
+        });
+        
+        console.log('Share buttons initialized successfully');
+    } catch (error) {
+        console.error('Error initializing share buttons:', error);
     }
 }
 
@@ -573,6 +771,20 @@ window.getCsrfToken = getCsrfToken;
 window.authenticatedFetch = authenticatedFetch;
 window.authenticatedJsonFetch = authenticatedJsonFetch;
 window.copyShareUrl = copyShareUrl;
+window.nativeShare = nativeShare;
+window.initializeShareButtons = initializeShareButtons;
+
+// Auto-initialize share buttons on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOMContentLoaded - initializing share buttons');
+        initializeShareButtons();
+    });
+} else {
+    // DOM already loaded
+    console.log('DOM already loaded - initializing share buttons immediately');
+    initializeShareButtons();
+}
 
 window.ReceiptUtils = {
   // DOM
@@ -608,6 +820,7 @@ window.ReceiptUtils = {
   toggleVisibility,
   showError,
   showSuccess,
+  initializeShareButtons,
   
   // Receipt
   calculateItemTotal,
@@ -670,6 +883,8 @@ if (typeof module !== 'undefined' && module.exports) {
     showError,
     showSuccess,
     copyShareUrl,
+    nativeShare,
+    initializeShareButtons,
     
     // Receipt
     calculateItemTotal,
