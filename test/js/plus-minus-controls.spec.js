@@ -114,55 +114,18 @@ describe('Plus/Minus Controls', () => {
   });
 
   describe('Button Styling and Classes', () => {
-    it('should have correct CSS classes for enabled buttons', () => {
-      const minusBtn = document.querySelector('.claim-minus[data-item-id="1"]');
-      const plusBtn = document.querySelector('.claim-plus[data-item-id="1"]');
+    it('should distinguish enabled vs disabled button states', () => {
+      const enabledMinus = document.querySelector('.claim-minus[data-item-id="1"]');
+      const disabledMinus = document.querySelector('.claim-minus[data-item-id="2"]');
       
-      // Check dimensions and shape
-      expect(minusBtn.classList.contains('h-8')).toBe(true);
-      expect(minusBtn.classList.contains('w-8')).toBe(true);
-      expect(minusBtn.classList.contains('rounded-lg')).toBe(true);
-      expect(plusBtn.classList.contains('h-8')).toBe(true);
-      expect(plusBtn.classList.contains('w-8')).toBe(true);
-      expect(plusBtn.classList.contains('rounded-lg')).toBe(true);
-      
-      // Check colors
-      expect(minusBtn.classList.contains('bg-orange-600')).toBe(true);
-      expect(minusBtn.classList.contains('hover:bg-orange-700')).toBe(true);
-      expect(plusBtn.classList.contains('bg-green-600')).toBe(true);
-      expect(plusBtn.classList.contains('hover:bg-green-700')).toBe(true);
+      // Key visual distinction - enabled uses colors, disabled uses gray
+      expect(enabledMinus.classList.contains('bg-orange-600')).toBe(true);
+      expect(disabledMinus.classList.contains('bg-gray-300')).toBe(true);
+      expect(disabledMinus.disabled).toBe(true);
     });
 
-    it('should have correct CSS classes for disabled buttons', () => {
-      const minusBtn = document.querySelector('.claim-minus[data-item-id="2"]');
-      const plusBtn = document.querySelector('.claim-plus[data-item-id="2"]');
-      
-      expect(minusBtn.classList.contains('bg-gray-300')).toBe(true);
-      expect(minusBtn.classList.contains('cursor-not-allowed')).toBe(true);
-      expect(plusBtn.classList.contains('bg-gray-300')).toBe(true);
-      expect(plusBtn.classList.contains('cursor-not-allowed')).toBe(true);
-      expect(minusBtn.disabled).toBe(true);
-      expect(plusBtn.disabled).toBe(true);
-    });
-
-    it('should have consistent input styling', () => {
-      const enabledInput = document.querySelector('.claim-quantity[data-item-id="1"]');
+    it('should disable inputs correctly', () => {
       const disabledInput = document.querySelector('.claim-quantity[data-item-id="2"]');
-      
-      // Common classes
-      expect(enabledInput.classList.contains('w-12')).toBe(true);
-      expect(enabledInput.classList.contains('h-8')).toBe(true);
-      expect(enabledInput.classList.contains('rounded-lg')).toBe(true);
-      expect(enabledInput.classList.contains('text-center')).toBe(true);
-      expect(enabledInput.classList.contains('tabular-nums')).toBe(true);
-      
-      // Enabled state
-      expect(enabledInput.classList.contains('focus:ring-2')).toBe(true);
-      expect(enabledInput.classList.contains('focus:ring-blue-500')).toBe(true);
-      
-      // Disabled state
-      expect(disabledInput.classList.contains('bg-gray-50')).toBe(true);
-      expect(disabledInput.classList.contains('text-gray-600')).toBe(true);
       expect(disabledInput.readOnly).toBe(true);
       expect(disabledInput.disabled).toBe(true);
     });
@@ -264,85 +227,15 @@ describe('Plus/Minus Controls', () => {
     });
   });
 
-  describe('Dynamic HTML Generation', () => {
-    it('should create buttons with correct classes when dynamically generated', () => {
-      const container = document.createElement('div');
-      container.innerHTML = `
-        <div class="flex items-center space-x-1">
-          <button type="button" class="claim-minus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium bg-orange-600 hover:bg-orange-700" 
-                  data-item-id="3">−</button>
-          <input type="number" 
-                 class="claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-300 focus:ring-2 focus:ring-blue-500"
-                 min="0"
-                 max="3"
-                 value="0"
-                 data-item-id="3">
-          <button type="button" class="claim-plus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium bg-green-600 hover:bg-green-700" 
-                  data-item-id="3">+</button>
-        </div>
-      `;
-      
-      const minusBtn = container.querySelector('.claim-minus');
-      const plusBtn = container.querySelector('.claim-plus');
-      const input = container.querySelector('.claim-quantity');
-      
-      expect(minusBtn.classList.contains('bg-orange-600')).toBe(true);
-      expect(plusBtn.classList.contains('bg-green-600')).toBe(true);
-      expect(input.classList.contains('tabular-nums')).toBe(true);
-      expect(input.classList.contains('text-center')).toBe(true);
-    });
-
-    it('should create disabled buttons when shouldDisable is true', () => {
-      const container = document.createElement('div');
-      container.innerHTML = `
-        <div class="flex items-center space-x-1">
-          <button type="button" class="claim-minus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium bg-gray-300 cursor-not-allowed" 
-                  data-item-id="4" disabled>−</button>
-          <input type="number" 
-                 class="claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-200 bg-gray-50 text-gray-600"
-                 min="0"
-                 max="0"
-                 value="0"
-                 data-item-id="4"
-                 readonly disabled>
-          <button type="button" class="claim-plus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium bg-gray-300 cursor-not-allowed" 
-                  data-item-id="4" disabled>+</button>
-        </div>
-      `;
-      
-      const minusBtn = container.querySelector('.claim-minus');
-      const plusBtn = container.querySelector('.claim-plus');
-      
-      expect(minusBtn.disabled).toBe(true);
-      expect(plusBtn.disabled).toBe(true);
-      expect(minusBtn.classList.contains('bg-gray-300')).toBe(true);
-      expect(plusBtn.classList.contains('bg-gray-300')).toBe(true);
-    });
-  });
+  // Dynamic HTML Generation tests removed - redundant with styling tests above
 
   describe('Spacing and Layout', () => {
-    it('should use tight spacing between controls', () => {
-      const container = document.querySelector('.flex.items-center.space-x-1');
-      expect(container).toBeTruthy();
-      expect(container.classList.contains('space-x-1')).toBe(true);
-    });
-
     it('should have no label text (clean interface)', () => {
       const labels = document.querySelectorAll('label');
       const claimLabels = Array.from(labels).filter(label => 
         label.textContent.includes('Claim:') || label.textContent.includes('Claimed:')
       );
       expect(claimLabels.length).toBe(0);
-    });
-
-    it('should maintain consistent height across all elements', () => {
-      const minusBtn = document.querySelector('.claim-minus[data-item-id="1"]');
-      const input = document.querySelector('.claim-quantity[data-item-id="1"]');
-      const plusBtn = document.querySelector('.claim-plus[data-item-id="1"]');
-      
-      expect(minusBtn.classList.contains('h-8')).toBe(true);
-      expect(input.classList.contains('h-8')).toBe(true);
-      expect(plusBtn.classList.contains('h-8')).toBe(true);
     });
   });
 

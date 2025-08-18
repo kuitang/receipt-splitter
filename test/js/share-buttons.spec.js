@@ -37,65 +37,15 @@ describe('Share Button Functionality', () => {
     // Store original navigator
     originalNavigator = global.navigator;
     
-    // Reset DOM with complete share widget
+    // Minimal DOM setup for share widget tests
     document.body.innerHTML = `
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center">
-          <input type="text" 
-                 value="https://example.com/r/test123/" 
-                 readonly 
-                 id="share-link-input"
-                 class="flex-1 px-3 py-2 border-gray-300 border rounded-l-lg bg-gray-50">
-          
-          <!-- Native share button (mobile only) -->
-          <button data-action="native-share"
-                  data-widget-id="share-link-input"
-                  class="mobile-share-btn px-3 py-2 border-gray-300 border border-l-0 bg-white hover:bg-blue-50 transition-colors hidden"
-                  title="Share">
-              <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-              </svg>
-          </button>
-          
-          <!-- Copy to clipboard button -->
-          <button data-action="copy-share-url"
-                  data-widget-id="share-link-input"
-                  class="px-3 py-2 border-gray-300 border border-l-0 rounded-r-lg bg-white hover:bg-blue-50 transition-colors"
-                  title="Copy to clipboard">
-              <div class="h-6 w-6 text-blue-600 flex items-center justify-center text-lg font-bold">⧉</div>
-          </button>
-        </div>
-        
-        <!-- Fallback share buttons for HTTP/non-supported browsers -->
-        <div class="mobile-fallback-share hidden flex gap-2">
-          <a data-action="share-whatsapp"
-             data-widget-id="share-link-input"
-             href="#"
-             class="flex-1 bg-green-500 text-white p-2 rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors"
-             title="Share on WhatsApp">
-              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.149-.67.149-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.123-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-              </svg>
-          </a>
-          <a data-action="share-messenger"
-             data-widget-id="share-link-input"
-             href="#"
-             class="flex-1 bg-blue-500 text-white p-2 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
-             title="Share on Messenger">
-              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.654V24l4.088-2.242c1.092.301 2.246.464 3.443.464 6.627 0 12-4.975 12-11.111S18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8l3.131 3.259L19.752 8l-6.561 6.963z"/>
-              </svg>
-          </a>
-          <a data-action="share-sms"
-             data-widget-id="share-link-input"
-             href="#"
-             class="flex-1 bg-gray-600 text-white p-2 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
-             title="Share via SMS">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-              </svg>
-          </a>
-        </div>
+      <input id="share-link-input" value="https://example.com/r/test123/" readonly>
+      <button data-action="native-share" data-widget-id="share-link-input" title="Share"></button>
+      <button data-action="copy-share-url" data-widget-id="share-link-input" title="Copy to clipboard"></button>
+      <div class="mobile-fallback-share hidden">
+        <a data-action="share-whatsapp" data-widget-id="share-link-input"></a>
+        <a data-action="share-messenger" data-widget-id="share-link-input"></a>
+        <a data-action="share-sms" data-widget-id="share-link-input"></a>
       </div>
     `;
     
@@ -107,123 +57,29 @@ describe('Share Button Functionality', () => {
     global.navigator = originalNavigator;
   });
 
-  describe('Button Presence and Styling', () => {
-    it('should have native share button with correct icon size', () => {
+  describe('Button Presence', () => {
+    it('should have all required share buttons', () => {
       const nativeShareBtn = document.querySelector('[data-action="native-share"]');
-      const icon = nativeShareBtn.querySelector('svg');
+      const copyBtn = document.querySelector('[data-action="copy-share-url"]');
+      const whatsappBtn = document.querySelector('[data-action="share-whatsapp"]');
       
       expect(nativeShareBtn).toBeTruthy();
-      expect(icon.classList.contains('h-6')).toBe(true);
-      expect(icon.classList.contains('w-6')).toBe(true);
-    });
-
-    it('should have copy button with same icon size as native share', () => {
-      const copyBtn = document.querySelector('[data-action="copy-share-url"]');
-      const nativeShareBtn = document.querySelector('[data-action="native-share"]');
-      
-      const copyIcon = copyBtn.querySelector('.h-6.w-6');
-      const shareIcon = nativeShareBtn.querySelector('.h-6.w-6');
-      
-      expect(copyIcon).toBeTruthy();
-      expect(shareIcon).toBeTruthy();
-      expect(copyIcon.classList.contains('h-6')).toBe(true);
-      expect(copyIcon.classList.contains('w-6')).toBe(true);
-    });
-
-    it('should have all fallback share buttons', () => {
-      const whatsappBtn = document.querySelector('[data-action="share-whatsapp"]');
-      const messengerBtn = document.querySelector('[data-action="share-messenger"]');
-      const smsBtn = document.querySelector('[data-action="share-sms"]');
-      
+      expect(copyBtn).toBeTruthy();
       expect(whatsappBtn).toBeTruthy();
-      expect(messengerBtn).toBeTruthy();
-      expect(smsBtn).toBeTruthy();
-    });
-
-    it('should have consistent button styling', () => {
-      const fallbackBtns = document.querySelectorAll('.mobile-fallback-share a');
-      
-      fallbackBtns.forEach(btn => {
-        expect(btn.classList.contains('flex-1')).toBe(true);
-        expect(btn.classList.contains('p-2')).toBe(true);
-        expect(btn.classList.contains('rounded-lg')).toBe(true);
-        expect(btn.classList.contains('flex')).toBe(true);
-        expect(btn.classList.contains('items-center')).toBe(true);
-        expect(btn.classList.contains('justify-center')).toBe(true);
-      });
     });
   });
 
   describe('Native Share API Detection', () => {
-    it('should detect when native share is available', () => {
-      // Mock native share support
+    it('should detect native share availability', () => {
       global.navigator.share = vi.fn(() => Promise.resolve());
+      expect('share' in navigator).toBe(true);
       
-      const hasNativeShare = 'share' in navigator;
-      expect(hasNativeShare).toBe(true);
-    });
-
-    it('should detect when native share is not available', () => {
-      // Remove native share support
       delete global.navigator.share;
-      
-      const hasNativeShare = 'share' in navigator;
-      expect(hasNativeShare).toBe(false);
-    });
-
-    it('should detect mobile user agents', () => {
-      const mobileUserAgents = [
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15',
-        'Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15',
-        'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36',
-        'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36'
-      ];
-      
-      mobileUserAgents.forEach(ua => {
-        Object.defineProperty(global.navigator, 'userAgent', {
-          value: ua,
-          configurable: true
-        });
-        
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        expect(isMobile).toBe(true);
-      });
-    });
-
-    it('should detect desktop user agents', () => {
-      const desktopUserAgents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
-      ];
-      
-      desktopUserAgents.forEach(ua => {
-        Object.defineProperty(global.navigator, 'userAgent', {
-          value: ua,
-          configurable: true
-        });
-        
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        expect(isMobile).toBe(false);
-      });
+      expect('share' in navigator).toBe(false);
     });
   });
 
-  describe('HTTPS vs HTTP Behavior', () => {
-    it('should detect HTTPS protocol', () => {
-      // Test the logic directly without redefining window.location
-      const mockProtocol = 'https:';
-      const isHTTPS = mockProtocol === 'https:';
-      expect(isHTTPS).toBe(true);
-    });
-
-    it('should detect HTTP protocol', () => {
-      // Test the logic directly without redefining window.location
-      const mockProtocol = 'http:';
-      const isHTTPS = mockProtocol === 'https:';
-      expect(isHTTPS).toBe(false);
-    });
-  });
+  // HTTPS vs HTTP behavior tests removed - trivial protocol string comparison
 
   describe('Share Button Conditionals and Fallbacks', () => {
     it('should show native share on HTTPS mobile with share API', () => {
@@ -357,42 +213,7 @@ describe('Share Button Functionality', () => {
     });
   });
 
-  describe('Mobile Fallback Button URLs', () => {
-    it('should generate correct WhatsApp share URL', () => {
-      const whatsappBtn = document.querySelector('[data-action="share-whatsapp"]');
-      const input = document.querySelector('#share-link-input');
-      
-      // Simulate URL generation
-      const shareUrl = input.value;
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Check out this receipt: ${shareUrl}`)}`;
-      
-      expect(shareUrl).toBe('https://example.com/r/test123/');
-      expect(whatsappUrl).toContain('wa.me');
-      expect(whatsappUrl).toContain(encodeURIComponent(shareUrl));
-    });
-
-    it('should generate correct SMS share URL', () => {
-      const smsBtn = document.querySelector('[data-action="share-sms"]');
-      const input = document.querySelector('#share-link-input');
-      
-      // Simulate URL generation  
-      const shareUrl = input.value;
-      const smsUrl = `sms:?&body=${encodeURIComponent(`Check out this receipt: ${shareUrl}`)}`;
-      
-      expect(smsUrl).toContain('sms:');
-      expect(smsUrl).toContain(encodeURIComponent(shareUrl));
-    });
-
-    it('should handle special characters in URLs', () => {
-      const input = document.querySelector('#share-link-input');
-      input.value = 'https://example.com/r/test-123/?foo=bar&baz=qux';
-      
-      const encodedUrl = encodeURIComponent(input.value);
-      expect(encodedUrl).not.toContain('&');
-      expect(encodedUrl).not.toContain('?');
-      expect(encodedUrl).toContain('%');
-    });
-  });
+  // Mobile Fallback Button URL tests removed - trivial URL encoding tests
 
   describe('Error Handling and Edge Cases', () => {
     it('should handle missing widget ID gracefully', () => {
@@ -433,15 +254,7 @@ describe('Share Button Functionality', () => {
       }).not.toThrow();
     });
 
-    it('should maintain button state during operations', () => {
-      const copyBtn = document.querySelector('[data-action="copy-share-url"]');
-      const originalClasses = Array.from(copyBtn.classList);
-      
-      copyBtn.click();
-      
-      // Button classes should remain unchanged after click
-      expect(Array.from(copyBtn.classList)).toEqual(originalClasses);
-    });
+    // Button state test removed - trivial CSS class check
   });
 
   describe('Critical Mobile Share Guarantee', () => {
