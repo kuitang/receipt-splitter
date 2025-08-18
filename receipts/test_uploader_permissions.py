@@ -883,3 +883,135 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         new_name_claims = claim_service.get_claims_for_name(receipt.id, 'Original Name 2')
         self.assertEqual(len(new_name_claims), 1)
         self.assertEqual(new_name_claims[0].line_item.name, 'Salad')
+
+
+class NameCollisionRegressionTests(TestCase):
+    """Regression tests for name collision handling"""
+    
+    def test_uploader_name_collision_prevention(self):
+        """Test that users cannot use the same name as the uploader (regression test)"""
+        # Create a receipt with uploader name "John"
+        receipt = Receipt.objects.create(
+            uploader_name="John",
+            restaurant_name="Test Restaurant",
+            date=timezone.now(),
+            subtotal=Decimal('100.00'),
+            tax=Decimal('10.00'),
+            tip=Decimal('15.00'),
+            total=Decimal('125.00'),
+            is_finalized=True,
+            processing_status='completed'
+        )
+        
+        # Create a line item
+        LineItem.objects.create(
+            receipt=receipt,
+            name="Test Item",
+            quantity=5,
+            unit_price=Decimal('20.00'),
+            total_price=Decimal('100.00')
+        )
+        
+        # First: Verify uploader name is in existing names
+        from receipts.services import ReceiptService
+        receipt_service = ReceiptService()
+        existing_names = receipt_service.get_existing_names(str(receipt.id))
+        self.assertIn("John", existing_names, "Uploader name should be in existing names")
+        
+        # Try to register as a viewer with the uploader's name
+        response = self.client.post(
+            reverse('view_receipt', kwargs={'receipt_slug': receipt.slug}),
+            {'viewer_name': 'John'}
+        )
+        
+        # Should show name collision page
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Name Already Taken')
+        self.assertContains(response, 'John')
+        self.assertContains(response, 'John 2')  # Suggested alternative
+        
+        # Verify the viewer was NOT registered with the duplicate name
+        from receipts.models import ActiveViewer
+        viewers = ActiveViewer.objects.filter(receipt=receipt, viewer_name='John')
+        self.assertEqual(viewers.count(), 0, "Should not register viewer with uploader's name")
+        
+    def test_claimer_name_collision_prevention(self):
+        """Test that users cannot use the same name as existing claimers"""
+        # Create a receipt
+        receipt = Receipt.objects.create(
+            uploader_name="Uploader",
+            restaurant_name="Test Restaurant",
+            date=timezone.now(),
+            subtotal=Decimal('100.00'),
+            tax=Decimal('10.00'),
+            tip=Decimal('15.00'),
+            total=Decimal('125.00'),
+            is_finalized=True,
+            processing_status='completed'
+        )
+        
+        # Create a line item
+        item = LineItem.objects.create(
+            receipt=receipt,
+            name="Test Item",
+            quantity=5,
+            unit_price=Decimal('20.00'),
+            total_price=Decimal('100.00')
+        )
+        
+        # Create an existing claim with name "Alice"
+        Claim.objects.create(
+            line_item=item,
+            claimer_name="Alice",
+            quantity_claimed=2,
+            session_id="existing_session",
+            is_finalized=True
+        )
+        
+        # Verify Alice is in existing names
+        from receipts.services import ReceiptService
+        receipt_service = ReceiptService()
+        existing_names = receipt_service.get_existing_names(str(receipt.id))
+        self.assertIn("Alice", existing_names, "Claimer name should be in existing names")
+        
+        # Try to register as a viewer with the existing claimer's name
+        response = self.client.post(
+            reverse('view_receipt', kwargs={'receipt_slug': receipt.slug}),
+            {'viewer_name': 'Alice'}
+        )
+        
+        # Should show name collision page
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Name Already Taken')
+        self.assertContains(response, 'Alice')
+        self.assertContains(response, 'Alice 2')  # Suggested alternative
+        
+    def test_case_sensitive_name_handling(self):
+        """Test that name collision is case-sensitive"""
+        # Create a receipt
+        receipt = Receipt.objects.create(
+            uploader_name="John",
+            restaurant_name="Test Restaurant",
+            date=timezone.now(),
+            subtotal=Decimal('100.00'),
+            tax=Decimal('10.00'),
+            tip=Decimal('15.00'),
+            total=Decimal('125.00'),
+            is_finalized=True,
+            processing_status='completed'
+        )
+        
+        # Try to register with lowercase "john" (different from "John")
+        response = self.client.post(
+            reverse('view_receipt', kwargs={'receipt_slug': receipt.slug}),
+            {'viewer_name': 'john'}
+        )
+        
+        # Should be allowed (case-sensitive)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Name Already Taken')
+        
+        # Verify the viewer was registered with lowercase name
+        from receipts.models import ActiveViewer
+        viewers = ActiveViewer.objects.filter(receipt=receipt, viewer_name='john')
+        self.assertGreater(viewers.count(), 0, "Should allow lowercase variant of uploader name")

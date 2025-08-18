@@ -218,8 +218,8 @@ def view_receipt(request, receipt_slug):
                 }
                 return render(request, 'receipts/view.html', context)
             
-            # Check for name collision
-            existing_names = receipt_service.get_existing_names(receipt_id)
+            # Check for name collision using already-fetched data (no extra queries!)
+            existing_names = receipt_service.get_existing_names(receipt_id, receipt_data)
             
             if validated_name in existing_names:
                 suggestions = [

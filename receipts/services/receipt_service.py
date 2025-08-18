@@ -272,18 +272,46 @@ class ReceiptService:
         
         return viewer
     
-    def get_existing_names(self, receipt_id: str) -> list:
-        """Get all existing viewer and claimer names for a receipt"""
-        receipt = self._get_with_claims_and_viewers(receipt_id)
-        if not receipt:
-            return []
+    def get_existing_names(self, receipt_id: str, receipt_data: Optional[Dict] = None) -> list:
+        """Get all existing viewer and claimer names for a receipt
         
-        names = list(receipt.viewers.values_list('viewer_name', flat=True))
-        names.extend(self._get_all_claimer_names(receipt_id))
-        # Include the uploader's name in collision check
-        names.append(receipt.uploader_name)
-        
-        return list(set(names))  # Remove duplicates
+        Args:
+            receipt_id: The receipt ID
+            receipt_data: Optional pre-fetched receipt data to avoid extra queries
+        """
+        if receipt_data:
+            # Use pre-fetched data to avoid extra queries
+            receipt = receipt_data.get('receipt')
+            if not receipt:
+                return []
+            
+            names = []
+            # Add uploader name
+            names.append(receipt.uploader_name)
+            
+            # Add viewer names from prefetched viewers (use .all() to avoid extra query)
+            if hasattr(receipt, 'viewers'):
+                names.extend([viewer.viewer_name for viewer in receipt.viewers.all()])
+            
+            # Extract claimer names from items_with_claims data
+            if 'items_with_claims' in receipt_data:
+                for item_data in receipt_data['items_with_claims']:
+                    for claim in item_data.get('claims', []):
+                        names.append(claim.claimer_name)
+            
+            return list(set(names))  # Remove duplicates
+        else:
+            # Fallback to fetching from database
+            receipt = self._get_with_claims_and_viewers(receipt_id)
+            if not receipt:
+                return []
+            
+            names = list(receipt.viewers.values_list('viewer_name', flat=True))
+            names.extend(self._get_all_claimer_names(receipt_id))
+            # Include the uploader's name in collision check
+            names.append(receipt.uploader_name)
+            
+            return list(set(names))  # Remove duplicates
     
     def create_edit_token(self, receipt_id: str, session_key: str) -> str:
         """Create a secure edit token for a receipt"""
