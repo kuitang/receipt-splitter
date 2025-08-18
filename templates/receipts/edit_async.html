@@ -405,10 +405,7 @@
                 </div>
             </div>
         </div>
-        {% include 'receipts/partials/copy_link_widget.html' with share_url='' widget_id='share-url' %}
-        <div class="mt-4 text-center">
-            <canvas id="qr-code"></canvas>
-        </div>
+        {% include 'receipts/partials/copy_link_widget.html' with share_url='' widget_id='share-url' show_qr_code_inline=True %}
         <button data-action="close-share-modal" class="mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-medium">
             Close
         </button>

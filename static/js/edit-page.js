@@ -399,7 +399,10 @@ async function finalizeReceipt() {
         if (response.ok) {
             const data = await response.json();
             document.getElementById('share-url').value = data.share_url;
-            QRCode.toCanvas(document.getElementById('qr-code'), data.share_url);
+            const qrCanvas = document.getElementById('qr-code-share-url');
+            if (qrCanvas) {
+                QRCode.toCanvas(qrCanvas, data.share_url);
+            }
             document.getElementById('share-modal').classList.remove('hidden');
         } else {
             const error = await response.json();
