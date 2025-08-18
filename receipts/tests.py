@@ -7,6 +7,39 @@ from datetime import datetime, timedelta
 import json
 
 from .models import Receipt, LineItem, Claim, ActiveViewer
+from .services.receipt_service import ReceiptService
+
+
+class ReceiptServiceTests(TestCase):
+
+    def setUp(self):
+        self.receipt_service = ReceiptService()
+        self.receipt = Receipt.objects.create(
+            uploader_name="Test User",
+            restaurant_name="Test Restaurant",
+            date=timezone.now(),
+            subtotal=Decimal("85.00"),
+            tax=Decimal("5.00"),
+            tip=Decimal("10.00"),
+            total=Decimal("100.00"),
+            is_finalized=False
+        )
+        LineItem.objects.create(
+            receipt=self.receipt,
+            name="Test Item",
+            quantity=1,
+            unit_price=Decimal("85.00"),
+            total_price=Decimal("85.00")
+        )
+
+    @patch('receipts.services.receipt_service.delete_receipt_image_from_memory')
+    def test_finalize_receipt_deletes_image(self, mock_delete_image):
+        """Test that finalizing a receipt deletes the image from memory."""
+        session_context = {'is_uploader': True}
+
+        self.receipt_service.finalize_receipt(str(self.receipt.id), session_context)
+
+        mock_delete_image.assert_called_once_with(str(self.receipt.id))
 
 
 class ReceiptModelTests(TestCase):
@@ -149,6 +182,11 @@ class ClaimModelTests(TestCase):
         self.assertEqual(self.claim.get_share_amount(), expected_share)
 
 
+@patch('receipts.views.rate_limit_finalize', lambda fn: fn)
+@patch('receipts.views.rate_limit_claim', lambda fn: fn)
+@patch('receipts.views.rate_limit_view', lambda fn: fn)
+@patch('receipts.views.rate_limit_edit', lambda fn: fn)
+@patch('receipts.views.rate_limit_upload', lambda fn: fn)
 class ViewTests(TestCase):
     def setUp(self):
         self.client = Client()
@@ -423,10 +461,12 @@ class ViewTests(TestCase):
         response_data = json.loads(response.content)
         self.assertEqual(response_data['error'], 'An unexpected error occurred.')
 
+    @patch('receipts.views.logging.getLogger')
     @patch('receipts.views.receipt_service.create_receipt')
-    def test_upload_receipt_unexpected_exception(self, mock_create_receipt):
+    def test_upload_receipt_unexpected_exception(self, mock_create_receipt, mock_getLogger):
         """Test that an unexpected exception in upload_receipt returns a 500 and is logged."""
         mock_create_receipt.side_effect = Exception("Something went wrong")
+        mock_logger = mock_getLogger.return_value
 
         url = reverse('upload_receipt')
         data = {'uploader_name': 'Test Uploader'}
@@ -436,11 +476,10 @@ class ViewTests(TestCase):
         image = SimpleUploadedFile("test.jpg", b"file_content", content_type="image/jpeg")
         data['receipt_image'] = image
 
-        with self.assertLogs('receipts.views', level='ERROR') as cm:
-            response = self.client.post(url, data)
-            self.assertIn("Error uploading receipt", cm.output[0])
+        response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 500)
+        mock_logger.exception.assert_called_once_with("Error uploading receipt")
 
     @patch('receipts.views.receipt_service.finalize_receipt')
     def test_finalize_receipt_unexpected_exception(self, mock_finalize_receipt):

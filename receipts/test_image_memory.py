@@ -414,11 +414,14 @@ class FileSystemMonitoringTestCase(TestCase):
                     self.assertNotIn('receipts/', path.lower())
 
 
+from django.test import override_settings
+
+@override_settings(RATELIMIT_ENABLE=False)
+@mock.patch('receipts.services.receipt_service.process_receipt_async')
 class IntegrationTestCase(TransactionTestCase):
     """Integration tests for complete upload flow"""
     
-    @mock.patch('receipts.async_processor.process_receipt_async')
-    def test_complete_upload_flow_no_disk(self, mock_async):
+    def test_complete_upload_flow_no_disk(self, mock_process_receipt):
         """Test complete upload flow without disk access"""
         # Monitor file operations
         with mock.patch('django.core.files.storage.default_storage.save') as mock_save:
@@ -453,7 +456,7 @@ class IntegrationTestCase(TransactionTestCase):
             cached_image = cache.get(cache_key)
             self.assertIsNotNone(cached_image)
             
-    def test_no_media_directory_created(self):
+    def test_no_media_directory_created(self, mock_process_receipt):
         """Test that no media directory is created during operations"""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Override media root to temp directory and disable async processing

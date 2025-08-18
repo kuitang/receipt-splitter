@@ -6,6 +6,7 @@ error messages, widget IDs, or other dynamic content.
 """
 
 import json
+import re
 from decimal import Decimal
 from datetime import timedelta
 from django.test import TestCase, Client
@@ -310,7 +311,7 @@ class JavaScriptFunctionSecurityTests(TestCase):
         content = response.content.decode()
         
         # The page should include utils.js which contains escapeHtml
-        self.assertIn('/static/js/utils.js', content)
+        self.assertTrue(re.search(r'/static/js/utils\.[a-f0-9]+\.js', content))
     
     def test_copy_widget_uses_data_attribute(self):
         """Test that copy widget uses safe data attribute approach"""

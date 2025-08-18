@@ -1,17 +1,14 @@
-"""
-Rate limit decorators for views using django-ratelimit.
-Centralized configuration for different endpoint types.
-"""
 from functools import wraps
 from django.conf import settings
 from django_ratelimit.decorators import ratelimit
 
-def conditional_ratelimit(key, rate, method):
+def conditional_ratelimit(key, rate, method, block=True):
     """Apply rate limiting only if RATELIMIT_ENABLE is True"""
     def decorator(func):
-        if getattr(settings, 'RATELIMIT_ENABLE', True):
-            return ratelimit(key=key, rate=rate, method=method)(func)
-        return func
+        if not getattr(settings, 'RATELIMIT_ENABLE', True):
+            return func
+        # The original decorator from the library is called here
+        return ratelimit(key=key, rate=rate, method=method, block=block)(func)
     return decorator
 
 # Predefined rate limit decorators for different endpoint types

@@ -191,6 +191,54 @@ class ReceiptWorkflowTest(IntegrationTestBase):
             print(f"\n❌ Unexpected error: {e}")
             return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
 
+    def test_image_deleted_after_finalization(self) -> TestResult:
+        """Test that the receipt image is deleted after finalization"""
+        print_test_header("Image Deletion After Finalization Test")
+
+        try:
+            # Step 1: Upload a receipt
+            print("\n📤 Step 1: Upload Receipt")
+            upload_response = self.upload_receipt("Image Deletion Test User")
+            assert upload_response['status_code'] == 302, "Upload should redirect"
+            receipt_slug = upload_response['receipt_slug']
+            assert receipt_slug is not None, "Should extract receipt slug from redirect"
+            print(f"   ✓ Receipt uploaded, slug: {receipt_slug}")
+
+            # Step 2: Wait for processing
+            print("\n⏳ Step 2: Wait for Processing")
+            assert self.wait_for_processing(receipt_slug), "Processing should complete"
+            print("   ✓ Receipt processed successfully")
+
+            # Step 3: Verify image is accessible before finalization
+            print("\n🖼️ Step 3: Verify image exists before finalization")
+            image_response = self.client.get(f'/image/{receipt_slug}/')
+            assert image_response.status_code == 200, "Image should be accessible before finalization"
+            print("   ✓ Image is accessible")
+
+            # Step 4: Finalize the receipt
+            print("\n🔒 Step 4: Finalize Receipt")
+            valid_data = IntegrationTestBase.TestData.balanced_receipt()
+            self.update_receipt(receipt_slug, valid_data)
+            finalize_response = self.finalize_receipt(receipt_slug)
+            assert finalize_response['status_code'] == 200, "Should finalize balanced receipt"
+            print("   ✓ Receipt finalized")
+
+            # Step 5: Verify image is no longer accessible
+            print("\n🖼️ Step 5: Verify image is deleted after finalization")
+            image_response_after = self.client.get(f'/image/{receipt_slug}/')
+            assert image_response_after.status_code == 404, "Image should be inaccessible after finalization"
+            print("   ✓ Image is no longer accessible (404)")
+
+            print("\n✅ Image deletion test PASSED")
+            return TestResult(TestResult.PASSED)
+
+        except AssertionError as e:
+            print(f"\n❌ Image deletion test failed: {e}")
+            return TestResult(TestResult.FAILED, str(e))
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}")
+            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
+
 
 class SecurityValidationTest(IntegrationTestBase):
     """Security validation tests based on SECURITY_AUDIT_REPORT.md"""
@@ -1126,6 +1174,10 @@ class PerformanceTest(IntegrationTestBase):
 
 def run_all_tests():
     """Run all integration tests"""
+    import subprocess
+    print("\n🚀 Running Django migrations...")
+    subprocess.run([sys.executable, "manage.py", "migrate"], check=True)
+    print("   ✓ Migrations complete")
     print("\n" + "=" * 70)
     print("🧪 RECEIPT SPLITTER INTEGRATION TEST SUITE")
     print("=" * 70)
@@ -1163,6 +1215,7 @@ def run_all_tests():
         # Core workflow tests
         DELAY = 2  # Uniform 2 second delay
         results.append(("Complete Workflow", workflow_test.test_complete_workflow()))
+        results.append(("Image Deletion After Finalization", workflow_test.test_image_deleted_after_finalization()))
         # Rate limiting is disabled in tests
         
         # Permission tests - critical bug fixes

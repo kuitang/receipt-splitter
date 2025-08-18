@@ -12,5 +12,18 @@ CACHES = {
 }
 
 # Ensure test mode
-DEBUG = True
+DEBUG = False
 TESTING = True
+
+# Use simple static files storage for tests, no hashing
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+# Disable async processing for tests to avoid threading issues with SQLite
+USE_ASYNC_PROCESSING = False
