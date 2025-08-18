@@ -159,20 +159,6 @@ class ReceiptOCR:
         """Compute SHA256 hash of the image for caching"""
         return hashlib.sha256(base64_image.encode()).hexdigest()
     
-    def _create_structured_schema(self) -> dict:
-        """Create the JSON schema for structured output"""
-        # Get Pydantic schema and adapt for OpenAI
-        schema = ReceiptData.model_json_schema()
-        
-        # OpenAI requires specific format
-        return {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "receipt_extraction",
-                "strict": True,
-                "schema": schema
-            }
-        }
     
     def _create_prompt(self) -> str:
         """Create the prompt for OpenAI Vision API"""
@@ -202,7 +188,8 @@ class ReceiptOCR:
         logger.info(f"Making OpenAI API call for image hash: {image_hash[:8]}...")
         
         try:
-            response = self.client.chat.completions.create(
+            # Use the parse method with Pydantic model for automatic schema handling
+            response = self.client.chat.completions.parse(
                 model=self.model,
                 messages=[
                     {
@@ -218,7 +205,7 @@ class ReceiptOCR:
                         ]
                     }
                 ],
-                response_format=self._create_structured_schema(),
+                response_format=ReceiptData,
                 max_tokens=2000,
                 temperature=0.1
             )
@@ -236,7 +223,13 @@ class ReceiptOCR:
                     f"Cost: ${cost:.4f}"
                 )
             
-            return response.choices[0].message.content
+            # The parse method returns a ParsedChatCompletion with the parsed object in the message
+            parsed_data = response.choices[0].message.parsed
+            if parsed_data:
+                return parsed_data.model_dump_json()
+            else:
+                # Fallback to raw content if parsed is not available
+                return response.choices[0].message.content
             
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
