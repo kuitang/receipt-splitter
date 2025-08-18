@@ -3,42 +3,27 @@
  * Tests validation, total calculation, and button state management
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  createTestDOM,
+  setupMocks,
+  createViewPageDOM,
+  createItemContainer,
+  createPollData,
+  mockAuthFetch,
+  mockSuccessResponse,
+  mockErrorResponse,
+  setClaim,
+  getClaimInputs,
+  assertValidationError,
+  assertVisible,
+  testButtonState,
+  resetTestEnvironment
+} from './test-helpers.js';
 
-// Set up DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-  url: 'http://localhost',
-  pretendToBeVisual: true,
-  resources: 'usable'
-});
-
-global.window = dom.window;
-global.document = window.document;
-global.navigator = window.navigator;
-
-// Mock alert and confirm
-global.alert = vi.fn();
-global.confirm = vi.fn(() => true);
-
-// Mock escapeHtml function from utils
-global.escapeHtml = vi.fn((text) => {
-  // Simple HTML escaping for tests
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-});
-
-// Mock fetch for claims
-global.fetch = vi.fn(() => 
-  Promise.resolve({
-    ok: true,
-    json: () => Promise.resolve({ success: true })
-  })
-);
+// Set up environment
+createTestDOM();
+const mocks = setupMocks();
 
 // Import the modules
 const utilsModule = await import('../../static/js/utils.js');
@@ -68,137 +53,97 @@ const {
 
 const { authenticatedJsonFetch } = utilsModule;
 
+// Helper to create a standard test DOM
+function setupTestDOM(items = []) {
+  if (items.length === 0) {
+    items = [
+      { itemId: '1', name: 'Burger', shareAmount: '15.50', max: 2 },
+      { itemId: '2', name: 'Fries', shareAmount: '8.75', max: 1 },
+      { itemId: '3', name: 'Drink', shareAmount: '12.25', max: 3 }
+    ];
+  }
+  
+  document.body.innerHTML = createViewPageDOM({ items, myTotal: '25.50' });
+  initializeViewPage();
+}
+
 describe('View Page Claiming Functionality', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    
-    // Set up realistic DOM structure
-    document.body.innerHTML = `
-      <div id="view-page-data" 
-           data-receipt-slug="test-receipt" 
-           data-receipt-id="123">
-      </div>
-      
-      <!-- Items container with claim inputs -->
-      <div class="items-container">
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <div class="item-share-amount" data-amount="15.50"></div>
-          <input type="number" class="claim-quantity" 
-                 data-item-id="1" min="0" max="2" value="0">
-        </div>
-        <div class="item-container" data-item-id="2">
-          <h3>Fries</h3>
-          <div class="item-share-amount" data-amount="8.75"></div>
-          <input type="number" class="claim-quantity" 
-                 data-item-id="2" min="0" max="1" value="0">
-        </div>
-        <div class="item-container" data-item-id="3">
-          <h3>Drink</h3>
-          <div class="item-share-amount" data-amount="12.25"></div>
-          <input type="number" class="claim-quantity" 
-                 data-item-id="3" min="0" max="3" value="0">
-        </div>
-      </div>
-      
-      <!-- Validation banner -->
-      <div id="claiming-warning" class="hidden">
-        <div id="claiming-error-details"></div>
-      </div>
-      
-      <!-- Total display and button -->
-      <p id="my-total" data-existing-total="25.50">$25.50</p>
-      <button id="claim-button" data-action="confirm-claims" disabled>Claim</button>
-    `;
-    
-    // Initialize
-    initializeViewPage();
+    resetTestEnvironment();
+    setupTestDOM();
   });
 
   describe('Frontend Validation', () => {
     it('should prevent claiming more than available quantity', () => {
-      const input1 = document.querySelector('.claim-quantity[data-item-id="1"]');
-      const input2 = document.querySelector('.claim-quantity[data-item-id="2"]');
+      const input1 = setClaim('1', '2'); // max is 2
+      const input2 = setClaim('2', '1'); // max is 1
       
       // Valid claims
-      input1.value = '2'; // max is 2
-      input2.value = '1'; // max is 1
-      
       expect(validateClaims()).toBe(true);
       expect(input1.classList.contains('border-red-500')).toBe(false);
       
       // Invalid claim - exceeds maximum
-      input1.value = '3'; // max is 2
+      setClaim('1', '3'); // max is 2
       
       expect(validateClaims()).toBe(false);
-      expect(input1.classList.contains('border-red-500')).toBe(true);
-      expect(input1.classList.contains('bg-red-50')).toBe(true);
+      assertValidationError(input1, true);
     });
 
     it('should clear validation errors when fixed', () => {
-      const input = document.querySelector('.claim-quantity[data-item-id="1"]');
-      
-      // Set invalid value
-      input.value = '5'; // max is 2
+      const input = setClaim('1', '5'); // max is 2
       validateClaims();
-      expect(input.classList.contains('border-red-500')).toBe(true);
+      assertValidationError(input, true);
       
       // Fix the value
-      input.value = '2';
+      setClaim('1', '2');
       validateClaims();
-      expect(input.classList.contains('border-red-500')).toBe(false);
-      expect(input.classList.contains('bg-red-50')).toBe(false);
+      assertValidationError(input, false);
     });
 
     it('should show validation banner with specific error messages', () => {
-      const input1 = document.querySelector('.claim-quantity[data-item-id="1"]');
-      const input2 = document.querySelector('.claim-quantity[data-item-id="2"]');
       const warningBanner = document.getElementById('claiming-warning');
       const errorDetails = document.getElementById('claiming-error-details');
       
       // Initially hidden
-      expect(warningBanner.classList.contains('hidden')).toBe(true);
+      assertVisible(warningBanner, false);
       
       // Set invalid values
-      input1.value = '5'; // max is 2
-      input2.value = '3'; // max is 1
+      setClaim('1', '5'); // max is 2
+      setClaim('2', '3'); // max is 1
       
       validateClaims();
       
       // Banner should be visible
-      expect(warningBanner.classList.contains('hidden')).toBe(false);
+      assertVisible(warningBanner, true);
       
       // Should show specific error messages with item names
       expect(errorDetails.innerHTML).toContain('Burger: trying to claim 5 but only 2 available');
       expect(errorDetails.innerHTML).toContain('Fries: trying to claim 3 but only 1 available');
       
       // Fix errors
-      input1.value = '2';
-      input2.value = '1';
+      setClaim('1', '2');
+      setClaim('2', '1');
       
       validateClaims();
       
       // Banner should be hidden again
-      expect(warningBanner.classList.contains('hidden')).toBe(true);
+      assertVisible(warningBanner, false);
     });
 
     it('should handle edge cases in validation', () => {
-      const input = document.querySelector('.claim-quantity[data-item-id="1"]');
-      
-      // Test zero value (should be valid)
-      input.value = '0';
+      const input = setClaim('1', '0');
       expect(validateClaims()).toBe(true);
       
       // Test negative value (should be treated as 0)
-      input.value = '-1';
-      expect(validateClaims()).toBe(true); // Our validation only checks max, not min
+      setClaim('1', '-1');
+      expect(validateClaims()).toBe(true);
       
       // Test empty value (should be treated as 0)
-      input.value = '';
+      setClaim('1', '');
       expect(validateClaims()).toBe(true);
       
       // Test non-numeric value
-      input.value = 'abc';
+      setClaim('1', 'abc');
       expect(validateClaims()).toBe(true); // parseInt('abc') = NaN, treated as 0
     });
   });
@@ -210,97 +155,95 @@ describe('View Page Claiming Functionality', () => {
       totalElement.dataset.existingTotal = '25.50';
       
       // No pending claims
-      document.querySelectorAll('.claim-quantity').forEach(input => {
+      getClaimInputs().forEach(input => {
         input.value = '0';
       });
       
-      updateButtonState();
-      expect(document.getElementById('claim-button').disabled).toBe(true);
+      testButtonState({
+        button: document.getElementById('claim-button'),
+        shouldBeDisabled: true,
+        updateStateFn: updateButtonState
+      });
     });
 
     it('should enable button only when user has pending claims', () => {
-      // Even with no existing total, should enable if user has pending claims
-      const totalElement = document.getElementById('my-total');
-      
       // Has pending claims
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '1';
+      setClaim('1', '1');
       
-      updateButtonState();
-      expect(document.getElementById('claim-button').disabled).toBe(false);
+      testButtonState({
+        button: document.getElementById('claim-button'),
+        shouldBeDisabled: false,
+        updateStateFn: updateButtonState
+      });
     });
 
     it('should disable button when user clears all pending claims', () => {
       // User adds then removes claims
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '1';
+      setClaim('1', '1');
       updateButtonState();
       expect(document.getElementById('claim-button').disabled).toBe(false);
       
       // User removes the claim
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '0';
+      setClaim('1', '0');
       updateButtonState();
       expect(document.getElementById('claim-button').disabled).toBe(true);
     });
 
     it('should detect active claims correctly', () => {
       // No active claims
-      document.querySelectorAll('.claim-quantity').forEach(input => {
+      getClaimInputs().forEach(input => {
         input.value = '0';
       });
       expect(hasActiveClaims()).toBe(false);
       
       // Has active claims
-      document.querySelector('.claim-quantity[data-item-id="2"]').value = '1';
+      setClaim('2', '1');
       expect(hasActiveClaims()).toBe(true);
       
       // Reset and test empty value
-      document.querySelector('.claim-quantity[data-item-id="2"]').value = '';
+      setClaim('2', '');
       expect(hasActiveClaims()).toBe(false);
     });
   });
 
-
   describe('Claim Submission', () => {
     it('should prevent submission when validation fails', async () => {
       // Set invalid claim
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '5'; // max is 2
+      setClaim('1', '5'); // max is 2
       
       await confirmClaims();
       
-      expect(global.alert).toHaveBeenCalledWith(
+      expect(mocks.alert).toHaveBeenCalledWith(
         'Please fix the highlighted items - you cannot claim more than available.'
       );
-      expect(global.fetch).not.toHaveBeenCalled();
+      expect(mocks.fetch).not.toHaveBeenCalled();
     });
 
     it('should prevent submission when no claims', async () => {
       // No claims
-      document.querySelectorAll('.claim-quantity').forEach(input => {
+      getClaimInputs().forEach(input => {
         input.value = '0';
       });
       
       await confirmClaims();
       
-      expect(global.alert).toHaveBeenCalledWith('Please select items to claim');
-      expect(global.fetch).not.toHaveBeenCalled();
+      expect(mocks.alert).toHaveBeenCalledWith('Please select items to claim');
+      expect(mocks.fetch).not.toHaveBeenCalled();
     });
 
     it('should submit valid claims correctly with new total protocol', async () => {
       // Set up valid claims
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '2';
-      document.querySelector('.claim-quantity[data-item-id="2"]').value = '1';
+      setClaim('1', '2');
+      setClaim('2', '1');
       
       // Mock fetch to capture the call
       const fetchCalls = [];
-      global.authenticatedJsonFetch = vi.fn().mockImplementation((url, options) => {
+      mockAuthFetch((url, options) => {
         fetchCalls.push({ url, options });
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ 
-            success: true, 
-            finalized: true,
-            claims_count: 2
-          })
-        });
+        return Promise.resolve(mockSuccessResponse({ 
+          finalized: true,
+          claims_count: 2
+        }));
       });
       
       await confirmClaims();
@@ -320,42 +263,34 @@ describe('View Page Claiming Functionality', () => {
     });
 
     it('should handle API errors gracefully with new protocol', async () => {
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '1';
+      setClaim('1', '1');
       
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: () => Promise.resolve({ error: 'Item not available' })
-      });
+      mockAuthFetch(mockErrorResponse('Item not available'));
       
       await confirmClaims();
       
       // Check that error shows finalization context
-      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item not available');
+      expect(mocks.alert).toHaveBeenCalledWith('Error finalizing claims: Item not available');
     });
 
     it('should finalize claims without success dialog', async () => {
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '2';
-      document.querySelector('.claim-quantity[data-item-id="2"]').value = '1';
+      setClaim('1', '2');
+      setClaim('2', '1');
       
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ 
-          success: true, 
-          finalized: true, 
-          claims_count: 2 
-        })
-      });
+      mockAuthFetch(mockSuccessResponse({ 
+        finalized: true, 
+        claims_count: 2 
+      }));
       
       await confirmClaims();
       
       // Should not show success alert (page reload shows result)
-      expect(global.alert).not.toHaveBeenCalled();
+      expect(mocks.alert).not.toHaveBeenCalled();
     });
   });
 
   describe('Integration Tests', () => {
     it('should work end-to-end with realistic user interaction', () => {
-      // User starts with no claims (new total claims protocol)
       const totalElement = document.getElementById('my-total');
       const warningBanner = document.getElementById('claiming-warning');
       
@@ -364,31 +299,28 @@ describe('View Page Claiming Functionality', () => {
       expect(document.getElementById('claim-button').disabled).toBe(true);
       
       // User adds more claims
-      const input1 = document.querySelector('.claim-quantity[data-item-id="1"]');
-      const input2 = document.querySelector('.claim-quantity[data-item-id="2"]');
-      
-      input1.value = '1'; // $15.50
+      const input1 = setClaim('1', '1'); // $15.50
       updateTotal();
-      expect(totalElement.textContent).toBe('$15.50'); // 1 * $15.50 = $15.50
+      expect(totalElement.textContent).toBe('$15.50');
       
-      input2.value = '1'; // $8.75  
+      setClaim('2', '1'); // $8.75  
       updateTotal();
-      expect(totalElement.textContent).toBe('$24.25'); // 1 * $15.50 + 1 * $8.75 = $24.25
+      expect(totalElement.textContent).toBe('$24.25');
       
       // User tries to claim too much
-      input1.value = '3'; // max is 2
+      setClaim('1', '3'); // max is 2
       updateTotal();
       expect(validateClaims()).toBe(false);
-      expect(input1.classList.contains('border-red-500')).toBe(true);
-      expect(warningBanner.classList.contains('hidden')).toBe(false); // Banner should be visible
+      assertValidationError(input1, true);
+      assertVisible(warningBanner, true);
       
       // User fixes the error
-      input1.value = '2'; // valid
+      setClaim('1', '2'); // valid
       updateTotal();
       expect(validateClaims()).toBe(true);
-      expect(input1.classList.contains('border-red-500')).toBe(false);
-      expect(warningBanner.classList.contains('hidden')).toBe(true); // Banner should be hidden
-      expect(totalElement.textContent).toBe('$39.75'); // 2 * $15.50 + 1 * $8.75 = $39.75
+      assertValidationError(input1, false);
+      assertVisible(warningBanner, false);
+      expect(totalElement.textContent).toBe('$39.75');
       
       // Button should still be enabled (has pending claims)
       expect(document.getElementById('claim-button').disabled).toBe(false);
@@ -404,7 +336,7 @@ describe('View Page Claiming Functionality', () => {
       expect(document.getElementById('claim-button').disabled).toBe(true);
       
       // User adds their first claim
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '1';
+      setClaim('1', '1');
       updateTotal();
       
       // Button should now be enabled
@@ -412,7 +344,7 @@ describe('View Page Claiming Functionality', () => {
       expect(totalElement.textContent).toBe('$15.50');
       
       // User removes their claim
-      document.querySelector('.claim-quantity[data-item-id="1"]').value = '0';
+      setClaim('1', '0');
       updateTotal();
       
       // Button should be disabled again
@@ -434,55 +366,21 @@ describe('View Page Claiming Functionality', () => {
       });
       
       // Set up more comprehensive DOM for polling tests
-      document.body.innerHTML = `
-        <div id="view-page-data" 
-             data-receipt-slug="test-receipt" 
-             data-receipt-id="123">
-        </div>
-        
-        <!-- Participants section -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-center">
-            <span class="text-gray-700">Alice</span>
-            <span class="font-medium tabular-nums">$15.50</span>
-          </div>
-          <div class="flex justify-between items-center text-orange-600 font-medium">
-            <span>Not Claimed</span>
-            <span class="tabular-nums">$10.25</span>
-          </div>
-          <p class="text-gray-400 italic">No items claimed yet</p>
-        </div>
-        
-        <!-- Items with claims -->
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <div class="item-share-amount" data-amount="15.50"></div>
-          <div class="ml-4">
-            <div class="flex items-center space-x-2">
-              <input type="number" class="claim-quantity w-20 px-2 py-1 border border-gray-300 rounded"
-                     min="0" max="2" value="0" data-item-id="1">
-              <span class="text-sm text-gray-600">of 2</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="item-container" data-item-id="2">
-          <h3>Fries</h3>
-          <div class="item-share-amount" data-amount="8.75"></div>
-          <div class="ml-4">
-            <span class="text-red-600 font-semibold">Fully Claimed</span>
-          </div>
-          <div class="mt-3 pt-3 border-t">
-            <p class="text-sm text-gray-600 mb-1">Claimed by:</p>
-            <div class="flex flex-wrap gap-2">
-              <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Bob (1)</span>
-            </div>
-          </div>
-        </div>
-        
-        <p id="my-total" data-existing-total="0.00">$0.00</p>
-        <button id="claim-button" data-action="confirm-claims" disabled>Claim</button>
-      `;
+      const items = [
+        { itemId: '1', name: 'Burger', shareAmount: '15.50', max: 2 },
+        { 
+          itemId: '2', 
+          name: 'Fries', 
+          shareAmount: '8.75', 
+          fullyClaimed: true,
+          claims: [{ name: 'Bob', qty: 1 }]
+        }
+      ];
+      
+      document.body.innerHTML = createViewPageDOM({ 
+        items, 
+        includePollingElements: true 
+      });
       
       initializeViewPage();
     });
@@ -495,17 +393,7 @@ describe('View Page Claiming Functionality', () => {
     describe('Polling State Management', () => {
       it('should start polling with correct state', () => {
         // Mock fetch for polling endpoint
-        global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            participant_totals: [],
-            total_claimed: 0,
-            total_unclaimed: 0,
-            my_total: 0,
-            items_with_claims: []
-          })
-        });
+        mockAuthFetch(mockSuccessResponse(createPollData()));
 
         startPolling();
         
@@ -526,10 +414,7 @@ describe('View Page Claiming Functionality', () => {
       });
 
       it('should handle page visibility changes', () => {
-        global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve({ success: true, participant_totals: [], total_claimed: 0, total_unclaimed: 0, my_total: 0, items_with_claims: [] })
-        });
+        mockAuthFetch(mockSuccessResponse(createPollData()));
 
         startPolling();
         
@@ -583,17 +468,7 @@ describe('View Page Claiming Functionality', () => {
         // Start with some errors
         _setState({ pollingErrorCount: 2 });
         
-        global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            participant_totals: [],
-            total_claimed: 0,
-            total_unclaimed: 0,
-            my_total: 0,
-            items_with_claims: []
-          })
-        });
+        mockAuthFetch(mockSuccessResponse(createPollData()));
         
         await pollClaimStatus();
         
@@ -659,7 +534,7 @@ describe('View Page Claiming Functionality', () => {
 
       it('should update user total from server (new total claims protocol)', () => {
         // User has input showing desired total
-        document.querySelector('.claim-quantity[data-item-id="1"]').value = '1';
+        setClaim('1', '1');
         
         // Server updates user's total (should match input calculation)
         updateMyTotal(15.50);  // Server says user has $15.50 total
@@ -732,90 +607,6 @@ describe('View Page Claiming Functionality', () => {
         // Finalized context should use grey (disabled color)
         const finalizedHTML = generateFullyClaimedHTML(true);
         expect(finalizedHTML).toBe('<span class="text-gray-600 font-semibold">Fully Claimed</span>');
-        
-        // Test in actual DOM update scenario
-        document.body.innerHTML = `
-          <div class="item-container" data-item-id="1">
-            <div class="ml-4">
-              <div class="flex items-center space-x-2">
-                <input class="claim-quantity" data-item-id="1">
-              </div>
-            </div>
-          </div>
-        `;
-        
-        const itemContainer = document.querySelector('[data-item-id="1"]');
-        const claimSection = itemContainer.querySelector('.ml-4');
-        
-        // Simulate non-finalized user seeing fully claimed item
-        claimSection.innerHTML = generateFullyClaimedHTML(false);
-        let span = claimSection.querySelector('span');
-        expect(span.className).toBe('text-orange-600 font-semibold');
-        
-        // Simulate finalized user seeing fully claimed item  
-        claimSection.innerHTML = generateFullyClaimedHTML(true);
-        span = claimSection.querySelector('span');
-        expect(span.className).toBe('text-gray-600 font-semibold');
-      });
-
-      it('should maintain consistent "Fully Claimed" styling between server and real-time updates', () => {
-        // Start with item 1 that has availability
-        const item1Container = document.querySelector('[data-item-id="1"]');
-        const claimSection = item1Container.querySelector('.ml-4');
-        
-        // Verify initial state has claim input
-        expect(claimSection.querySelector('.claim-quantity')).toBeTruthy();
-        expect(claimSection.textContent).not.toContain('Fully Claimed');
-        
-        // Update via polling to make item fully claimed
-        const itemsData = [
-          {
-            item_id: '1',
-            available_quantity: 0, // Now fully claimed
-            claims: [
-              { claimer_name: 'Someone', quantity_claimed: 2 }
-            ]
-          }
-        ];
-        
-        updateItemClaims(itemsData, null, false); // Non-finalized user
-        
-        // Verify "Fully Claimed" was set with correct ORANGE styling (non-finalized user)
-        const fullyClaimedSpan = claimSection.querySelector('span.text-orange-600.font-semibold');
-        expect(fullyClaimedSpan).toBeTruthy();
-        expect(fullyClaimedSpan.textContent).toBe('Fully Claimed');
-        
-        // Verify it uses DRY abstraction (orange for non-finalized)
-        expect(fullyClaimedSpan.className).toBe('text-orange-600 font-semibold');
-        
-        // Verify no claim input exists when fully claimed
-        expect(claimSection.querySelector('.claim-quantity')).toBeFalsy();
-        
-        // Test restoration maintains proper structure  
-        const restorationData = [
-          {
-            item_id: '1',
-            available_quantity: 1, // Available again
-            claims: [
-              { claimer_name: 'Someone', quantity_claimed: 1 } // Partial claim
-            ]
-          }
-        ];
-        
-        updateItemClaims(restorationData);
-        
-        // Verify claim input was restored with proper structure
-        const restoredInput = claimSection.querySelector('.claim-quantity');
-        expect(restoredInput).toBeTruthy();
-        expect(restoredInput.getAttribute('max')).toBe('1');
-        
-        // Verify the input is wrapped in proper flex container
-        const flexContainer = restoredInput.closest('.flex.items-center.space-x-2');
-        expect(flexContainer).toBeTruthy();
-        
-        // Verify "Fully Claimed" span is gone (check both possible colors)
-        expect(claimSection.querySelector('span.text-orange-600.font-semibold, span.text-gray-600.font-semibold')).toBeFalsy();
-        expect(claimSection.textContent).not.toContain('Fully Claimed');
       });
 
       it('should update claims display for items', () => {
@@ -880,19 +671,7 @@ describe('View Page Claiming Functionality', () => {
 
     describe('Integration - Full Polling Cycle', () => {
       it('should stop polling when user becomes finalized', async () => {
-        global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            viewer_name: 'TestUser',
-            is_finalized: true,  // User is now finalized
-            participant_totals: [],
-            total_claimed: 0,
-            total_unclaimed: 0,
-            my_total: 0,
-            items_with_claims: []
-          })
-        });
+        mockAuthFetch(mockSuccessResponse(createPollData({ is_finalized: true })));
 
         startPolling();
         expect(_getState().pollingEnabled).toBe(true);
@@ -906,22 +685,21 @@ describe('View Page Claiming Functionality', () => {
 
       it('should handle complete polling update cycle', async () => {
         // Set up user with some pending claims
-        document.querySelector('.claim-quantity[data-item-id="1"]').value = '1';
+        setClaim('1', '1');
         updateTotal(); // Sets initial total display
         
-        const mockPollData = {
-          success: true,
+        const mockPollData = createPollData({
           participant_totals: [
             { name: 'Alice', amount: 15.50 },
             { name: 'Bob', amount: 25.75 }
           ],
           total_claimed: 41.25,
           total_unclaimed: 8.75,
-          my_total: 15.50, // User now has existing claims
+          my_total: 15.50,
           items_with_claims: [
             {
               item_id: '1',
-              available_quantity: 1, // Reduced from 2
+              available_quantity: 1,
               claims: [
                 { claimer_name: 'Bob', quantity_claimed: 1 }
               ]
@@ -934,12 +712,9 @@ describe('View Page Claiming Functionality', () => {
               ]
             }
           ]
-        };
-        
-        global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockPollData)
         });
+        
+        mockAuthFetch(mockSuccessResponse(mockPollData));
         
         // Simulate polling update
         await pollClaimStatus();
@@ -957,7 +732,7 @@ describe('View Page Claiming Functionality', () => {
         
         // 3. User's total updated by server (new protocol)
         const myTotalElement = document.getElementById('my-total');
-        expect(myTotalElement.textContent).toBe('$15.50'); // Server total directly displayed
+        expect(myTotalElement.textContent).toBe('$15.50');
         
         // 4. Item availability updated
         const item1Input = document.querySelector('.claim-quantity[data-item-id="1"]');

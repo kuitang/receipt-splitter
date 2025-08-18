@@ -50,13 +50,19 @@ export function setupMocks() {
   global.copyShareUrl = vi.fn();
   global.getCookie = vi.fn();
   global.getCsrfToken = vi.fn();
+  global.fetch = vi.fn();
+  
+  // Mock location.reload to avoid JSDOM navigation errors
+  // Note: JSDOM doesn't allow redefining location.reload, so tests that
+  // trigger reload will get an error but should continue
   
   return {
     alert: global.alert,
     confirm: global.confirm,
     escapeHtml: global.escapeHtml,
     authenticatedFetch: global.authenticatedFetch,
-    authenticatedJsonFetch: global.authenticatedJsonFetch
+    authenticatedJsonFetch: global.authenticatedJsonFetch,
+    fetch: global.fetch
   };
 }
 
