@@ -33,8 +33,10 @@ function calculateSubtotal() {
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(row => {
         const itemTotalElement = row.querySelector('.item-total');
-        const itemTotal = parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0;
-        subtotal += itemTotal;
+        if (itemTotalElement) {
+            const itemTotal = parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0;
+            subtotal += itemTotal;
+        }
     });
     return subtotal;
 }
@@ -71,18 +73,22 @@ function updateItemTotal(row) {
  * Update prorations for all items
  */
 function updateProrations() {
-    const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
-    const tax = parseFloat(document.getElementById('tax').value) || 0;
-    const tip = parseFloat(document.getElementById('tip').value) || 0;
+    const subtotalEl = document.getElementById('subtotal');
+    const taxEl = document.getElementById('tax');
+    const tipEl = document.getElementById('tip');
+    
+    const subtotal = subtotalEl ? (parseFloat(subtotalEl.value) || 0) : 0;
+    const tax = taxEl ? (parseFloat(taxEl.value) || 0) : 0;
+    const tip = tipEl ? (parseFloat(tipEl.value) || 0) : 0;
     
     document.querySelectorAll('.item-row').forEach(row => {
         const itemTotalElement = row.querySelector('.item-total');
         const quantityElement = row.querySelector('.item-quantity');
         const priceElement = row.querySelector('.item-price');
         
-        const itemTotal = parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0;
-        const quantity = parseInt(quantityElement.value) || 0;
-        const price = parseFloat(priceElement.value) || 0;
+        const itemTotal = itemTotalElement ? (parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0) : 0;
+        const quantity = quantityElement ? (parseInt(quantityElement.value) || 0) : 0;
+        const price = priceElement ? (parseFloat(priceElement.value) || 0) : 0;
         
         // Update proration display
         if (subtotal > 0) {
@@ -133,7 +139,7 @@ function validateReceipt() {
         errors.push(`Total $${data.total.toFixed(2)} doesn't match subtotal ($${data.subtotal.toFixed(2)}) + tax ($${data.tax.toFixed(2)}) + tip ($${data.tip.toFixed(2)}) = $${calculatedTotal.toFixed(2)}`);
     }
     
-    // Check for negative values
+    // Check for negative values (allow negative tax/tip as discounts)
     if (data.subtotal < 0) errors.push("Subtotal cannot be negative");
     if (data.total < 0) errors.push("Total cannot be negative");
     
@@ -190,6 +196,7 @@ function addItem() {
     if (isProcessing) return;
     
     const container = document.getElementById('items-container');
+    if (!container) return;
     const newRow = document.createElement('div');
     newRow.className = 'item-row flex gap-2 items-start';
     newRow.innerHTML = `
@@ -262,14 +269,17 @@ function attachItemListeners(row) {
 function getReceiptData() {
     const items = [];
     document.querySelectorAll('.item-row').forEach(row => {
-        const name = row.querySelector('.item-name').value;
+        const nameEl = row.querySelector('.item-name');
+        const name = nameEl ? nameEl.value : '';
         if (name) {
+            const quantityEl = row.querySelector('.item-quantity');
+            const priceEl = row.querySelector('.item-price');
             const itemTotalElement = row.querySelector('.item-total');
             items.push({
                 name: name,
-                quantity: parseInt(row.querySelector('.item-quantity').value) || 1,
-                unit_price: parseFloat(row.querySelector('.item-price').value) || 0,
-                total_price: parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0
+                quantity: quantityEl ? (parseInt(quantityEl.value) || 1) : 1,
+                unit_price: priceEl ? (parseFloat(priceEl.value) || 0) : 0,
+                total_price: itemTotalElement ? (parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0) : 0
             });
         }
     });
@@ -299,6 +309,7 @@ function getReceiptData() {
  */
 async function saveReceipt(skipReload = false) {
     if (isProcessing) return;
+    isProcessing = true;
     
     const data = getReceiptData();
     
@@ -331,6 +342,8 @@ async function saveReceipt(skipReload = false) {
     } catch (error) {
         // Keep error alerts as they require user attention
         alert('Error saving receipt: ' + error.message);
+    } finally {
+        isProcessing = false;
     }
 }
 

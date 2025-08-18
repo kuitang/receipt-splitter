@@ -135,6 +135,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       for (let i = 0; i < 100; i++) {
         addItem();
         const row = document.querySelectorAll('.item-row')[i];
+        row.querySelector('.item-name').value = `Item ${i + 1}`;
         row.querySelector('.item-quantity').value = '1';
         row.querySelector('.item-price').value = '0.01'; // Penny items
         updateItemTotal(row);
@@ -368,6 +369,9 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
     it('should handle negative tax and tip as discounts', () => {
       addItem();
       const row = document.querySelector('.item-row');
+      row.querySelector('.item-name').value = 'Test Item';
+      row.querySelector('.item-quantity').value = '1';
+      row.querySelector('.item-price').value = '100';
       row.querySelector('.item-total').value = '100';
       row.querySelector('.item-total').dataset.fullValue = '100';
       
@@ -378,6 +382,44 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       
       const errors = validateReceipt();
       expect(errors.length).toBe(0);
+    });
+
+    it('should reject negative subtotal', () => {
+      addItem();
+      const row = document.querySelector('.item-row');
+      row.querySelector('.item-name').value = 'Test Item';
+      row.querySelector('.item-quantity').value = '1';
+      row.querySelector('.item-price').value = '-50';  // Negative price
+      row.querySelector('.item-total').value = '-50';
+      row.querySelector('.item-total').dataset.fullValue = '-50';
+      
+      document.getElementById('subtotal').value = '-50';
+      document.getElementById('tax').value = '0';
+      document.getElementById('tip').value = '0';
+      document.getElementById('total').value = '-50';
+      
+      const errors = validateReceipt();
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some(e => e.includes('Subtotal cannot be negative'))).toBe(true);
+    });
+
+    it('should reject negative total', () => {
+      addItem();
+      const row = document.querySelector('.item-row');
+      row.querySelector('.item-name').value = 'Test Item';
+      row.querySelector('.item-quantity').value = '1';
+      row.querySelector('.item-price').value = '10';
+      row.querySelector('.item-total').value = '10';
+      row.querySelector('.item-total').dataset.fullValue = '10';
+      
+      document.getElementById('subtotal').value = '10';
+      document.getElementById('tax').value = '-5';
+      document.getElementById('tip').value = '-10';  // Too much credit, makes total negative
+      document.getElementById('total').value = '-5';
+      
+      const errors = validateReceipt();
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some(e => e.includes('Total cannot be negative'))).toBe(true);
     });
 
     it('should calculate complex split scenarios correctly', () => {

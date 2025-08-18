@@ -56,7 +56,8 @@ fi
 
 echo -e "${GREEN}✅ Django server is running${NC}"
 
-# Set environment variable for OCR
+# Set environment variables for testing
+export DEBUG=true  # Enable debug mode for integration tests to avoid static file hashing
 if [ "$USE_REAL_OCR" = true ]; then
     export INTEGRATION_TEST_REAL_OPENAI_OCR=true
     echo -e "${YELLOW}⚠️  Using REAL OpenAI API (this will cost money!)${NC}"
