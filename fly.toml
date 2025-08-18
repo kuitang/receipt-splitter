@@ -26,5 +26,5 @@ primary_region = "ord"
   url_prefix = "/static/"
 
 
-# [deploy]
-  # release_command = "python manage.py migrate"
+[deploy]
+  release_command = "python manage.py migrate --noinput"
