@@ -157,6 +157,40 @@ class ReceiptService:
             'share_url': receipt.get_absolute_url()
         }
     
+    def get_receipt_for_viewing_by_slug(self, slug: str) -> Dict:
+        """
+        Get receipt by slug with all claims and calculations for viewing
+        Combines get_receipt_by_slug and get_receipt_for_viewing into ONE query
+        """
+        # Try cache first for finalized receipts
+        # We need to get ID first, but we can do it in the same query below
+        
+        # Get receipt with ALL related data in ONE query!
+        try:
+            receipt = Receipt.objects.prefetch_related(
+                'items',
+                'viewers',
+                Prefetch('items__claims', 
+                         queryset=Claim.objects.select_related('line_item'))
+            ).get(slug=slug)
+            
+            # Ensure slug exists (for legacy receipts)
+            if not receipt.slug:
+                receipt.slug = Receipt.generate_unique_slug()
+                receipt.save(update_fields=['slug'])
+        except Receipt.DoesNotExist:
+            raise ReceiptNotFoundError(f"Receipt with slug {slug} not found")
+        
+        # Check cache for finalized receipts
+        cache_key = f"receipt_view:{receipt.id}"
+        if receipt.is_finalized:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        
+        # Rest of the method remains the same...
+        return self._prepare_receipt_viewing_data(receipt)
+    
     def get_receipt_for_viewing(self, receipt_id: str) -> Dict:
         """
         Get receipt with all claims and calculations for viewing
@@ -175,6 +209,12 @@ class ReceiptService:
             cached = cache.get(cache_key)
             if cached is not None:
                 return cached
+        
+        return self._prepare_receipt_viewing_data(receipt)
+    
+    def _prepare_receipt_viewing_data(self, receipt: Receipt) -> Dict:
+        """Prepare viewing data from a prefetched receipt (no additional queries!)"""
+        receipt_id = str(receipt.id)
         
         # Prepare items with claims data - calculate availability without extra queries!
         items_with_claims = []
@@ -212,6 +252,7 @@ class ReceiptService:
         }
         
         # Cache if finalized (30 minutes)
+        cache_key = f"receipt_view:{receipt_id}"
         if receipt.is_finalized:
             cache.set(cache_key, result, 1800)
         

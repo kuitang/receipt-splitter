@@ -181,14 +181,10 @@ def finalize_receipt(request, receipt_slug):
 def view_receipt(request, receipt_slug):
     """View and claim items on a receipt"""
     try:
-        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-        
-        if not receipt:
-            return HttpResponse('Receipt not found', status=404)
-        
-        receipt_id = str(receipt.id)
-        receipt_data = receipt_service.get_receipt_for_viewing(receipt_id)
+        # Single optimized query instead of double fetch!
+        receipt_data = receipt_service.get_receipt_for_viewing_by_slug(receipt_slug)
         receipt = receipt_data['receipt']
+        receipt_id = str(receipt.id)
         
         user_context = request.user_context(receipt_id)
         viewer_name = user_context.name
@@ -389,13 +385,10 @@ def check_processing_status(request, receipt_slug):
 def get_claim_status(request, receipt_slug):
     """Get current claim status for real-time updates"""
     try:
-        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-        
-        if not receipt:
-            return JsonResponse({'error': 'Receipt not found'}, status=404)
-        
+        # Single optimized query instead of double fetch!
+        receipt_data = receipt_service.get_receipt_for_viewing_by_slug(receipt_slug)
+        receipt = receipt_data['receipt']
         receipt_id = str(receipt.id)
-        receipt_data = receipt_service.get_receipt_for_viewing(receipt_id)
         
         # Get current user context
         user_context = request.user_context(receipt_id)

@@ -53,11 +53,21 @@ class ClaimService:
         Returns:
             Dict with success status and updated totals
         """
-        # Verify receipt exists and is finalized (with prefetch for efficiency)
+        # Single optimized query: get receipt + check if user finalized in ONE query!
+        from django.db.models import Exists, OuterRef
+        
+        user_finalized_subquery = Claim.objects.filter(
+            line_item__receipt_id=OuterRef('id'),
+            session_id=session_id,
+            is_finalized=True
+        )
+        
         try:
             receipt = Receipt.objects.prefetch_related(
                 'items',
                 'items__claims'
+            ).annotate(
+                user_has_finalized=Exists(user_finalized_subquery)
             ).get(id=receipt_id)
         except Receipt.DoesNotExist:
             raise ValueError(f"Receipt {receipt_id} not found")
@@ -65,34 +75,24 @@ class ClaimService:
         if not receipt.is_finalized:
             raise ReceiptNotFinalizedError("Receipt must be finalized before claiming items")
         
-        # Check if user has already finalized their claims (single exists check)
-        if Claim.objects.filter(
-            line_item__receipt_id=receipt_id,
-            session_id=session_id,
-            is_finalized=True
-        ).exists():
+        # Check annotation instead of separate query!
+        if receipt.user_has_finalized:
             raise ValueError("Claims have already been finalized and cannot be changed")
         
         # Build lookup dictionaries from prefetched data (no additional queries!)
         line_items_dict = {str(item.id): item for item in receipt.items.all()}
         
-        # Get all availability data in a SINGLE query
-        # Ensure item_ids are strings for consistency
-        item_ids = [str(claim_data['line_item_id']) for claim_data in claims_data]
+        # Calculate availability from ALREADY PREFETCHED claims (zero queries!)
         availability_data = {}
-        if item_ids:
-            # Single aggregated query for all items' availability
-            availability_results = Claim.objects.filter(
-                line_item_id__in=item_ids
-            ).exclude(
-                session_id=session_id
-            ).values('line_item_id').annotate(
-                claimed_by_others=Sum('quantity_claimed')
+        for item in receipt.items.all():
+            item_id = str(item.id)
+            # Sum claims from others using prefetched data
+            claimed_by_others = sum(
+                claim.quantity_claimed 
+                for claim in item.claims.all()  # Already prefetched!
+                if claim.session_id != session_id
             )
-            
-            # Convert to dict for O(1) lookups
-            for result in availability_results:
-                availability_data[str(result['line_item_id'])] = result['claimed_by_others'] or 0
+            availability_data[item_id] = claimed_by_others
         
         # Validate all claims using cached data (no queries in this loop!)
         validation_errors = []
