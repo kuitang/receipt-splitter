@@ -680,9 +680,10 @@ async function confirmClaims() {
         return;
     }
     
-    // Reload to show finalized state
-    if (typeof location !== 'undefined' && location.reload) {
-        location.reload();
+    // Redirect to the view page to show finalized state
+    // Using explicit redirect instead of reload to avoid any session/state issues
+    if (typeof window !== 'undefined' && window.location) {
+        window.location.href = `/r/${receiptSlug}/`;
     }
 }
 

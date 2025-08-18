@@ -8,6 +8,9 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from decimal import Decimal
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import Receipt, LineItem, Claim, ActiveViewer
 from .services import ReceiptService, ClaimService, ValidationPipeline
@@ -297,8 +300,12 @@ def view_receipt(request, receipt_slug):
         # Return 404 instead of redirecting for better REST behavior
         return HttpResponse('Receipt not found', status=404)
     except Exception as e:
-        messages.error(request, f'Error viewing receipt: {str(e)}')
-        return redirect('index')
+        # Log the full exception with traceback
+        logger.exception(f"Exception in view_receipt for slug '{receipt_slug}'")
+        
+        # Return a proper error response instead of redirecting
+        # This prevents confusing redirects and maintains REST principles
+        return HttpResponse('An error occurred while loading the receipt. Please try again later.', status=500)
 
 
 @rate_limit_claim
