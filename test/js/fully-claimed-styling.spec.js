@@ -160,7 +160,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
       // Assert: Should show ENABLED input
       expect(input).toBeTruthy();
-      expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border border-gray-300 rounded');
+      expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-300');
       expect(input.disabled).toBe(false);
       expect(input.readOnly).toBe(false);
       
@@ -192,7 +192,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
       // Assert: Should show ENABLED input
       expect(input).toBeTruthy();
-      expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border border-gray-300 rounded');
+      expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-300');
       expect(input.disabled).toBe(false);
       expect(input.readOnly).toBe(false);
       expect(input.value).toBe('1'); // Shows existing claim

@@ -693,16 +693,20 @@ describe('View Page Claiming Functionality', () => {
         const item1Input = document.querySelector('.claim-quantity[data-item-id="1"]');
         expect(item1Input.getAttribute('max')).toBe('1');
         
-        // Check item 2 - should still be "Fully Claimed"
+        // Check item 2 - should show disabled input
         const item2Container = document.querySelector('[data-item-id="2"]');
-        const item2ClaimSection = item2Container.querySelector('.ml-4');
-        expect(item2ClaimSection.textContent.trim()).toBe('Fully Claimed');
+        const item2Input = item2Container.querySelector('.claim-quantity');
+        expect(item2Input).toBeTruthy();
+        expect(item2Input.disabled).toBe(true);
+        expect(item2Input.className).toContain('bg-gray-50');
       });
 
       it('should restore claim input when item becomes available again', () => {
-        // Item 2 starts as fully claimed
+        // Item 2 starts as fully claimed (old HTML with "Fully Claimed" text)
         const item2Container = document.querySelector('[data-item-id="2"]');
-        expect(item2Container.querySelector('.ml-4').textContent.trim()).toBe('Fully Claimed');
+        // Initially has "Fully Claimed" text, not input
+        const initialClaimSection = item2Container.querySelector('.ml-4');
+        expect(initialClaimSection.textContent).toContain('Fully Claimed');
         
         // Update with availability
         const itemsData = [
@@ -721,17 +725,17 @@ describe('View Page Claiming Functionality', () => {
         expect(claimInput.getAttribute('max')).toBe('1');
       });
 
-      it('should use DRY abstraction for context-aware "Fully Claimed" styling', () => {
-        // Test the DRY abstraction function directly
-        const { generateFullyClaimedHTML } = viewPageModule;
+      it('should use DRY abstraction for consistent disabled input classes', () => {
+        // Test the DRY helper function
+        const { getClaimInputClasses } = viewPageModule;
         
-        // Non-finalized context should use orange (warning color)
-        const nonFinalizedHTML = generateFullyClaimedHTML(false);
-        expect(nonFinalizedHTML).toBe('<span class="text-orange-600 font-semibold">Fully Claimed</span>');
+        // Enabled input should use gray-300 border
+        const enabledClasses = getClaimInputClasses(false);
+        expect(enabledClasses).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-300');
         
-        // Finalized context should use grey (disabled color)
-        const finalizedHTML = generateFullyClaimedHTML(true);
-        expect(finalizedHTML).toBe('<span class="text-gray-600 font-semibold">Fully Claimed</span>');
+        // Disabled input should use gray-200 border and gray-50 background
+        const disabledClasses = getClaimInputClasses(true);
+        expect(disabledClasses).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600');
         
         // Test in actual DOM update scenario
         document.body.innerHTML = `
@@ -744,28 +748,30 @@ describe('View Page Claiming Functionality', () => {
           </div>
         `;
         
-        const itemContainer = document.querySelector('[data-item-id="1"]');
-        const claimSection = itemContainer.querySelector('.ml-4');
+        // Update item to fully claimed state
+        const itemsData = [{
+          item_id: '1',
+          available_quantity: 0,
+          claims: [{ claimer_name: 'SomeoneElse', quantity_claimed: 1 }]
+        }];
         
-        // Simulate non-finalized user seeing fully claimed item
-        claimSection.innerHTML = generateFullyClaimedHTML(false);
-        let span = claimSection.querySelector('span');
-        expect(span.className).toBe('text-orange-600 font-semibold');
+        updateItemClaims(itemsData, 'CurrentUser', false);
         
-        // Simulate finalized user seeing fully claimed item  
-        claimSection.innerHTML = generateFullyClaimedHTML(true);
-        span = claimSection.querySelector('span');
-        expect(span.className).toBe('text-gray-600 font-semibold');
+        const input = document.querySelector('.claim-quantity[data-item-id="1"]');
+        expect(input).toBeTruthy();
+        expect(input.disabled).toBe(true);
+        expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600');
       });
 
-      it('should maintain consistent "Fully Claimed" styling between server and real-time updates', () => {
+      it('should maintain consistent disabled input styling between server and real-time updates', () => {
         // Start with item 1 that has availability
         const item1Container = document.querySelector('[data-item-id="1"]');
         const claimSection = item1Container.querySelector('.ml-4');
         
-        // Verify initial state has claim input
-        expect(claimSection.querySelector('.claim-quantity')).toBeTruthy();
-        expect(claimSection.textContent).not.toContain('Fully Claimed');
+        // Verify initial state has enabled claim input
+        const initialInput = claimSection.querySelector('.claim-quantity');
+        expect(initialInput).toBeTruthy();
+        expect(initialInput.disabled).toBe(false);
         
         // Update via polling to make item fully claimed
         const itemsData = [
@@ -780,16 +786,15 @@ describe('View Page Claiming Functionality', () => {
         
         updateItemClaims(itemsData, null, false); // Non-finalized user
         
-        // Verify "Fully Claimed" was set with correct ORANGE styling (non-finalized user)
-        const fullyClaimedSpan = claimSection.querySelector('span.text-orange-600.font-semibold');
-        expect(fullyClaimedSpan).toBeTruthy();
-        expect(fullyClaimedSpan.textContent).toBe('Fully Claimed');
+        // Verify disabled input was set (no viewer means item is fully claimed for them)
+        const disabledInput = claimSection.querySelector('.claim-quantity');
+        expect(disabledInput).toBeTruthy();
+        expect(disabledInput.disabled).toBe(true);
+        expect(disabledInput.className).toContain('bg-gray-50');
+        expect(disabledInput.className).toContain('text-gray-600');
         
-        // Verify it uses DRY abstraction (orange for non-finalized)
-        expect(fullyClaimedSpan.className).toBe('text-orange-600 font-semibold');
-        
-        // Verify no claim input exists when fully claimed
-        expect(claimSection.querySelector('.claim-quantity')).toBeFalsy();
+        // Verify item container has opacity
+        expect(item1Container.classList.contains('opacity-50')).toBe(true);
         
         // Test restoration maintains proper structure  
         const restorationData = [
@@ -802,7 +807,7 @@ describe('View Page Claiming Functionality', () => {
           }
         ];
         
-        updateItemClaims(restorationData);
+        updateItemClaims(restorationData, 'TestUser', false); // Provide viewer name
         
         // Verify claim input was restored with proper structure
         const restoredInput = claimSection.querySelector('.claim-quantity');
@@ -813,9 +818,12 @@ describe('View Page Claiming Functionality', () => {
         const flexContainer = restoredInput.closest('.flex.items-center.space-x-2');
         expect(flexContainer).toBeTruthy();
         
-        // Verify "Fully Claimed" span is gone (check both possible colors)
-        expect(claimSection.querySelector('span.text-orange-600.font-semibold, span.text-gray-600.font-semibold')).toBeFalsy();
-        expect(claimSection.textContent).not.toContain('Fully Claimed');
+        // Verify input is now enabled again
+        expect(restoredInput.disabled).toBe(false);
+        expect(restoredInput.className).not.toContain('bg-gray-50');
+        
+        // Verify item container opacity is removed
+        expect(item1Container.classList.contains('opacity-50')).toBe(false);
       });
 
       it('should update claims display for items', () => {

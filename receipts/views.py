@@ -194,6 +194,10 @@ def view_receipt(request, receipt_slug):
         viewer_name = user_context.name
         is_uploader = user_context.is_uploader
         
+        # For uploaders, use their uploader name as viewer name
+        if is_uploader and not viewer_name:
+            viewer_name = receipt.uploader_name
+        
         # Handle name submission
         if request.method == 'POST' and not viewer_name and not is_uploader:
             name = request.POST.get('viewer_name', '').strip()
@@ -278,7 +282,7 @@ def view_receipt(request, receipt_slug):
         context = {
             'receipt': receipt,
             'items_with_claims': receipt_data['items_with_claims'],
-            'viewer_name': viewer_name or (receipt.uploader_name if is_uploader else None),
+            'viewer_name': viewer_name,
             'is_uploader': is_uploader,
             'my_claims': my_claims,
             'my_claims_by_item': my_claims_by_item,

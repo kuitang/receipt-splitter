@@ -16,6 +16,20 @@ let pollingErrorCount = 0;
 const POLLING_INTERVAL_MS = 5000; // 5 seconds
 const MAX_POLLING_ERRORS = 3;
 
+// CSS class constants for claim inputs
+const CLAIM_INPUT_CLASSES = {
+    base: 'claim-quantity w-20 px-2 py-1 border rounded',
+    enabled: 'border-gray-300',
+    disabled: 'border-gray-200 bg-gray-50 text-gray-600'
+};
+
+/**
+ * Helper to get input classes based on disabled state
+ */
+function getClaimInputClasses(disabled) {
+    return `${CLAIM_INPUT_CLASSES.base} ${disabled ? CLAIM_INPUT_CLASSES.disabled : CLAIM_INPUT_CLASSES.enabled}`;
+}
+
 /**
  * Initialize view page with data from DOM
  */
@@ -306,8 +320,8 @@ function updateFinalizationStatus(isFinalized) {
     // Disable all claim inputs
     document.querySelectorAll('.claim-quantity').forEach(input => {
         input.readOnly = true;
-        input.classList.add('border-gray-200', 'bg-gray-50', 'text-gray-600');
-        input.classList.remove('border-gray-300');
+        input.disabled = true;
+        input.className = getClaimInputClasses(true);
     });
     
     // Update all labels from "Claim:" to "Claimed:"
@@ -370,22 +384,18 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
         if (claimSection) {
             const hasInput = claimSection.querySelector('.claim-quantity') !== null;
             const isFullyClaimed = (itemData.available_quantity === 0 && myExistingClaim === 0);
+            const shouldDisable = isFinalized || isFullyClaimed;
             
             // Always show input field, just change its state
             if (!hasInput) {
                 const labelText = isFinalized ? 'Claimed:' : 'Claim:';
-                // Apply grey styling if finalized OR fully claimed with no user claims
-                const shouldDisable = isFinalized || isFullyClaimed;
-                const inputClasses = shouldDisable
-                    ? 'claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600'
-                    : 'claim-quantity w-20 px-2 py-1 border border-gray-300 rounded';
                 const disabledAttr = shouldDisable ? 'readonly disabled' : '';
                 
                 claimSection.innerHTML = `
                     <div class="flex items-center space-x-2">
                         <label class="text-sm text-gray-600">${labelText}</label>
                         <input type="number" 
-                               class="${inputClasses}"
+                               class="${getClaimInputClasses(shouldDisable)}"
                                min="0"
                                max="${totalPossible}"
                                value="${myExistingClaim}"
@@ -405,22 +415,16 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                 // Update existing input's disabled state
                 const existingInput = claimSection.querySelector('.claim-quantity');
                 if (existingInput) {
-                    const shouldDisable = isFinalized || isFullyClaimed;
-                    if (shouldDisable) {
-                        existingInput.readOnly = true;
-                        existingInput.disabled = true;
-                        existingInput.className = 'claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600';
-                    }
+                    existingInput.readOnly = shouldDisable;
+                    existingInput.disabled = shouldDisable;
+                    existingInput.className = getClaimInputClasses(shouldDisable);
                 }
             }
         }
         
         // Update item container opacity
-        if (itemData.available_quantity === 0 && myExistingClaim === 0) {
-            itemContainer.classList.add('opacity-50');
-        } else {
-            itemContainer.classList.remove('opacity-50');
-        }
+        const isFullyClaimed = (itemData.available_quantity === 0 && myExistingClaim === 0);
+        itemContainer.classList.toggle('opacity-50', isFullyClaimed);
         
         // Update claims display
         updateItemClaimsDisplay(itemContainer, itemData.claims);
@@ -677,7 +681,9 @@ async function confirmClaims() {
     }
     
     // Reload to show finalized state
-    location.reload();
+    if (typeof location !== 'undefined' && location.reload) {
+        location.reload();
+    }
 }
 
 /**
@@ -764,6 +770,9 @@ if (typeof module !== 'undefined' && module.exports) {
         updateItemClaimsDisplay,
         showPollingError,
         hidePollingError,
+        
+        // Helper functions
+        getClaimInputClasses,
         
         // State variables (for testing)
         _getState: () => ({ 
