@@ -43,28 +43,47 @@ class ClaimRepository:
             return None
     
     def get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
-        """Calculate totals per participant efficiently"""
-        from receipts.models import Receipt
+        """Calculate totals per participant efficiently with single query and caching"""
+        from django.core.cache import cache
         
-        # Get the receipt for calculations
+        # Check cache first for finalized receipts
+        cache_key = f"participant_totals:{receipt_id}"
+        cached_totals = cache.get(cache_key)
+        
+        # Check if receipt is finalized for caching eligibility
         try:
-            receipt = Receipt.objects.get(id=receipt_id)
+            from receipts.models import Receipt
+            receipt = Receipt.objects.only('is_finalized').get(id=receipt_id)
+            is_finalized = receipt.is_finalized
         except Receipt.DoesNotExist:
-            return {}
+            is_finalized = False
         
-        # Get all claims with their line items
-        claims = Claim.objects.filter(
+        # Return cached result if available and receipt is finalized
+        if cached_totals is not None and is_finalized:
+            return cached_totals
+        
+        # Use database aggregation to avoid N+1 queries
+        totals = Claim.objects.filter(
             line_item__receipt_id=receipt_id
-        ).select_related('line_item')
+        ).values('claimer_name').annotate(
+            total=Sum(
+                F('quantity_claimed') * (
+                    F('line_item__total_price') + 
+                    F('line_item__prorated_tax') + 
+                    F('line_item__prorated_tip')
+                ) / F('line_item__quantity'),
+                output_field=DecimalField(max_digits=12, decimal_places=6)
+            )
+        ).values_list('claimer_name', 'total')
         
-        # Calculate totals manually to match existing logic
-        participant_totals = {}
-        for claim in claims:
-            if claim.claimer_name not in participant_totals:
-                participant_totals[claim.claimer_name] = Decimal('0')
-            participant_totals[claim.claimer_name] += claim.get_share_amount()
+        # Convert to dictionary format
+        result = dict(totals)
         
-        return participant_totals
+        # Cache result if receipt is finalized (1 hour cache)
+        if is_finalized:
+            cache.set(cache_key, result, 3600)
+        
+        return result
     
     def count_claimed_quantity(self, line_item_id: str) -> int:
         """Get total claimed quantity for a line item"""

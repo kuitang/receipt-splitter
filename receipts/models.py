@@ -120,6 +120,14 @@ class Claim(models.Model):
     # Legacy fields - will be removed in cleanup
     grace_period_ends = models.DateTimeField(null=True, blank=True)
     
+    class Meta:
+        indexes = [
+            models.Index(fields=['session_id']),
+            models.Index(fields=['claimer_name']),
+            models.Index(fields=['line_item', 'session_id']),
+            models.Index(fields=['line_item', 'claimer_name']),
+        ]
+    
     def save(self, *args, **kwargs):
         # Legacy grace period logic for backwards compatibility
         if not self.grace_period_ends and not self.is_finalized:
@@ -153,6 +161,9 @@ class ActiveViewer(models.Model):
     
     class Meta:
         unique_together = ['receipt', 'session_id']
+        indexes = [
+            models.Index(fields=['session_id']),
+        ]
     
     def __str__(self):
         return f"{self.viewer_name} viewing {self.receipt}"

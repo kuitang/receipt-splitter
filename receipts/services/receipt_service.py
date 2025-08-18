@@ -7,12 +7,14 @@ from decimal import Decimal
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.core.signing import Signer, BadSignature
+from django.core.cache import cache
 
 from receipts.models import Receipt, LineItem, ActiveViewer
 from receipts.repositories import ReceiptRepository, ClaimRepository
 from receipts.services.validation_pipeline import ValidationPipeline
 from receipts.async_processor import process_receipt_async, create_placeholder_receipt
 from receipts.image_storage import store_receipt_image_in_memory
+from receipts.middleware.query_performance_middleware import log_query_performance
 
 
 class ReceiptNotFoundError(Exception):
@@ -156,27 +158,45 @@ class ReceiptService:
             'share_url': receipt.get_absolute_url()
         }
     
+    @log_query_performance
     def get_receipt_for_viewing(self, receipt_id: str) -> Dict:
         """
-        Get receipt with all claims and calculations for viewing
+        Get receipt with all claims and calculations for viewing - optimized with caching
         """
+        # Check cache for finalized receipts
+        cache_key = f"receipt_view:{receipt_id}"
+        
         # Get receipt with all related data
         receipt = self.repository.get_with_claims_and_viewers(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
         
-        # Prepare items with claims data
+        # Check cache for finalized receipts
+        if receipt.is_finalized:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                # Update the receipt object in cached data to ensure it's current
+                cached_data['receipt'] = receipt
+                return cached_data
+        
+        # Calculate participant totals efficiently (already cached in repository)
+        participant_totals = self.claim_repository.get_participant_totals(receipt_id)
+        
+        # Prepare items with claims data (using prefetched data)
         items_with_claims = []
         for item in receipt.items.all():
+            # Claims are already prefetched and ordered
             claims = item.claims.all()
+            
+            # Calculate available quantity from prefetched claims
+            total_claimed = sum(claim.quantity_claimed for claim in claims)
+            available_quantity = item.quantity - total_claimed
+            
             items_with_claims.append({
                 'item': item,
                 'claims': claims,
-                'available_quantity': item.get_available_quantity()
+                'available_quantity': available_quantity
             })
-        
-        # Calculate participant totals
-        participant_totals = self.claim_repository.get_participant_totals(receipt_id)
         
         # Calculate summary
         total_claimed = sum(participant_totals.values())
@@ -188,13 +208,26 @@ class ReceiptService:
             for name, amount in participant_totals.items()
         ], key=lambda x: x['name'])
         
-        return {
+        result = {
             'receipt': receipt,
             'items_with_claims': items_with_claims,
             'participant_totals': participant_list,
             'total_claimed': total_claimed,
             'total_unclaimed': total_unclaimed
         }
+        
+        # Cache result for finalized receipts (30 minutes)
+        if receipt.is_finalized:
+            # Cache everything except the receipt object to avoid staleness
+            cache_data = {
+                'items_with_claims': items_with_claims,
+                'participant_totals': participant_list,
+                'total_claimed': total_claimed,
+                'total_unclaimed': total_unclaimed
+            }
+            cache.set(cache_key, cache_data, 1800)
+        
+        return result
     
     def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str) -> ActiveViewer:
         """Register a viewer for the receipt"""

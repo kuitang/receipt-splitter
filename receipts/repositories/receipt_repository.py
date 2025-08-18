@@ -41,7 +41,7 @@ class ReceiptRepository:
                 'items',
                 'viewers',
                 Prefetch('items__claims', 
-                         queryset=Claim.objects.select_related('line_item'))
+                         queryset=Claim.objects.select_related('line_item').order_by('claimed_at'))
             ).get(id=receipt_id)
             
             # Ensure slug exists (for legacy receipts)
@@ -66,13 +66,15 @@ class ReceiptRepository:
         
         receipt = Receipt.objects.create(**data)
         
+        # Create items with bulk insert to avoid write amplification
+        items = []
         for item_data in items_data:
-            line_item = LineItem.objects.create(
-                receipt=receipt,
-                **item_data
-            )
+            line_item = LineItem(receipt=receipt, **item_data)
             line_item.calculate_prorations()
-            line_item.save()
+            items.append(line_item)
+        
+        if items:
+            LineItem.objects.bulk_create(items)
         
         return receipt
     
@@ -95,14 +97,15 @@ class ReceiptRepository:
             # Delete existing items
             receipt.items.all().delete()
             
-            # Create new items
+            # Create new items with bulk insert
+            items = []
             for item_data in data['items']:
-                line_item = LineItem.objects.create(
-                    receipt=receipt,
-                    **item_data
-                )
+                line_item = LineItem(receipt=receipt, **item_data)
                 line_item.calculate_prorations()
-                line_item.save()
+                items.append(line_item)
+            
+            if items:
+                LineItem.objects.bulk_create(items)
         
         return receipt
     
