@@ -165,29 +165,29 @@ class ReceiptService:
         # Check cache for finalized receipts
         cache_key = f"receipt_view:{receipt_id}"
         
-        # Try to get from cache if receipt is finalized
-        try:
-            receipt_check = Receipt.objects.only('is_finalized').get(id=receipt_id)
-            if receipt_check.is_finalized:
-                cached = cache.get(cache_key)
-                if cached is not None:
-                    return cached
-        except Receipt.DoesNotExist:
-            raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
-        
-        # Get receipt with all related data
+        # Get receipt with all related data in ONE query (not two!)
         receipt = self._get_with_claims_and_viewers(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
         
-        # Prepare items with claims data
+        # Check cache AFTER we have the receipt (avoid double query)
+        if receipt.is_finalized:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        
+        # Prepare items with claims data - calculate availability without extra queries!
         items_with_claims = []
         for item in receipt.items.all():
-            claims = item.claims.all()
+            claims = item.claims.all()  # Already prefetched, no query!
+            # Calculate available quantity from prefetched data
+            total_claimed = sum(claim.quantity_claimed for claim in claims)
+            available_quantity = item.quantity - total_claimed
+            
             items_with_claims.append({
                 'item': item,
                 'claims': claims,
-                'available_quantity': item.get_available_quantity()
+                'available_quantity': available_quantity
             })
         
         # Calculate participant totals

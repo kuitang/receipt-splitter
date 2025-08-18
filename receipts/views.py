@@ -249,29 +249,29 @@ def view_receipt(request, receipt_slug):
                 user_context.session_id
             )
         
-        # Get user's claims and finalization status
+        # Extract user's claims from already-fetched data (no additional queries!)
         my_claims = []
         my_total = Decimal('0')
         my_claims_by_item = {}  # Map item_id -> quantity_claimed
         is_user_finalized = False
         
         if viewer_name:
-            my_claims = claim_service.get_claims_for_name(
-                receipt_id, 
-                viewer_name
-            )
-            my_total = claim_service.calculate_name_total(
-                receipt_id,
-                viewer_name
-            )
-            is_user_finalized = claim_service.is_user_finalized(
-                receipt_id, 
-                user_context.session_id
-            )
-            
-            # Create lookup for existing claims by item ID
-            for claim in my_claims:
-                my_claims_by_item[str(claim.line_item.id)] = claim.quantity_claimed
+            # Extract claims from prefetched data instead of making 3 separate queries
+            for item_data in receipt_data['items_with_claims']:
+                item = item_data['item']
+                for claim in item_data['claims']:
+                    # Check if this claim belongs to the current viewer
+                    if claim.claimer_name == viewer_name:
+                        my_claims.append(claim)
+                        my_claims_by_item[str(item.id)] = claim.quantity_claimed
+                        # Calculate share amount inline (avoid another query)
+                        unit_price = item.total_price / item.quantity if item.quantity else Decimal('0')
+                        prorated_tax = item.prorated_tax / item.quantity if item.quantity else Decimal('0')
+                        prorated_tip = item.prorated_tip / item.quantity if item.quantity else Decimal('0')
+                        my_total += claim.quantity_claimed * (unit_price + prorated_tax + prorated_tip)
+                        # Check if claim is finalized
+                        if claim.is_finalized:
+                            is_user_finalized = True
         
         # Add user's existing claims to items_with_claims data
         for item_data in receipt_data['items_with_claims']:
@@ -410,12 +410,23 @@ def get_claim_status(request, receipt_slug):
             viewer_name = receipt.uploader_name
             logger.info(f"[claim_status] Using uploader name: {viewer_name}")
         
-        # Calculate user's total and finalization status
+        # Calculate user's total from prefetched data (no extra queries!)
         my_total = Decimal('0')
         is_user_finalized = False
         if viewer_name:
-            my_total = claim_service.calculate_name_total(receipt_id, viewer_name)
-            is_user_finalized = claim_service.is_user_finalized(receipt_id, user_context.session_id)
+            # Extract from already-fetched receipt_data instead of making 2 queries
+            for item_data in receipt_data['items_with_claims']:
+                item = item_data['item']
+                for claim in item_data['claims']:
+                    if claim.claimer_name == viewer_name:
+                        # Calculate share amount inline
+                        unit_price = item.total_price / item.quantity if item.quantity else Decimal('0')
+                        prorated_tax = item.prorated_tax / item.quantity if item.quantity else Decimal('0')
+                        prorated_tip = item.prorated_tip / item.quantity if item.quantity else Decimal('0')
+                        my_total += claim.quantity_claimed * (unit_price + prorated_tax + prorated_tip)
+                        # Check finalization status
+                        if claim.is_finalized and claim.session_id == user_context.session_id:
+                            is_user_finalized = True
             logger.info(f"[claim_status FINAL] viewer_name={viewer_name}, my_total={my_total}, session_id={user_context.session_id}")
         else:
             logger.info(f"[claim_status NO NAME] session_id={user_context.session_id}")
