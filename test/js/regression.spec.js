@@ -4,23 +4,20 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
+import {
+  createTestDOM,
+  setupMocks,
+  createViewPageDOM,
+  createItemContainer,
+  mockAuthFetch,
+  mockSuccessResponse,
+  resetTestEnvironment,
+  assertVisible
+} from './test-helpers.js';
 
-// Set up DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-  url: 'http://localhost',
-  pretendToBeVisual: true,
-  resources: 'usable'
-});
-
-global.window = dom.window;
-global.document = window.document;
-global.navigator = window.navigator;
-
-// Mock functions
-global.alert = vi.fn();
-global.confirm = vi.fn(() => true);
-global.escapeHtml = vi.fn((text) => String(text).replace(/[&<>"']/g, ''));
+// Set up environment
+createTestDOM();
+const mocks = setupMocks();
 
 // Import modules
 const viewPageModule = await import('../../static/js/view-page.js');
@@ -37,30 +34,23 @@ const {
 
 describe('REGRESSION TESTS - Critical Bug Prevention', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetTestEnvironment();
   });
 
   describe('Bug: kuizy Fries Scenario (Protocol Mismatch)', () => {
     it('should allow user to claim additional items when they have existing claims', async () => {
       // The exact original bug: kuizy couldn't claim 2nd Fries
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        
-        <!-- Fries item with kuizy's existing claim pre-populated -->
-        <div class="item-container" data-item-id="142">
-          <h3>Fries</h3>
-          <div class="item-share-amount" data-amount="8.75"></div>
-          <div class="ml-4">
-            <div class="flex items-center space-x-2">
-              <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="142">
-            </div>
-          </div>
-        </div>
-        
-        <p class="text-sm text-gray-600 mb-1">Your Total (kuizy)</p>
-        <p id="my-total">$8.75</p>
-        <div id="claiming-warning" class="hidden"></div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '142',
+          name: 'Fries',
+          shareAmount: '8.75',
+          quantity: 1,
+          min: 0,
+          max: 2
+        }],
+        myTotal: '8.75'
+      });
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -70,14 +60,10 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       friesInput.value = '2';  // Total desired quantity
       
       // Mock successful finalization
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({
-          success: true,
-          finalized: true,
-          claims_count: 1
-        })
-      });
+      mockAuthFetch(mockSuccessResponse({
+        finalized: true,
+        claims_count: 1
+      }));
       
       await confirmClaims();
       
@@ -92,21 +78,21 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       });
       
       // Should not show error (the original bug was claims being silently ignored)
-      expect(global.alert).not.toHaveBeenCalled();
+      expect(mocks.alert).not.toHaveBeenCalled();
     });
   });
 
   describe('Bug: Frontend Total Calculation Double-Counting', () => {
     it('should prevent double-counting existing claims (vibes $22.60 vs $11.30 bug)', () => {
       // The exact bug from screenshot: vibes showed $22.60 instead of $11.30
-      document.body.innerHTML = `
-        <div class="item-container" data-item-id="180">
-          <h3>Salad</h3>
-          <div class="item-share-amount" data-amount="11.30"></div>
-          <input type="number" class="claim-quantity" value="1" data-item-id="180">
-        </div>
-        <p id="my-total">$0.00</p>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '180',
+          name: 'Salad',
+          shareAmount: '11.30',
+          quantity: 1
+        }]
+      });
       
       updateTotal();
       
@@ -119,16 +105,15 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Polling Overwrites User Input State', () => {
     it('should preserve user input when polling updates arrive', () => {
-      document.body.innerHTML = `
-        <div class="item-container" data-item-id="142">
-          <h3>Fries</h3>
-          <div class="ml-4">
-            <div class="flex items-center space-x-2">
-              <input type="number" class="claim-quantity" value="1" max="2" data-item-id="142">
-            </div>
-          </div>
-        </div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '142',
+          name: 'Fries',
+          shareAmount: '8.75',
+          quantity: 1,
+          max: 2
+        }]
+      });
       
       const input = document.querySelector('.claim-quantity');
       
@@ -200,15 +185,13 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
     });
 
     it('should use consistent orange styling for "Fully Claimed"', () => {
-      document.body.innerHTML = `
-        <div class="item-container" data-item-id="142">
-          <div class="ml-4">
-            <div class="flex items-center space-x-2">
-              <input class="claim-quantity" data-item-id="142">
-            </div>
-          </div>
-        </div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '142',
+          name: 'Fries',
+          shareAmount: '8.75'
+        }]
+      });
       
       const pollData = [{
         item_id: '142',
@@ -257,30 +240,27 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Single Modal Confirmation', () => {
     it('should show only one confirmation modal when finalizing', async () => {
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        <div class="item-container" data-item-id="142">
-          <h3>Fries</h3>
-          <div class="item-share-amount" data-amount="8.75"></div>
-          <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="142">
-        </div>
-        <p id="my-total">$8.75</p>
-        <div id="claiming-warning" class="hidden"></div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '142',
+          name: 'Fries',
+          shareAmount: '8.75',
+          quantity: 1,
+          max: 2
+        }],
+        myTotal: '8.75'
+      });
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
       
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true, finalized: true, claims_count: 1 })
-      });
+      mockAuthFetch(mockSuccessResponse({ finalized: true, claims_count: 1 }));
       
       await confirmClaims();
       
       // Should have exactly one confirm() call, no alert() calls for success
-      expect(global.confirm).toHaveBeenCalledTimes(1);
-      expect(global.alert).not.toHaveBeenCalled();
+      expect(mocks.confirm).toHaveBeenCalledTimes(1);
+      expect(mocks.alert).not.toHaveBeenCalled();
     });
   });
 
@@ -415,6 +395,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
+        <div id="my-total">$8.75</div>
       `;
       
       // kuizy increases Fries to 2
