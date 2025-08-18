@@ -385,5 +385,84 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       expect(participantsDiv.textContent).toContain('Alice');
       expect(participantsDiv.textContent).toContain('$15.00');
     });
+
+    it('should handle complete real-time update cycle with fully claimed items', () => {
+      // Test the full polling cycle including "Fully Claimed" transitions
+      document.body.innerHTML = `
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-gray-700">kuizy</span>
+            <span class="font-medium tabular-nums">$8.75</span>
+          </div>
+        </div>
+        
+        <div class="item-container" data-item-id="141">
+          <h3>Burger</h3>
+          <div class="ml-4">
+            <div class="flex items-center space-x-2">
+              <label class="text-sm text-gray-600">Claim:</label>
+              <input type="number" class="claim-quantity" value="0" max="1" data-item-id="141">
+            </div>
+          </div>
+        </div>
+        
+        <div class="item-container" data-item-id="142">
+          <h3>Fries</h3>
+          <div class="ml-4">
+            <div class="flex items-center space-x-2">
+              <label class="text-sm text-gray-600">Claim:</label>
+              <input type="number" class="claim-quantity" value="1" max="2" data-item-id="142">
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // kuizy increases Fries to 2
+      const friesInput = document.querySelector('.claim-quantity[data-item-id="142"]');
+      friesInput.value = '2';
+      
+      // Real-time update: Alice claims Burger, making it unavailable to kuizy
+      const pollData = {
+        success: true,
+        viewer_name: 'kuizy',
+        is_finalized: false,
+        participant_totals: [
+          { name: 'Alice', amount: 25.00 },
+          { name: 'kuizy', amount: 8.75 }
+        ],
+        total_claimed: 33.75,
+        total_unclaimed: 11.25,
+        my_total: 8.75,
+        items_with_claims: [
+          {
+            item_id: '141',
+            available_quantity: 0,  // Alice claimed it
+            claims: [{ claimer_name: 'Alice', quantity_claimed: 1 }]  // Not kuizy
+          },
+          {
+            item_id: '142',
+            available_quantity: 1,  // Still available
+            claims: [{ claimer_name: 'kuizy', quantity_claimed: 1 }]
+          }
+        ]
+      };
+      
+      updateUIFromPollData(pollData);
+      
+      // kuizy's Fries input should be preserved
+      expect(friesInput.value).toBe('2');
+      expect(friesInput.getAttribute('max')).toBe('2'); // 1 existing + 1 available
+      
+      // Burger should become "Fully Claimed" (kuizy has no claims, no availability)
+      const burgerContainer = document.querySelector('[data-item-id="141"]');
+      const fullyClaimedSpan = burgerContainer.querySelector('.text-orange-600.font-semibold');
+      expect(fullyClaimedSpan).toBeTruthy();
+      expect(fullyClaimedSpan.textContent).toBe('Fully Claimed');
+      
+      // Participant totals should update
+      const participantsDiv = document.querySelector('.space-y-2');
+      expect(participantsDiv.textContent).toContain('Alice');
+      expect(participantsDiv.textContent).toContain('$25.00');
+    });
   });
 });
