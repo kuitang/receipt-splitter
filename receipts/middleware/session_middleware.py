@@ -4,8 +4,11 @@ Provides session management and cleanup functionality.
 """
 
 import random
+import logging
 from ..session_manager import ReceiptSessionManager
 from ..user_context import UserContext
+
+logger = logging.getLogger(__name__)
 
 
 class ReceiptSessionMiddleware:
@@ -31,8 +34,8 @@ class ReceiptSessionMiddleware:
                     # Could log this for monitoring
                     pass
             except Exception:
-                # Don't let cleanup failures break the request
-                pass
+                # Don't let cleanup failures break the request, but log them
+                logger.exception("Failed to cleanup old receipts")
         
         response = self.get_response(request)
         return response

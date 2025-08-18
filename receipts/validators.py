@@ -6,6 +6,7 @@ Provides comprehensive validation for file uploads and user inputs
 from django.core.exceptions import ValidationError
 # escape import removed - Django templates handle HTML escaping on output
 from PIL import Image
+import logging
 from decimal import Decimal, InvalidOperation
 import hashlib
 from io import BytesIO
@@ -13,6 +14,8 @@ from io import BytesIO
 # Required security dependencies
 import magic
 import bleach
+
+logger = logging.getLogger(__name__)
 
 
 class FileUploadValidator:
@@ -50,7 +53,8 @@ class FileUploadValidator:
             if detected_mime not in cls.ALLOWED_MIME_TYPES:
                 raise ValidationError(f'File content is not a valid image. Detected type: {detected_mime}')
         except Exception as e:
-            raise ValidationError(f'Unable to determine file type: {str(e)}')
+            logger.exception("Unable to determine file type")
+            raise ValidationError('Unable to determine file type.')
         
         # Additional image validation
         try:
@@ -83,7 +87,8 @@ class FileUploadValidator:
                 uploaded_file.size = output.getbuffer().nbytes
                 
         except Exception as e:
-            raise ValidationError(f'Invalid image file: {str(e)}')
+            logger.exception("Invalid image file")
+            raise ValidationError('Invalid image file.')
         
         uploaded_file.seek(0)
         return uploaded_file

@@ -73,8 +73,8 @@ def convert_to_jpeg_if_needed(uploaded_file):
         return converted_file
         
     except Exception as e:
-        logger.error(f"Failed to convert HEIC file: {str(e)}")
-        raise ValueError(f"Failed to process HEIC file: {str(e)}")
+        logger.exception("Failed to convert HEIC file")
+        raise ValueError("Failed to process HEIC file.")
 
 
 def get_image_bytes_for_ocr(uploaded_file):
