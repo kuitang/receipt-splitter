@@ -41,7 +41,10 @@ const {
   confirmClaims,
   initializeViewPage,
   _getState,
-  _setState
+  _setState,
+  updateClaimsView,
+  startPolling,
+  fetchClaimsData
 } = viewPageModule;
 
 const { authenticatedJsonFetch } = utilsModule;
@@ -438,6 +441,105 @@ describe('View Page Claiming Functionality', () => {
       // Button should be disabled again
       expect(document.getElementById('claim-button').disabled).toBe(true);
       expect(totalElement.textContent).toBe('$0.00');
+    });
+  });
+
+  describe('Polling and Real-time UI Updates', () => {
+    // Mock data for server responses
+    const mockServerData = {
+      items_with_claims: [
+        {
+          item: { id: '1', name: 'Burger', quantity: 2, unit_price: 15.50, total_price: 31.00, prorated_tax: 2.00, prorated_tip: 3.00, per_item_share: 15.50 },
+          claims: [{ id: 'c1', claimer_name: 'Alice', quantity_claimed: 1 }],
+          available_quantity: 1,
+        },
+        {
+          item: { id: '2', name: 'Fries', quantity: 1, unit_price: 8.75, total_price: 8.75, prorated_tax: 1.00, prorated_tip: 1.50, per_item_share: 8.75 },
+          claims: [],
+          available_quantity: 1,
+        },
+        {
+          item: { id: '3', name: 'Drink', quantity: 3, unit_price: 12.25, total_price: 36.75, prorated_tax: 3.00, prorated_tip: 4.50, per_item_share: 12.25 },
+          claims: [{ id: 'c2', claimer_name: 'Bob', quantity_claimed: 2 }],
+          available_quantity: 1,
+        },
+      ],
+      participant_totals: { 'Alice': 15.50, 'Bob': 24.50 },
+      total_claimed: 40.00,
+      total_unclaimed: 17.50,
+      my_total: 0.00,
+    };
+
+    beforeEach(() => {
+        // More comprehensive DOM for these tests
+        document.body.innerHTML = `
+            <div class="space-y-2">
+                <div class="flex justify-between items-center"><span>Alice</span><span>$10.00</span></div>
+            </div>
+            <div class="items-container">
+                <div class="item-container" data-item-id="1">
+                    <h3>Burger</h3>
+                    <div class="flex.items-center.space-x-2"><span>of 2</span></div>
+                    <div class="flex.flex-wrap.gap-2"></div>
+                    <input type="number" class="claim-quantity" data-item-id="1" max="2" value="0">
+                </div>
+                <div class="item-container" data-item-id="2">
+                    <h3>Fries</h3>
+                    <div class="flex.items-center.space-x-2"><span>of 1</span></div>
+                    <div class="flex.flex-wrap.gap-2"></div>
+                    <input type="number" class="claim-quantity" data-item-id="2" max="1" value="0">
+                </div>
+                <div class="item-container" data-item-id="3">
+                    <h3>Drink</h3>
+                    <div class="flex.items-center.space-x-2"><span>of 3</span></div>
+                    <div class="flex.flex-wrap.gap-2"></div>
+                    <input type="number" class="claim-quantity" data-item-id="3" max="3" value="0">
+                </div>
+            </div>
+            <p id="my-total" data-existing-total="0.00">$0.00</p>
+        `;
+    });
+
+    it('should update participant list correctly', () => {
+        updateClaimsView(mockServerData);
+        const participants = document.querySelector('.space-y-2');
+        expect(participants.innerHTML).toContain('Alice');
+        expect(participants.innerHTML).toContain('15.50');
+        expect(participants.innerHTML).toContain('Bob');
+        expect(participants.innerHTML).toContain('24.50');
+        expect(participants.innerHTML).toContain('Not Claimed');
+    });
+
+    it('should update item availability and claims', () => {
+        updateClaimsView(mockServerData);
+        const item1 = document.querySelector('[data-item-id="1"]');
+        const item3 = document.querySelector('[data-item-id="3"]');
+
+        expect(item1.querySelector('.claim-quantity').getAttribute('max')).toBe('1');
+        expect(item1.querySelector('.flex.flex-wrap.gap-2').innerHTML).toContain('Alice (1)');
+
+        expect(item3.querySelector('.claim-quantity').getAttribute('max')).toBe('1');
+        expect(item3.querySelector('.flex.flex-wrap.gap-2').innerHTML).toContain('Bob (2)');
+    });
+
+    it('should preserve user input if it is still valid', () => {
+        const drinkInput = document.querySelector('[data-item-id="3"] .claim-quantity');
+        drinkInput.value = '1'; // User wants to claim 1 drink
+
+        // Server data shows 2 drinks claimed by Bob, leaving 1 available. User's claim is still valid.
+        updateClaimsView(mockServerData);
+
+        expect(drinkInput.value).toBe('1');
+    });
+
+    it('should discard user input if it becomes invalid', () => {
+        const burgerInput = document.querySelector('[data-item-id="1"] .claim-quantity');
+        burgerInput.value = '2'; // User wants to claim 2 burgers
+
+        // Server data shows 1 burger claimed by Alice, leaving only 1 available. User's claim is now invalid.
+        updateClaimsView(mockServerData);
+
+        expect(burgerInput.value).toBe('0');
     });
   });
 });

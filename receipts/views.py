@@ -464,3 +464,66 @@ def ratelimit_exceeded(request, exception):
     return JsonResponse({
         'error': 'Rate limit exceeded. Please try again later.'
     }, status=429)
+
+
+@require_http_methods(["GET"])
+def get_claims_data(request, receipt_slug):
+    """API endpoint to get all claims data for a receipt."""
+    try:
+        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+        if not receipt:
+            return JsonResponse({'error': 'Receipt not found'}, status=404)
+
+        receipt_id = str(receipt.id)
+        receipt_data = receipt_service.get_receipt_for_viewing(receipt_id)
+
+        participant_totals = {
+            p['name']: float(p['amount'])
+            for p in receipt_data['participant_totals']
+        }
+
+        user_context = request.user_context(receipt_id)
+        viewer_name = user_context.name or (receipt.uploader_name if user_context.is_uploader else None)
+
+        my_total = Decimal('0')
+        if viewer_name:
+            my_total = claim_service.calculate_name_total(receipt_id, viewer_name)
+
+        # We need to serialize the data to be JSON-friendly
+        items_with_claims_serializable = []
+        for item_data in receipt_data['items_with_claims']:
+            items_with_claims_serializable.append({
+                'item': {
+                    'id': str(item_data['item'].id),
+                    'name': item_data['item'].name,
+                    'quantity': item_data['item'].quantity,
+                    'unit_price': float(item_data['item'].unit_price),
+                    'total_price': float(item_data['item'].total_price),
+                    'prorated_tax': float(item_data['item'].prorated_tax),
+                    'prorated_tip': float(item_data['item'].prorated_tip),
+                    'per_item_share': float(item_data['item'].get_per_item_share())
+                },
+                'claims': [{
+                    'id': str(claim.id),
+                    'claimer_name': claim.claimer_name,
+                    'quantity_claimed': claim.quantity_claimed
+                } for claim in item_data['claims']],
+                'available_quantity': item_data['available_quantity']
+            })
+
+        response_data = {
+            'items_with_claims': items_with_claims_serializable,
+            'participant_totals': participant_totals,
+            'total_claimed': float(receipt_data['total_claimed']),
+            'total_unclaimed': float(receipt_data['total_unclaimed']),
+            'my_total': float(my_total)
+        }
+
+        return JsonResponse(response_data)
+
+    except ReceiptNotFoundError:
+        return JsonResponse({'error': 'Receipt not found'}, status=404)
+    except Exception as e:
+        # It's good practice to log the exception here
+        # logger.error(f"Error in get_claims_data: {e}")
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)

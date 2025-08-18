@@ -389,3 +389,51 @@ class ViewTests(TestCase):
         self.assertContains(response, "Subtotal")
         self.assertContains(response, "+ Tax")
         self.assertContains(response, "+ Tip")
+
+    def test_get_claims_data_endpoint(self):
+        """Test the get_claims_data API endpoint"""
+        # Create a claim to have some data to check
+        Claim.objects.create(
+            line_item=self.item,
+            claimer_name="Alice",
+            quantity_claimed=1,
+            session_id="session_alice"
+        )
+
+        url = reverse('get_claims_data', kwargs={'receipt_slug': self.receipt.slug})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+        data = json.loads(response.content)
+
+        # Check top-level keys
+        self.assertIn('items_with_claims', data)
+        self.assertIn('participant_totals', data)
+        self.assertIn('total_claimed', data)
+        self.assertIn('total_unclaimed', data)
+        self.assertIn('my_total', data)
+
+        # Check items_with_claims data
+        self.assertEqual(len(data['items_with_claims']), 1)
+        item_data = data['items_with_claims'][0]
+        self.assertEqual(item_data['item']['name'], 'Burger')
+        self.assertEqual(item_data['available_quantity'], 1)
+        self.assertEqual(len(item_data['claims']), 1)
+        self.assertEqual(item_data['claims'][0]['claimer_name'], 'Alice')
+
+        # Check participant_totals
+        self.assertIn('Alice', data['participant_totals'])
+        # Burger total share is 20.00 (price) + 2.00 (tax) + 3.00 (tip) = 25.00
+        # Per item share is 12.50. Alice claimed 1.
+        self.assertAlmostEqual(data['participant_totals']['Alice'], 12.50)
+
+        # Check total_claimed
+        self.assertAlmostEqual(data['total_claimed'], 12.50)
+
+    def test_get_claims_data_nonexistent_receipt(self):
+        """Test the get_claims_data API endpoint with a nonexistent receipt"""
+        url = reverse('get_claims_data', kwargs={'receipt_slug': 'nonexistent-slug'})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)

@@ -13,4 +13,5 @@ urlpatterns = [
     path('status/<str:receipt_slug>/', views.check_processing_status, name='check_processing_status'),
     path('content/<str:receipt_slug>/', views.get_receipt_content, name='get_receipt_content'),
     path('image/<str:receipt_slug>/', views.serve_receipt_image, name='serve_receipt_image'),
+    path('api/receipt/<str:receipt_slug>/claims/', views.get_claims_data, name='get_claims_data'),
 ]
