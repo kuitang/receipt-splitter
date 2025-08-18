@@ -4,40 +4,27 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
+import {
+  createTestDOM,
+  setupMocks,
+  setupUtilsGlobals,
+  createEditPageDOM,
+  createItemRow,
+  XSS_PAYLOADS,
+  FUZZ_INPUTS,
+  mockAuthFetch,
+  mockSuccessResponse,
+  addItemToContainer,
+  getItemRows,
+  resetTestEnvironment
+} from './test-helpers.js';
 
-// Set up DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-  url: 'http://localhost',
-  pretendToBeVisual: true,
-  resources: 'usable'
-});
-
-global.window = dom.window;
-global.document = window.document;
-global.navigator = window.navigator;
-
-// Mock QRCode library
-global.QRCode = {
-  toCanvas: vi.fn()
-};
-
-// Mock alert and confirm
-global.alert = vi.fn();
-global.confirm = vi.fn(() => true);
+// Set up environment
+createTestDOM();
+const mocks = setupMocks();
 
 // Import the modules properly
-const utilsModule = await import('../../static/js/utils.js');
-
-// Set up global functions that edit-page.js expects
-global.escapeHtml = utilsModule.escapeHtml;
-global.authenticatedFetch = utilsModule.authenticatedFetch;
-global.authenticatedJsonFetch = utilsModule.authenticatedJsonFetch;
-global.copyShareUrl = utilsModule.copyShareUrl;
-global.getCookie = utilsModule.getCookie;
-global.getCsrfToken = utilsModule.getCsrfToken;
-
-// Now import edit-page which will use the globals
+const utilsModule = await setupUtilsGlobals();
 const editPageModule = await import('../../static/js/edit-page.js');
 
 // Destructure the functions we need
@@ -59,56 +46,20 @@ const {
   _setState
 } = editPageModule;
 
-const {
-  escapeHtml,
-  authenticatedFetch,
-  authenticatedJsonFetch,
-  getCookie,
-  getCsrfToken
-} = utilsModule;
-
 describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
   beforeEach(() => {
-    // Reset mocks
-    vi.clearAllMocks();
-    
-    // Set up DOM
-    document.body.innerHTML = `
-      <div id="edit-page-data" 
-           data-receipt-slug="test-receipt" 
-           data-receipt-id="123"
-           data-is-processing="false">
-      </div>
-      <div id="balance-warning" class="hidden"></div>
-      <div id="balance-error-details"></div>
-      <input id="restaurant_name" value="Test Restaurant">
-      <input id="subtotal" type="number" value="0">
-      <input id="tax" type="number" value="0">
-      <input id="tip" type="number" value="0">
-      <input id="total" type="number" value="0">
-      <div id="items-container"></div>
-      <button data-action="finalize">Finalize & Share</button>
-    `;
-    
-    // Initialize the page
+    resetTestEnvironment();
+    document.body.innerHTML = createEditPageDOM();
     initializeEditPage();
   });
 
   describe('Floating Point Precision Hell', () => {
     it('should handle JavaScript\'s 0.1 + 0.2 !== 0.3 problem', () => {
       // This is the classic JS floating point issue
-      addItem();
-      const row1 = document.querySelector('.item-row');
-      row1.querySelector('.item-name').value = 'Item 1';
-      row1.querySelector('.item-quantity').value = '1';
-      row1.querySelector('.item-price').value = '0.1';
+      const row1 = addItemToContainer({ name: 'Item 1', quantity: 1, price: 0.1, total: 0.1 });
       updateItemTotal(row1);
 
-      addItem();
-      const row2 = document.querySelectorAll('.item-row')[1];
-      row2.querySelector('.item-name').value = 'Item 2';
-      row2.querySelector('.item-quantity').value = '1';
-      row2.querySelector('.item-price').value = '0.2';
+      const row2 = addItemToContainer({ name: 'Item 2', quantity: 1, price: 0.2, total: 0.2 });
       updateItemTotal(row2);
 
       const subtotal = calculateSubtotal();
@@ -119,10 +70,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
 
     it('should handle multiplication precision errors', () => {
       // 19.99 * 3 = 59.97 in theory, but JS might give 59.969999999999999
-      addItem();
-      const row = document.querySelector('.item-row');
-      row.querySelector('.item-quantity').value = '3';
-      row.querySelector('.item-price').value = '19.99';
+      const row = addItemToContainer({ quantity: 3, price: 19.99 });
       updateItemTotal(row);
 
       const itemTotal = row.querySelector('.item-total');
@@ -133,11 +81,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
     it('should accumulate rounding errors across many items', () => {
       // Add 100 items with problematic decimals
       for (let i = 0; i < 100; i++) {
-        addItem();
-        const row = document.querySelectorAll('.item-row')[i];
-        row.querySelector('.item-name').value = `Item ${i + 1}`;
-        row.querySelector('.item-quantity').value = '1';
-        row.querySelector('.item-price').value = '0.01'; // Penny items
+        const row = addItemToContainer({ name: `Item ${i + 1}`, quantity: 1, price: 0.01 });
         updateItemTotal(row);
       }
 
@@ -157,25 +101,8 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
 
   describe('XSS Attack Vectors', () => {
     it('should prevent script injection in item names', () => {
-      const xssAttacks = [
-        '<script>alert("XSS")</script>',
-        '"><script>alert(1)</script>',
-        '<img src=x onerror="alert(1)">',
-        '<svg/onload=alert(1)>',
-        'javascript:alert(1)',
-        '<iframe src="javascript:alert(1)">',
-        '<body onload=alert(1)>',
-        '${alert(1)}',
-        '{{constructor.constructor("alert(1)")()}}',
-        '<details open ontoggle=alert(1)>',
-        '<input autofocus onfocus=alert(1)>',
-      ];
-
-      xssAttacks.forEach((payload, index) => {
-        addItem();
-        const row = document.querySelectorAll('.item-row')[index];
-        const nameInput = row.querySelector('.item-name');
-        nameInput.value = payload;
+      XSS_PAYLOADS.forEach((payload, index) => {
+        const row = addItemToContainer({ name: payload });
 
         // Get the data - it should store the raw value
         const data = getReceiptData();
@@ -205,7 +132,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
             setTimeout(() => {
               if (Math.random() > 0.5) {
                 addItem();
-                const rows = document.querySelectorAll('.item-row');
+                const rows = getItemRows();
                 const lastRow = rows[rows.length - 1];
                 if (lastRow) {
                   lastRow.querySelector('.item-quantity').value = Math.floor(Math.random() * 10);
@@ -213,7 +140,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
                   updateItemTotal(lastRow);
                 }
               } else {
-                const rows = document.querySelectorAll('.item-row');
+                const rows = getItemRows();
                 if (rows.length > 0) {
                   const randomRow = rows[Math.floor(Math.random() * rows.length)];
                   const removeBtn = randomRow.querySelector('[data-action="remove-item"]');
@@ -250,14 +177,11 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       let callCount = 0;
       
       // Mock the authenticated fetch
-      global.authenticatedJsonFetch = vi.fn(async () => {
+      mockAuthFetch(async () => {
         callCount++;
         // Simulate network delay
         await new Promise(r => setTimeout(r, 50));
-        return {
-          ok: true,
-          json: async () => ({ success: true, is_balanced: true })
-        };
+        return mockSuccessResponse({ is_balanced: true });
       });
 
       // Set initial state
@@ -278,27 +202,8 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
 
   describe('Input Fuzzing', () => {
     it('should handle malformed numeric inputs', () => {
-      const fuzzInputs = [
-        'NaN',
-        'Infinity', 
-        '-Infinity',
-        '1.2.3.4',
-        '1,234,567.89',
-        '1e308',  // Near max float
-        '1e-308', // Near min float
-        '0x1234', // Hex
-        '0o777',  // Octal
-        '0b1010', // Binary
-        '💰💰💰',
-        '\\x00',  // Null byte
-        '"><script>',
-        '../../../etc/passwd',
-        'Robert"); DROP TABLE items;--',
-      ];
-
-      fuzzInputs.forEach((input, index) => {
-        addItem();
-        const row = document.querySelectorAll('.item-row')[index];
+      FUZZ_INPUTS.forEach((input, index) => {
+        const row = addItemToContainer();
         
         // Should not throw
         expect(() => {
@@ -318,22 +223,15 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
     });
 
     it('should handle extreme values without overflow', () => {
-      addItem();
-      const row = document.querySelector('.item-row');
-      
       // JavaScript's MAX_SAFE_INTEGER is 2^53 - 1
-      row.querySelector('.item-quantity').value = '9007199254740991';
-      row.querySelector('.item-price').value = '1';
-      updateItemTotal(row);
+      const row1 = addItemToContainer({ quantity: 9007199254740991, price: 1 });
+      updateItemTotal(row1);
       
-      const total = parseFloat(row.querySelector('.item-total').dataset.fullValue);
+      const total = parseFloat(row1.querySelector('.item-total').dataset.fullValue);
       expect(total).toBe(9007199254740991);
       
       // Test very small numbers
-      addItem();
-      const row2 = document.querySelectorAll('.item-row')[1];
-      row2.querySelector('.item-quantity').value = '1';
-      row2.querySelector('.item-price').value = '0.000000000001';
+      const row2 = addItemToContainer({ quantity: 1, price: 0.000000000001 });
       updateItemTotal(row2);
       
       const total2 = parseFloat(row2.querySelector('.item-total').dataset.fullValue);
@@ -343,7 +241,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
 
   describe('Memory Leaks', () => {
     it('should not leak memory when rapidly adding/removing items', () => {
-      const initialRows = document.querySelectorAll('.item-row').length;
+      const initialRows = getItemRows().length;
       
       // Add and remove 500 items
       for (let i = 0; i < 500; i++) {
@@ -353,7 +251,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
         removeItem(btn);
       }
       
-      const finalRows = document.querySelectorAll('.item-row').length;
+      const finalRows = getItemRows().length;
       expect(finalRows).toBe(initialRows);
       
       // Check for orphaned event listeners (would cause memory leaks)
@@ -367,12 +265,12 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
 
   describe('Business Logic Edge Cases', () => {
     it('should handle negative tax and tip as discounts', () => {
-      addItem();
-      const row = document.querySelector('.item-row');
-      row.querySelector('.item-name').value = 'Test Item';
-      row.querySelector('.item-quantity').value = '1';
-      row.querySelector('.item-price').value = '100';
-      row.querySelector('.item-total').value = '100';
+      const row = addItemToContainer({ 
+        name: 'Test Item', 
+        quantity: 1, 
+        price: 100, 
+        total: 100 
+      });
       row.querySelector('.item-total').dataset.fullValue = '100';
       
       document.getElementById('subtotal').value = '100';
@@ -385,12 +283,12 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
     });
 
     it('should reject negative subtotal', () => {
-      addItem();
-      const row = document.querySelector('.item-row');
-      row.querySelector('.item-name').value = 'Test Item';
-      row.querySelector('.item-quantity').value = '1';
-      row.querySelector('.item-price').value = '-50';  // Negative price
-      row.querySelector('.item-total').value = '-50';
+      const row = addItemToContainer({ 
+        name: 'Test Item', 
+        quantity: 1, 
+        price: -50, 
+        total: -50 
+      });
       row.querySelector('.item-total').dataset.fullValue = '-50';
       
       document.getElementById('subtotal').value = '-50';
@@ -404,12 +302,12 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
     });
 
     it('should reject negative total', () => {
-      addItem();
-      const row = document.querySelector('.item-row');
-      row.querySelector('.item-name').value = 'Test Item';
-      row.querySelector('.item-quantity').value = '1';
-      row.querySelector('.item-price').value = '10';
-      row.querySelector('.item-total').value = '10';
+      const row = addItemToContainer({ 
+        name: 'Test Item', 
+        quantity: 1, 
+        price: 10, 
+        total: 10 
+      });
       row.querySelector('.item-total').dataset.fullValue = '10';
       
       document.getElementById('subtotal').value = '10';
@@ -432,12 +330,12 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
         { name: 'Shared dessert', qty: 2, price: 6.25 },   // Split 2 ways (C didn't have any)
       ];
       
-      items.forEach((item, i) => {
-        addItem();
-        const row = document.querySelectorAll('.item-row')[i];
-        row.querySelector('.item-name').value = item.name;
-        row.querySelector('.item-quantity').value = item.qty;
-        row.querySelector('.item-price').value = item.price;
+      items.forEach(item => {
+        const row = addItemToContainer({ 
+          name: item.name, 
+          quantity: item.qty, 
+          price: item.price 
+        });
         updateItemTotal(row);
       });
       
@@ -480,9 +378,7 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       expect(errors.some(e => e.includes('Total cannot be negative'))).toBe(true);
       
       // Items don't match subtotal
-      addItem();
-      const row = document.querySelector('.item-row');
-      row.querySelector('.item-total').value = '25';
+      const row = addItemToContainer({ total: 25 });
       row.querySelector('.item-total').dataset.fullValue = '25';
       
       document.getElementById('subtotal').value = '50'; // Wrong!
