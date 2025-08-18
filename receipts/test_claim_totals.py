@@ -11,15 +11,14 @@ from datetime import timedelta
 import json
 
 from receipts.models import Receipt, LineItem, Claim
-from receipts.repositories import ClaimRepository
 from receipts.services import ClaimService
 
 
 class ClaimTotalsByNameRepositoryTests(TestCase):
-    """Test repository layer methods for name-based claim queries"""
+    """Test service layer methods for name-based claim queries"""
     
     def setUp(self):
-        self.repository = ClaimRepository()
+        self.service = ClaimService()
         
         # Create a receipt with items
         self.receipt = Receipt.objects.create(
@@ -86,7 +85,7 @@ class ClaimTotalsByNameRepositoryTests(TestCase):
     
     def test_get_claims_by_name_filters_correctly(self):
         """Test that get_claims_by_name only returns claims for specified name"""
-        kui_claims = list(self.repository.get_claims_by_name(self.receipt.id, "Kui"))
+        kui_claims = list(self.service._get_claims_by_name(self.receipt.id, "Kui"))
         
         self.assertEqual(len(kui_claims), 2)  # Should get both "Kui" claims
         self.assertIn(self.claim1, kui_claims)
@@ -95,14 +94,14 @@ class ClaimTotalsByNameRepositoryTests(TestCase):
     
     def test_get_claims_by_name_different_name(self):
         """Test getting claims for "Kui 5" name"""
-        kui5_claims = list(self.repository.get_claims_by_name(self.receipt.id, "Kui 5"))
+        kui5_claims = list(self.service._get_claims_by_name(self.receipt.id, "Kui 5"))
         
         self.assertEqual(len(kui5_claims), 1)
         self.assertEqual(kui5_claims[0], self.claim2)
     
     def test_get_claims_by_session_includes_all_names(self):
         """Test that session-based query includes all names (old behavior)"""
-        session_claims = list(self.repository.get_claims_by_session(
+        session_claims = list(self.service._get_claims_by_session(
             self.receipt.id, self.session_id
         ))
         
@@ -112,7 +111,7 @@ class ClaimTotalsByNameRepositoryTests(TestCase):
     
     def test_get_claims_by_name_empty_result(self):
         """Test getting claims for non-existent name"""
-        no_claims = list(self.repository.get_claims_by_name(
+        no_claims = list(self.service._get_claims_by_name(
             self.receipt.id, "NonExistent"
         ))
         

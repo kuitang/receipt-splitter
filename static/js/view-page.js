@@ -103,6 +103,10 @@ async function pollClaimStatus() {
         
         const data = await response.json();
         
+        // Debug: Log what we received from server
+        console.log('[pollClaimStatus] Received data:', data);
+        console.log('[pollClaimStatus] my_total from server:', data.my_total);
+        
         if (data.success) {
             // Reset error count on successful poll
             pollingErrorCount = 0;
@@ -138,6 +142,7 @@ function updateUIFromPollData(data) {
     updateTotalAmounts(data.total_claimed, data.total_unclaimed);
     
     // Update user's total
+    console.log('[updateUIFromPollData] About to update my_total with:', data.my_total);
     updateMyTotal(data.my_total);
     
     // Update finalization status
@@ -235,9 +240,27 @@ function updateMyTotal(serverTotal) {
     const myTotalElement = document.getElementById('my-total');
     if (!myTotalElement) return;
     
-    // With total claims protocol: server total should match input calculations
-    // Just update display directly (inputs already reflect complete state)
-    myTotalElement.textContent = `$${serverTotal.toFixed(2)}`;
+    // Debug logging to understand the issue
+    console.log('[updateMyTotal] Server total:', serverTotal);
+    console.log('[updateMyTotal] Current display:', myTotalElement.textContent);
+    
+    // IMPORTANT: Only update the total from server if user has finalized claims
+    // Otherwise, the local calculation from inputs should be preserved
+    // This prevents the regression where selecting items shows a total, but polling resets it to 0
+    
+    // Check if user has finalized (button would be hidden/disabled)
+    const claimButton = document.getElementById('claim-button');
+    const isFinalized = !claimButton || claimButton.style.display === 'none' || 
+                        claimButton.parentElement.querySelector('.text-blue-600.font-medium');
+    
+    if (isFinalized || serverTotal > 0) {
+        // User has finalized claims or server has a non-zero total - use server value
+        myTotalElement.textContent = `$${serverTotal.toFixed(2)}`;
+    } else {
+        // User hasn't finalized yet - preserve the local calculation
+        // The updateTotal() function will handle updating based on input values
+        console.log('[updateMyTotal] Preserving local calculation, not overwriting with server 0');
+    }
 }
 
 /**
@@ -345,46 +368,58 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
         // Update claim section based on current state
         const claimSection = itemContainer.querySelector('.ml-4');
         if (claimSection) {
-            const shouldShowFullyClaimed = (itemData.available_quantity === 0 && myExistingClaim === 0);
             const hasInput = claimSection.querySelector('.claim-quantity') !== null;
-            const hasFullyClaimed = claimSection.querySelector('.text-orange-600.font-semibold, .text-gray-600.font-semibold') !== null;
+            const isFullyClaimed = (itemData.available_quantity === 0 && myExistingClaim === 0);
             
-            if (shouldShowFullyClaimed) {
-                // Should show "Fully Claimed" with context-aware styling
-                if (!hasFullyClaimed) {
-                    claimSection.innerHTML = generateFullyClaimedHTML(isFinalized);
+            // Always show input field, just change its state
+            if (!hasInput) {
+                const labelText = isFinalized ? 'Claimed:' : 'Claim:';
+                // Apply grey styling if finalized OR fully claimed with no user claims
+                const shouldDisable = isFinalized || isFullyClaimed;
+                const inputClasses = shouldDisable
+                    ? 'claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600'
+                    : 'claim-quantity w-20 px-2 py-1 border border-gray-300 rounded';
+                const disabledAttr = shouldDisable ? 'readonly disabled' : '';
+                
+                claimSection.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm text-gray-600">${labelText}</label>
+                        <input type="number" 
+                               class="${inputClasses}"
+                               min="0"
+                               max="${totalPossible}"
+                               value="${myExistingClaim}"
+                               data-item-id="${itemData.item_id}"
+                               ${disabledAttr}>
+                    </div>
+                `;
+                
+                // Re-attach event listener for the new input (only if not disabled)
+                if (!shouldDisable) {
+                    const newInput = claimSection.querySelector('.claim-quantity');
+                    if (newInput) {
+                        newInput.addEventListener('input', updateTotal);
+                    }
                 }
             } else {
-                // Should show input field
-                if (!hasInput) {
-                    const labelText = isFinalized ? 'Claimed:' : 'Claim:';
-                    const inputClasses = isFinalized 
-                        ? 'claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600'
-                        : 'claim-quantity w-20 px-2 py-1 border border-gray-300 rounded';
-                    const readonlyAttr = isFinalized ? 'readonly' : '';
-                    
-                    claimSection.innerHTML = `
-                        <div class="flex items-center space-x-2">
-                            <label class="text-sm text-gray-600">${labelText}</label>
-                            <input type="number" 
-                                   class="${inputClasses}"
-                                   min="0"
-                                   max="${totalPossible}"
-                                   value="${myExistingClaim}"
-                                   data-item-id="${itemData.item_id}"
-                                   ${readonlyAttr}>
-                        </div>
-                    `;
-                    
-                    // Re-attach event listener for the new input (only if not finalized)
-                    if (!isFinalized) {
-                        const newInput = claimSection.querySelector('.claim-quantity');
-                        if (newInput) {
-                            newInput.addEventListener('input', updateTotal);
-                        }
+                // Update existing input's disabled state
+                const existingInput = claimSection.querySelector('.claim-quantity');
+                if (existingInput) {
+                    const shouldDisable = isFinalized || isFullyClaimed;
+                    if (shouldDisable) {
+                        existingInput.readOnly = true;
+                        existingInput.disabled = true;
+                        existingInput.className = 'claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600';
                     }
                 }
             }
+        }
+        
+        // Update item container opacity
+        if (itemData.available_quantity === 0 && myExistingClaim === 0) {
+            itemContainer.classList.add('opacity-50');
+        } else {
+            itemContainer.classList.remove('opacity-50');
         }
         
         // Update claims display
@@ -473,16 +508,6 @@ function hidePollingError() {
     }
 }
 
-/**
- * Generate "Fully Claimed" HTML with context-aware styling (DRY abstraction)
- * This ensures identical styling between server template and JavaScript updates
- */
-function generateFullyClaimedHTML(isUserFinalized) {
-    // When user is finalized, their entire UI is in disabled state (grey)
-    // When user is not finalized, "Fully Claimed" uses warning color (orange)
-    const colorClass = isUserFinalized ? 'text-gray-600' : 'text-orange-600';
-    return `<span class="${colorClass} font-semibold">Fully Claimed</span>`;
-}
 
 /**
  * Validate that claims don't exceed available quantities and show banner
@@ -739,7 +764,6 @@ if (typeof module !== 'undefined' && module.exports) {
         updateItemClaimsDisplay,
         showPollingError,
         hidePollingError,
-        generateFullyClaimedHTML,
         
         // State variables (for testing)
         _getState: () => ({ 

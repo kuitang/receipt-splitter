@@ -32,6 +32,7 @@ const {
   confirmClaims,
   updateFinalizationStatus,
   updateTotal,
+  updateMyTotal,
   _setState
 } = viewPageModule;
 
@@ -148,10 +149,66 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       expect(input.value).toBe('2');
       expect(input.getAttribute('max')).toBe('2'); // 1 existing + 1 available
     });
+    
+    it('should preserve local total calculation when server returns 0 before finalization', () => {
+      // Setup DOM with claim button visible (not finalized)
+      document.body.innerHTML = `
+        <div id="my-total">$25.50</div>
+        <button id="claim-button" style="display: block;">Finalize Claims</button>
+      `;
+      
+      // Simulate polling with server returning 0 (no finalized claims)
+      updateMyTotal(0);
+      
+      // Assert: Local total should be preserved
+      const totalElement = document.getElementById('my-total');
+      expect(totalElement.textContent).toBe('$25.50');
+      expect(totalElement.textContent).not.toBe('$0.00');
+    });
+    
+    it('should use server total when user has finalized claims', () => {
+      // Setup DOM with claim button hidden (finalized)
+      document.body.innerHTML = `
+        <div class="wrapper">
+          <div id="my-total">$25.50</div>
+          <button id="claim-button" style="display: none;">Finalize Claims</button>
+          <div class="text-center">
+            <p class="text-sm text-blue-600 font-medium">Claims Finalized</p>
+          </div>
+        </div>
+      `;
+      
+      // Move button into wrapper with finalized indicator (can't mock parentElement directly)
+      const wrapper = document.querySelector('.wrapper');
+      const button = document.getElementById('claim-button');
+      wrapper.appendChild(button);
+      
+      // Simulate polling with server returning actual total
+      updateMyTotal(30.75);
+      
+      // Assert: Should use server total when finalized
+      const totalElement = document.getElementById('my-total');
+      expect(totalElement.textContent).toBe('$30.75');
+    });
+    
+    it('should use server total when it is non-zero', () => {
+      // Setup DOM with claim button visible (not finalized)
+      document.body.innerHTML = `
+        <div id="my-total">$0.00</div>
+        <button id="claim-button" style="display: block;">Finalize Claims</button>
+      `;
+      
+      // Simulate polling with server returning non-zero total
+      updateMyTotal(15.25);
+      
+      // Assert: Should use server's non-zero total
+      const totalElement = document.getElementById('my-total');
+      expect(totalElement.textContent).toBe('$15.25');
+    });
   });
 
   describe('Bug: "Fully Claimed" Logic and Styling', () => {
-    it('should show "Fully Claimed" only when user has no claims and no availability', () => {
+    it('should show disabled input when user has no claims and no availability', () => {
       document.body.innerHTML = `
         <div class="item-container" data-item-id="142">
           <div class="ml-4">
@@ -180,11 +237,12 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       updateItemClaims(pollData1, 'kuizy', false);
       
       const item142Container = document.querySelector('[data-item-id="142"]');
-      expect(item142Container.querySelector('.claim-quantity')).toBeTruthy(); // Should show input
-      expect(item142Container.textContent).not.toContain('Fully Claimed');
+      const input142 = item142Container.querySelector('.claim-quantity');
+      expect(input142).toBeTruthy(); // Should show input
+      expect(input142.disabled).toBe(false); // Should be enabled (user has claims)
       
       // Case 2: User has no claims, item has no availability  
-      // Should show "Fully Claimed"
+      // Should show disabled input
       const pollData2 = [{
         item_id: '143',
         available_quantity: 0,
@@ -194,12 +252,13 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       updateItemClaims(pollData2, 'kuizy', false);
       
       const item143Container = document.querySelector('[data-item-id="143"]');
-      const fullyClaimedSpan = item143Container.querySelector('.text-orange-600.font-semibold');
-      expect(fullyClaimedSpan).toBeTruthy(); // Should show "Fully Claimed"
-      expect(fullyClaimedSpan.textContent).toBe('Fully Claimed');
+      const input143 = item143Container.querySelector('.claim-quantity');
+      expect(input143).toBeTruthy(); // Should show input
+      expect(input143.disabled).toBe(true); // Should be disabled
+      expect(input143.className).toContain('bg-gray-50'); // Should have grey styling
     });
 
-    it('should use consistent orange styling for "Fully Claimed"', () => {
+    it('should use consistent grey styling for disabled items', () => {
       document.body.innerHTML = `
         <div class="item-container" data-item-id="142">
           <div class="ml-4">
@@ -218,13 +277,15 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       
       updateItemClaims(pollData, 'kuizy', false);
       
-      const claimSection = document.querySelector('.ml-4');
-      const fullyClaimedSpan = claimSection.querySelector('span.text-orange-600.font-semibold');
+      const itemContainer = document.querySelector('[data-item-id="142"]');
+      const input = itemContainer.querySelector('.claim-quantity');
       
-      // Should match server template styling exactly
-      expect(fullyClaimedSpan).toBeTruthy();
-      expect(fullyClaimedSpan.textContent).toBe('Fully Claimed');
-      expect(fullyClaimedSpan.className).toBe('text-orange-600 font-semibold');
+      // Should show disabled input with grey styling
+      expect(input).toBeTruthy();
+      expect(input.disabled).toBe(true);
+      expect(input.className).toContain('bg-gray-50');
+      expect(input.className).toContain('text-gray-600');
+      expect(itemContainer.classList.contains('opacity-50')).toBe(true);
     });
   });
 
@@ -453,11 +514,12 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       expect(friesInput.value).toBe('2');
       expect(friesInput.getAttribute('max')).toBe('2'); // 1 existing + 1 available
       
-      // Burger should become "Fully Claimed" (kuizy has no claims, no availability)
+      // Burger should become disabled (kuizy has no claims, no availability)
       const burgerContainer = document.querySelector('[data-item-id="141"]');
-      const fullyClaimedSpan = burgerContainer.querySelector('.text-orange-600.font-semibold');
-      expect(fullyClaimedSpan).toBeTruthy();
-      expect(fullyClaimedSpan.textContent).toBe('Fully Claimed');
+      const burgerInput = burgerContainer.querySelector('.claim-quantity');
+      expect(burgerInput).toBeTruthy();
+      expect(burgerInput.disabled).toBe(true);
+      expect(burgerContainer.classList.contains('opacity-50')).toBe(true);
       
       // Participant totals should update
       const participantsDiv = document.querySelector('.space-y-2');

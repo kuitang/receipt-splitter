@@ -297,6 +297,126 @@ test('updateTotal should calculate correct total', () => {
     assertEqual(total, '$21.00', 'Should calculate 2 × $10.50 = $21.00');
 });
 
+test('updateMyTotal should preserve local calculation when server returns 0 (regression test)', () => {
+    // Setup: User has selected items locally but not finalized
+    global.mockElements['my-total'] = {
+        textContent: '$25.50'  // Local calculation from selected items
+    };
+    
+    // Mock the claim button as enabled (user hasn't finalized)
+    global.mockElements['claim-button'] = {
+        style: { display: 'block' },
+        parentElement: {
+            querySelector: function() { return null; }  // No finalized indicator
+        }
+    };
+    
+    // Call updateMyTotal with server returning 0 (no finalized claims)
+    updateMyTotal(0);
+    
+    // Assert: The local total should be preserved, not overwritten with 0
+    assertEqual(
+        global.mockElements['my-total'].textContent, 
+        '$25.50', 
+        'Should preserve local calculation when server returns 0 before finalization'
+    );
+});
+
+test('updateMyTotal should use server total when user has finalized', () => {
+    // Setup: User has finalized claims
+    global.mockElements['my-total'] = {
+        textContent: '$25.50'
+    };
+    
+    // Mock the claim button as hidden (user has finalized)
+    global.mockElements['claim-button'] = {
+        style: { display: 'none' },
+        parentElement: {
+            querySelector: function(selector) {
+                if (selector === '.text-blue-600.font-medium') {
+                    return {}; // Finalized indicator exists
+                }
+                return null;
+            }
+        }
+    };
+    
+    // Call updateMyTotal with server returning actual total
+    updateMyTotal(30.75);
+    
+    // Assert: Should use server total when finalized
+    assertEqual(
+        global.mockElements['my-total'].textContent, 
+        '$30.75', 
+        'Should use server total when user has finalized'
+    );
+});
+
+test('updateMyTotal should use server total when it is non-zero', () => {
+    // Setup: Server has a non-zero total (user has some finalized claims)
+    global.mockElements['my-total'] = {
+        textContent: '$0.00'
+    };
+    
+    global.mockElements['claim-button'] = {
+        style: { display: 'block' },
+        parentElement: {
+            querySelector: function() { return null; }
+        }
+    };
+    
+    // Call updateMyTotal with server returning non-zero total
+    updateMyTotal(15.25);
+    
+    // Assert: Should use server's non-zero total
+    assertEqual(
+        global.mockElements['my-total'].textContent, 
+        '$15.25', 
+        'Should use server total when it is non-zero'
+    );
+});
+
+test('polling should not interfere with active user selections', () => {
+    // Simulate the complete flow: user selects items, then polling occurs
+    
+    // Step 1: User selects items (updateTotal is called)
+    const mockInput = {
+        value: '3',
+        dataset: { itemId: 'item1' }
+    };
+    
+    global.mockNodeList['.claim-quantity'] = [mockInput];
+    global.mockElements['[data-item-id="item1"]'] = {
+        querySelector: function() {
+            return {
+                dataset: { amount: '8.00' }
+            };
+        }
+    };
+    
+    global.mockElements['my-total'] = { textContent: '$0.00' };
+    global.mockElements['claim-button'] = {
+        style: { display: 'block' },
+        parentElement: {
+            querySelector: function() { return null; }
+        }
+    };
+    
+    // User changes input, updateTotal is called
+    updateTotal();
+    assertEqual(global.mockElements['my-total'].textContent, '$24.00', 'User selection should update total');
+    
+    // Step 2: Polling occurs with server returning 0 (no finalized claims yet)
+    updateMyTotal(0);
+    
+    // Assert: Total should still be $24.00, not reset to 0
+    assertEqual(
+        global.mockElements['my-total'].textContent, 
+        '$24.00', 
+        'Polling with server returning 0 should not overwrite user selections'
+    );
+});
+
 console.log('');
 
 // Test index-page.js

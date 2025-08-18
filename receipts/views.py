@@ -322,6 +322,11 @@ def claim_item(request, receipt_slug):
     if not viewer_name:
         return JsonResponse({'error': 'Please enter your name first'}, status=400)
     
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[claim_item START] viewer_name={viewer_name}, session_id={user_context.session_id}")
+    
     try:
         data = json.loads(request.body)
         
@@ -336,6 +341,8 @@ def claim_item(request, receipt_slug):
                 'quantity': int(data.get('quantity', 1))
             }]
         
+        logger.info(f"[claim_item] Processing {len(claims_data)} claims for {viewer_name}")
+        
         # Finalize all claims at once
         result = claim_service.finalize_claims(
             receipt_id=receipt_id,
@@ -343,6 +350,8 @@ def claim_item(request, receipt_slug):
             claims_data=claims_data,
             session_id=user_context.session_id
         )
+        
+        logger.info(f"[claim_item SUCCESS] viewer_name={viewer_name}, my_total={result.get('my_total', 0)}")
         
         return JsonResponse(result)
         
@@ -388,8 +397,14 @@ def get_claim_status(request, receipt_slug):
         user_context = request.user_context(receipt_id)
         viewer_name = user_context.name
         
+        # Debug logging at the start
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[claim_status START] user_context.name={user_context.name}, is_uploader={user_context.is_uploader}, session_id={user_context.session_id}")
+        
         if not viewer_name and user_context.is_uploader:
             viewer_name = receipt.uploader_name
+            logger.info(f"[claim_status] Using uploader name: {viewer_name}")
         
         # Calculate user's total and finalization status
         my_total = Decimal('0')
@@ -397,6 +412,9 @@ def get_claim_status(request, receipt_slug):
         if viewer_name:
             my_total = claim_service.calculate_name_total(receipt_id, viewer_name)
             is_user_finalized = claim_service.is_user_finalized(receipt_id, user_context.session_id)
+            logger.info(f"[claim_status FINAL] viewer_name={viewer_name}, my_total={my_total}, session_id={user_context.session_id}")
+        else:
+            logger.info(f"[claim_status NO NAME] session_id={user_context.session_id}")
         
         # Prepare response data
         response_data = {

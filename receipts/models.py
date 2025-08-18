@@ -143,6 +143,13 @@ class Claim(models.Model):
     def __str__(self):
         status = " (finalized)" if self.is_finalized else ""
         return f"{self.claimer_name} claimed {self.quantity_claimed}x {self.line_item.name}{status}"
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['session_id']),
+            models.Index(fields=['claimer_name']),
+            models.Index(fields=['line_item', 'session_id']),
+        ]
 
 
 class ActiveViewer(models.Model):
@@ -153,6 +160,9 @@ class ActiveViewer(models.Model):
     
     class Meta:
         unique_together = ['receipt', 'session_id']
+        indexes = [
+            models.Index(fields=['session_id']),
+        ]
     
     def __str__(self):
         return f"{self.viewer_name} viewing {self.receipt}"

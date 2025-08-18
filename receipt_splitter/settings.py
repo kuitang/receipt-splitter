@@ -134,6 +134,10 @@ MIDDLEWARE = [
     "receipts.middleware.SimpleStrictCSPMiddleware",  # Strict CSP without unsafe-inline
 ]
 
+# Add query monitoring in DEBUG mode
+if DEBUG:
+    MIDDLEWARE.append("receipts.middleware.query_monitor.QueryCountMiddleware")
+
 ROOT_URLCONF = "receipt_splitter.urls"
 
 TEMPLATES = [
@@ -171,6 +175,20 @@ DATABASES = {
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
+}
+
+# Cache configuration
+# https://docs.djangoproject.com/en/5.2/topics/cache/
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'receipt-cache',
+        'TIMEOUT': 1800,  # 30 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
 }
 
 

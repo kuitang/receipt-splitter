@@ -144,7 +144,7 @@
         
         <div class="space-y-3">
             {% for item_data in items_with_claims %}
-            <div class="item-container border rounded-lg p-4 {% if item_data.available_quantity == 0 %}opacity-50{% endif %}" 
+            <div class="item-container border rounded-lg p-4 {% if item_data.available_quantity == 0 and item_data.my_existing_claim == 0 %}opacity-50{% endif %}" 
                  data-item-id="{{ item_data.item.id }}">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
@@ -165,20 +165,16 @@
                     
                     {% if viewer_name and receipt.is_finalized %}
                     <div class="ml-4">
-                        {% if item_data.available_quantity > 0 or item_data.my_existing_claim > 0 %}
                         <div class="flex items-center space-x-2">
                             <label class="text-sm text-gray-600">{% if is_user_finalized %}Claimed:{% else %}Claim:{% endif %}</label>
                             <input type="number" 
-                                   class="claim-quantity w-20 px-2 py-1 border rounded {% if is_user_finalized %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300{% endif %}"
+                                   class="claim-quantity w-20 px-2 py-1 border rounded {% if is_user_finalized or item_data.available_quantity == 0 and item_data.my_existing_claim == 0 %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300{% endif %}"
                                    min="0"
                                    max="{{ item_data.my_existing_claim|add:item_data.available_quantity }}"
                                    value="{{ item_data.my_existing_claim }}"
                                    data-item-id="{{ item_data.item.id }}"
-                                   {% if is_user_finalized %}readonly{% endif %}>
+                                   {% if is_user_finalized or item_data.available_quantity == 0 and item_data.my_existing_claim == 0 %}readonly disabled{% endif %}>
                         </div>
-                        {% else %}
-                        <span class="{% if is_user_finalized %}text-gray-600{% else %}text-orange-600{% endif %} font-semibold">Fully Claimed</span>
-                        {% endif %}
                     </div>
                     {% endif %}
                 </div>

@@ -2,14 +2,17 @@
 Service layer for receipt operations
 Encapsulates all business logic related to receipts
 """
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from decimal import Decimal
+from datetime import datetime
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.core.signing import Signer, BadSignature
+from django.core.cache import cache
+from django.db import transaction
+from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField
 
-from receipts.models import Receipt, LineItem, ActiveViewer
-from receipts.repositories import ReceiptRepository, ClaimRepository
+from receipts.models import Receipt, LineItem, ActiveViewer, Claim
 from receipts.services.validation_pipeline import ValidationPipeline
 from receipts.async_processor import process_receipt_async, create_placeholder_receipt
 from receipts.image_storage import store_receipt_image_in_memory
@@ -31,8 +34,6 @@ class ReceiptService:
     """Handles all business logic for receipts"""
     
     def __init__(self):
-        self.repository = ReceiptRepository()
-        self.claim_repository = ClaimRepository()
         self.validator = ValidationPipeline()
         self.signer = Signer()
     
@@ -54,11 +55,11 @@ class ReceiptService:
     
     def get_receipt_by_id(self, receipt_id: str) -> Optional[Receipt]:
         """Get receipt by ID"""
-        return self.repository.get_by_id(receipt_id)
+        return self._get_by_id(receipt_id)
     
     def get_receipt_by_slug(self, slug: str) -> Optional[Receipt]:
         """Get receipt by slug"""
-        return self.repository.get_by_slug(slug)
+        return self._get_by_slug(slug)
     
     def update_receipt(self, receipt_id: str, data: Dict, 
                       session_context: Dict) -> Dict:
@@ -67,7 +68,7 @@ class ReceiptService:
         Allows saving even if data doesn't balance (business requirement)
         """
         # Get receipt
-        receipt = self.repository.get_by_id(receipt_id)
+        receipt = self._get_by_id(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
         
@@ -103,7 +104,7 @@ class ReceiptService:
             ]
         
         # Update through repository
-        updated_receipt = self.repository.update_receipt_with_items(receipt, update_data)
+        updated_receipt = self._update_receipt_with_items(receipt, update_data)
         
         # Prepare response
         response = {
@@ -122,7 +123,7 @@ class ReceiptService:
         Finalize receipt with strict validation
         """
         # Get receipt
-        receipt = self.repository.get_by_id(receipt_id)
+        receipt = self._get_by_id(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
         
@@ -135,7 +136,7 @@ class ReceiptService:
             raise PermissionDeniedError("Only the uploader can finalize the receipt")
         
         # Get receipt data for validation
-        receipt_data = self.repository.get_receipt_data_for_validation(receipt)
+        receipt_data = self._get_receipt_data_for_validation(receipt)
         
         # Strict validation for finalization
         is_valid, validation_errors = self.validator.validate_for_finalization(receipt_data)
@@ -149,7 +150,7 @@ class ReceiptService:
             })
         
         # Finalize the receipt
-        self.repository.finalize_receipt(receipt_id)
+        self._finalize_receipt(receipt_id)
         
         return {
             'success': True,
@@ -159,9 +160,23 @@ class ReceiptService:
     def get_receipt_for_viewing(self, receipt_id: str) -> Dict:
         """
         Get receipt with all claims and calculations for viewing
+        Uses cache for finalized receipts
         """
+        # Check cache for finalized receipts
+        cache_key = f"receipt_view:{receipt_id}"
+        
+        # Try to get from cache if receipt is finalized
+        try:
+            receipt_check = Receipt.objects.only('is_finalized').get(id=receipt_id)
+            if receipt_check.is_finalized:
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    return cached
+        except Receipt.DoesNotExist:
+            raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
+        
         # Get receipt with all related data
-        receipt = self.repository.get_with_claims_and_viewers(receipt_id)
+        receipt = self._get_with_claims_and_viewers(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
         
@@ -176,7 +191,7 @@ class ReceiptService:
             })
         
         # Calculate participant totals
-        participant_totals = self.claim_repository.get_participant_totals(receipt_id)
+        participant_totals = self._get_participant_totals(receipt_id)
         
         # Calculate summary
         total_claimed = sum(participant_totals.values())
@@ -188,17 +203,23 @@ class ReceiptService:
             for name, amount in participant_totals.items()
         ], key=lambda x: x['name'])
         
-        return {
+        result = {
             'receipt': receipt,
             'items_with_claims': items_with_claims,
             'participant_totals': participant_list,
             'total_claimed': total_claimed,
             'total_unclaimed': total_unclaimed
         }
+        
+        # Cache if finalized (30 minutes)
+        if receipt.is_finalized:
+            cache.set(cache_key, result, 1800)
+        
+        return result
     
     def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str) -> ActiveViewer:
         """Register a viewer for the receipt"""
-        receipt = self.repository.get_by_id(receipt_id)
+        receipt = self._get_by_id(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
         
@@ -212,12 +233,12 @@ class ReceiptService:
     
     def get_existing_names(self, receipt_id: str) -> list:
         """Get all existing viewer and claimer names for a receipt"""
-        receipt = self.repository.get_with_claims_and_viewers(receipt_id)
+        receipt = self._get_with_claims_and_viewers(receipt_id)
         if not receipt:
             return []
         
         names = list(receipt.viewers.values_list('viewer_name', flat=True))
-        names.extend(self.claim_repository.get_all_claimer_names(receipt_id))
+        names.extend(self._get_all_claimer_names(receipt_id))
         
         return list(set(names))  # Remove duplicates
     
@@ -247,3 +268,137 @@ class ReceiptService:
                    session_context.get('session_key') == session_key)
         except (BadSignature, ValueError):
             return False
+    
+    # Private methods (formerly in ReceiptRepository)
+    
+    def _get_by_id(self, receipt_id: str) -> Optional[Receipt]:
+        """Get receipt by ID with related items"""
+        try:
+            receipt = Receipt.objects.select_related().prefetch_related('items').get(id=receipt_id)
+            # Ensure slug exists (for legacy receipts created without slug)
+            if not receipt.slug:
+                receipt.slug = Receipt.generate_unique_slug()
+                receipt.save(update_fields=['slug'])
+            return receipt
+        except Receipt.DoesNotExist:
+            return None
+    
+    def _get_by_slug(self, slug: str) -> Optional[Receipt]:
+        """Get receipt by slug with related items"""
+        try:
+            return Receipt.objects.select_related().prefetch_related('items').get(slug=slug)
+        except Receipt.DoesNotExist:
+            return None
+    
+    def _get_with_claims_and_viewers(self, receipt_id: str) -> Optional[Receipt]:
+        """Get receipt with all related data optimized"""
+        try:
+            receipt = Receipt.objects.prefetch_related(
+                'items',
+                'viewers',
+                Prefetch('items__claims', 
+                         queryset=Claim.objects.select_related('line_item'))
+            ).get(id=receipt_id)
+            
+            # Ensure slug exists (for legacy receipts)
+            if not receipt.slug:
+                receipt.slug = Receipt.generate_unique_slug()
+                receipt.save(update_fields=['slug'])
+            
+            return receipt
+        except Receipt.DoesNotExist:
+            return None
+    
+    @transaction.atomic
+    def _update_receipt_with_items(self, receipt: Receipt, data: Dict) -> Receipt:
+        """Update receipt and replace all items atomically"""
+        # Update receipt fields
+        for field, value in data.items():
+            if field != 'items' and hasattr(receipt, field):
+                setattr(receipt, field, value)
+        receipt.save()
+        
+        # Replace items if provided
+        if 'items' in data:
+            # Delete existing items
+            receipt.items.all().delete()
+            
+            # Calculate prorations in memory and prepare bulk create
+            items_to_create = []
+            for item_data in data['items']:
+                line_item = LineItem(
+                    receipt=receipt,
+                    **item_data
+                )
+                # Calculate prorations in memory (no DB access needed)
+                line_item.calculate_prorations()
+                items_to_create.append(line_item)
+            
+            # Single bulk insert for all items
+            LineItem.objects.bulk_create(items_to_create)
+        
+        return receipt
+    
+    def _finalize_receipt(self, receipt_id: str) -> bool:
+        """Mark receipt as finalized"""
+        updated = Receipt.objects.filter(
+            id=receipt_id,
+            is_finalized=False
+        ).update(is_finalized=True)
+        return updated > 0
+    
+    def _get_receipt_data_for_validation(self, receipt: Receipt) -> Dict:
+        """Get receipt data in format needed for validation"""
+        return {
+            'restaurant_name': receipt.restaurant_name,
+            'subtotal': str(receipt.subtotal),
+            'tax': str(receipt.tax),
+            'tip': str(receipt.tip),
+            'total': str(receipt.total),
+            'items': [
+                {
+                    'name': item.name,
+                    'quantity': item.quantity,
+                    'unit_price': str(item.unit_price),
+                    'total_price': str(item.total_price)
+                }
+                for item in receipt.items.all()
+            ]
+        }
+    
+    def _get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
+        """Calculate totals per participant efficiently using single database query"""
+        # Verify receipt exists
+        if not Receipt.objects.filter(id=receipt_id).exists():
+            return {}
+        
+        # Single aggregation query to calculate all participant totals
+        # This replaces the N+1 query pattern where get_share_amount() was called for each claim
+        results = Claim.objects.filter(
+            line_item__receipt_id=receipt_id
+        ).values('claimer_name').annotate(
+            total=Sum(
+                F('quantity_claimed') * (
+                    F('line_item__total_price') / F('line_item__quantity') +
+                    F('line_item__prorated_tax') / F('line_item__quantity') +
+                    F('line_item__prorated_tip') / F('line_item__quantity')
+                ),
+                output_field=DecimalField(max_digits=12, decimal_places=6)
+            )
+        ).order_by('claimer_name')
+        
+        # Convert to dictionary
+        participant_totals = {
+            result['claimer_name']: result['total'] or Decimal('0')
+            for result in results
+        }
+        
+        return participant_totals
+    
+    def _get_all_claimer_names(self, receipt_id: str) -> List[str]:
+        """Get all unique claimer names for a receipt"""
+        names = Claim.objects.filter(
+            line_item__receipt_id=receipt_id
+        ).values_list('claimer_name', flat=True).distinct()
+        
+        return list(names)

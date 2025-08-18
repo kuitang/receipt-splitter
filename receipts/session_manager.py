@@ -32,7 +32,14 @@ class ReceiptSessionManager:
     def get_viewer_identity(self, receipt_id):
         """Get viewer identity for a specific receipt"""
         data = self._get_receipt_data(receipt_id)
-        return data.get('viewer_name')
+        viewer_name = data.get('viewer_name')
+        
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[SessionManager.get_viewer_identity] receipt_id={receipt_id}, session_id={self.session_id}, viewer_name={viewer_name}, full_data={data}")
+        
+        return viewer_name
     
     def set_viewer_identity(self, receipt_id, name):
         """Set viewer identity for a receipt"""
@@ -40,6 +47,11 @@ class ReceiptSessionManager:
         data['viewer_name'] = name
         data['viewed_at'] = timezone.now().isoformat()
         self._save_receipt_data(receipt_id, data)
+        
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[SessionManager.set_viewer_identity] receipt_id={receipt_id}, session_id={self.session_id}, name={name}, saved_data={data}")
     
     def get_edit_token(self, receipt_id):
         """Get edit token for a receipt"""
