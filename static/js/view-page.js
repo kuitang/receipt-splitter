@@ -726,14 +726,12 @@ async function confirmClaims() {
 /**
  * Initialize view page on DOM ready
  */
-document.addEventListener('DOMContentLoaded', () => {
-    initializeViewPage();
-    
+function initializeEventListeners() {
     // Attach quantity input handlers
     document.querySelectorAll('.claim-quantity').forEach(input => {
         input.addEventListener('input', updateTotal);
     });
-    
+
     // Attach +/- button handlers
     document.querySelectorAll('.claim-minus').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -751,7 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
-    
+
     document.querySelectorAll('.claim-plus').forEach(btn => {
         btn.addEventListener('click', () => {
             if (btn.disabled) return;
@@ -768,16 +766,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
-    
-    // Initialize button state
-    updateButtonState();
-    
+
     // Attach confirm button handler
     const confirmBtn = document.querySelector('[data-action="confirm-claims"]');
     if (confirmBtn) {
         confirmBtn.addEventListener('click', () => confirmClaims());
     }
-    
+
     // Attach copy share URL handlers
     document.querySelectorAll('[data-action="copy-share-url"]').forEach(btn => {
         btn.addEventListener('click', function(event) {
@@ -785,6 +780,42 @@ document.addEventListener('DOMContentLoaded', () => {
             copyShareUrl(widgetId, event);
         });
     });
+
+    // QR Code Modal handlers
+    document.querySelectorAll('[data-action="show-qr-code"]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const widgetId = this.dataset.widgetId;
+            const modal = document.getElementById(`qr-code-modal-${widgetId}`);
+            const canvas = document.getElementById(`qr-code-modal-canvas-${widgetId}`);
+            const shareUrlInput = document.getElementById(widgetId);
+
+            if (modal && canvas && shareUrlInput && typeof QRCode !== 'undefined') {
+                QRCode.toCanvas(canvas, shareUrlInput.value, function (error) {
+                    if (error) console.error(error);
+                    modal.classList.remove('hidden');
+                });
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-action="close-qr-code-modal"]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const widgetId = this.dataset.widgetId;
+            const modal = document.getElementById(`qr-code-modal-${widgetId}`);
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        });
+    });
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeViewPage();
+    initializeEventListeners();
+
+    // Initialize button state
+    updateButtonState();
     
     // Start real-time polling for claim updates
     if (receiptSlug) {
@@ -817,6 +848,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         // Initialization
         initializeViewPage,
+        initializeEventListeners,
         
         // Validation and State
         validateClaims,
