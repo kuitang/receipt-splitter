@@ -1,5 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+from unittest.mock import patch
 from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -389,3 +390,115 @@ class ViewTests(TestCase):
         self.assertContains(response, "Subtotal")
         self.assertContains(response, "+ Tax")
         self.assertContains(response, "+ Tip")
+
+    @patch('receipts.views.receipt_service.update_receipt')
+    def test_update_receipt_unexpected_exception(self, mock_update_receipt):
+        """Test that an unexpected exception in update_receipt returns a 500 and is logged."""
+        mock_update_receipt.side_effect = Exception("Something went wrong")
+
+        # Set up session for edit permission
+        session = self.client.session
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {
+            'is_uploader': True
+        }
+        session.save()
+
+        self.receipt.is_finalized = False
+        self.receipt.save()
+
+        url = reverse('update_receipt', kwargs={'receipt_slug': self.receipt.slug})
+        data = {'restaurant_name': 'New Name'}
+
+        with self.assertLogs('receipts.views', level='ERROR') as cm:
+            response = self.client.post(
+                url,
+                json.dumps(data),
+                content_type='application/json'
+            )
+            self.assertIn("Exception in update_receipt", cm.output[0])
+
+        self.assertEqual(response.status_code, 500)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['error'], 'An unexpected error occurred.')
+
+    @patch('receipts.views.receipt_service.create_receipt')
+    def test_upload_receipt_unexpected_exception(self, mock_create_receipt):
+        """Test that an unexpected exception in upload_receipt returns a 500 and is logged."""
+        mock_create_receipt.side_effect = Exception("Something went wrong")
+
+        url = reverse('upload_receipt')
+        data = {'uploader_name': 'Test Uploader'}
+
+        # A simple fake image file
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        image = SimpleUploadedFile("test.jpg", b"file_content", content_type="image/jpeg")
+        data['receipt_image'] = image
+
+        with self.assertLogs('receipts.views', level='ERROR') as cm:
+            response = self.client.post(url, data)
+            self.assertIn("Error uploading receipt", cm.output[0])
+
+        self.assertEqual(response.status_code, 500)
+
+    @patch('receipts.views.receipt_service.finalize_receipt')
+    def test_finalize_receipt_unexpected_exception(self, mock_finalize_receipt):
+        """Test that an unexpected exception in finalize_receipt returns a 500 and is logged."""
+        mock_finalize_receipt.side_effect = Exception("Something went wrong")
+
+        session = self.client.session
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {'is_uploader': True}
+        session.save()
+
+        self.receipt.is_finalized = False
+        self.receipt.save()
+
+        url = reverse('finalize_receipt', kwargs={'receipt_slug': self.receipt.slug})
+
+        with self.assertLogs('receipts.views', level='ERROR') as cm:
+            response = self.client.post(url)
+            self.assertIn("Exception in finalize_receipt", cm.output[0])
+
+        self.assertEqual(response.status_code, 500)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['error'], 'An unexpected error occurred.')
+
+    @patch('receipts.views.claim_service.finalize_claims')
+    def test_claim_item_unexpected_exception(self, mock_finalize_claims):
+        """Test that an unexpected exception in claim_item returns a 500 and is logged."""
+        mock_finalize_claims.side_effect = Exception("Something went wrong")
+
+        session = self.client.session
+        if 'receipts' not in session:
+            session['receipts'] = {}
+        session['receipts'][str(self.receipt.id)] = {'viewer_name': 'Test Viewer'}
+        session.save()
+
+        url = reverse('claim_item', kwargs={'receipt_slug': self.receipt.slug})
+        data = {'claims': [{'line_item_id': self.item.id, 'quantity': 1}]}
+
+        with self.assertLogs('receipts.views', level='ERROR') as cm:
+            response = self.client.post(url, json.dumps(data), content_type='application/json')
+            self.assertIn("Exception in claim_item", cm.output[0])
+
+        self.assertEqual(response.status_code, 500)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['error'], 'An unexpected error occurred.')
+
+    @patch('receipts.views.receipt_service.get_receipt_for_viewing_by_slug')
+    def test_get_claim_status_unexpected_exception(self, mock_get_receipt):
+        """Test that an unexpected exception in get_claim_status returns a 500 and is logged."""
+        mock_get_receipt.side_effect = Exception("Something went wrong")
+
+        url = reverse('get_claim_status', kwargs={'receipt_slug': self.receipt.slug})
+
+        with self.assertLogs('receipts.views', level='ERROR') as cm:
+            response = self.client.get(url)
+            self.assertIn("Exception in get_claim_status", cm.output[0])
+
+        self.assertEqual(response.status_code, 500)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['error'], 'An unexpected error occurred.')

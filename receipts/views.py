@@ -76,7 +76,8 @@ def upload_receipt(request):
             messages.error(request, str(e))
         return HttpResponse('Validation error', status=400)
     except Exception as e:
-        messages.error(request, f'Error uploading receipt: {str(e)}')
+        logger.exception("Error uploading receipt")
+        messages.error(request, 'An unexpected error occurred during upload. Please try again.')
         return HttpResponse('Upload failed', status=500)
 
 
@@ -135,7 +136,8 @@ def update_receipt(request, receipt_slug):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        logger.exception(f"Exception in update_receipt for slug '{receipt_slug}'")
+        return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)
 
 
 @rate_limit_finalize
@@ -177,7 +179,8 @@ def finalize_receipt(request, receipt_slug):
             'validation_errors': validation_errors
         }, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.exception(f"Exception in finalize_receipt for slug '{receipt_slug}'")
+        return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)
 
 
 @rate_limit_view
@@ -363,7 +366,8 @@ def claim_item(request, receipt_slug):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid request data'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.exception(f"Exception in claim_item for slug '{receipt_slug}'")
+        return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -452,7 +456,8 @@ def get_claim_status(request, receipt_slug):
     except ReceiptNotFoundError:
         return JsonResponse({'error': 'Receipt not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.exception(f"Exception in get_claim_status for slug '{receipt_slug}'")
+        return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)
 
 
 def unclaim_item(request, receipt_slug, claim_id):
@@ -501,7 +506,8 @@ def unclaim_item(request, receipt_slug, claim_id):
         except GracePeriodExpiredError as e:
             return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            logger.exception(f"Exception in unclaim_item for slug '{receipt_slug}'")
+            return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)
     
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 

@@ -88,14 +88,14 @@ def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
         logger.error(f"Receipt {receipt_id} not found")
         
     except Exception as e:
-        logger.error(f"Error processing receipt {receipt_id}: {str(e)}")
+        logger.exception(f"Error processing receipt {receipt_id}")
         try:
             receipt = Receipt.objects.get(id=receipt_id)
             receipt.processing_status = 'failed'
-            receipt.processing_error = str(e)
+            receipt.processing_error = "An unexpected error occurred during processing."
             receipt.save(update_fields=['processing_status', 'processing_error'])
-        except:
-            pass  # Can't update receipt status
+        except Exception as update_e:
+            logger.error(f"Failed to update receipt status for {receipt_id}: {update_e}")
 
 
 def create_placeholder_receipt(uploader_name, image):
