@@ -235,9 +235,9 @@
                         </div>
                         {% else %}
                         <!-- Actual content when ready -->
-                        <!-- Receipt totals in single column with right-justified values -->
                         <div class="mt-4">
                             <h3 class="text-xl font-semibold text-gray-700 mb-3">Receipt Total</h3>
+                            <!-- Using custom edit layout to match existing design with $ symbols -->
                             <div class="space-y-1">
                                 <div class="flex justify-between items-center">
                                     <span class="text-gray-600">Subtotal</span>
@@ -368,48 +368,7 @@
                     {% else %}
                     <!-- Actual items when ready -->
                     {% for item in items %}
-                    <div class="item-row flex gap-2 items-start" data-item-id="{{ item.id }}">
-                        <div class="flex-1 border rounded-lg p-4">
-                            <div class="flex gap-2 items-center">
-                                <div class="flex-1">
-                                    <input type="text" 
-                                           value="{{ item.name }}"
-                                           placeholder="Item name"
-                                           class="item-name w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                                </div>
-                                <div class="w-16">
-                                    <input type="number" 
-                                           value="{{ item.quantity }}"
-                                           min="1"
-                                           placeholder="Qty"
-                                           class="item-quantity w-full px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-center tabular-nums">
-                                </div>
-                                <span class="text-gray-500 font-medium">×</span>
-                                <div class="w-24">
-                                    <input type="number" 
-                                           value="{{ item.unit_price|floatformat:2 }}"
-                                           step="0.01"
-                                           placeholder="Price"
-                                           class="item-price w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-right tabular-nums">
-                                </div>
-                                <span class="text-gray-500 font-medium">=</span>
-                                <div class="w-28">
-                                    <input type="number" 
-                                           value="{{ item.total_price|floatformat:2 }}"
-                                           step="0.01"
-                                           placeholder="Total"
-                                           class="item-total w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-blue-500 text-right tabular-nums bg-gray-50"
-                                           readonly>
-                                </div>
-                            </div>
-                            <div class="mt-2">
-                                <p class="text-gray-500 text-xs item-proration"></p>
-                            </div>
-                        </div>
-                        <button data-action="remove-item" class="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors mt-3">
-                            <div class="w-5 h-5 flex items-center justify-center text-lg font-bold">×</div>
-                        </button>
-                    </div>
+                        {% include 'receipts/partials/item_display.html' with item=item editable=True %}
                     {% endfor %}
                     {% endif %}
                 </div>

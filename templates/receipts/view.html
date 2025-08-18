@@ -116,24 +116,7 @@
                 <!-- Totals column -->
                 <div class="md:w-64">
                     <h3 class="text-xl font-semibold text-gray-700 mb-3 md:text-right">Receipt Total</h3>
-                    <div class="space-y-1">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">Subtotal</span>
-                            <span class="font-medium tabular-nums text-right w-24">${{ receipt.subtotal|floatformat:2 }}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">+ Tax</span>
-                            <span class="font-medium tabular-nums text-right w-24">${{ receipt.tax|floatformat:2 }}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">+ Tip</span>
-                            <span class="font-medium tabular-nums text-right w-24">${{ receipt.tip|floatformat:2 }}</span>
-                        </div>
-                        <div class="flex justify-between items-center border-t pt-2 mt-2">
-                            <span class="text-gray-900 font-semibold">Total</span>
-                            <span class="font-bold text-lg tabular-nums text-right w-24">${{ receipt.total|floatformat:2 }}</span>
-                        </div>
-                    </div>
+                    {% include 'receipts/partials/totals_display.html' with receipt=receipt editable=False %}
                 </div>
             </div>
         </div>
@@ -146,51 +129,7 @@
             {% for item_data in items_with_claims %}
             <div class="item-container border rounded-lg p-4 {% if item_data.available_quantity == 0 and item_data.my_existing_claim == 0 %}opacity-50{% endif %}" 
                  data-item-id="{{ item_data.item.id }}">
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <h3 class="font-semibold text-lg">{{ item_data.item.name }}</h3>
-                        <p class="text-gray-600 text-sm">
-                            {% if item_data.item.quantity > 1 %}
-                            ${{ item_data.item.unit_price|floatformat:2 }} × {{ item_data.item.quantity }} = ${{ item_data.item.total_price|floatformat:2 }}
-                            {% else %}
-                            ${{ item_data.item.total_price|floatformat:2 }}
-                            {% endif %}
-                        </p>
-                        <p class="text-gray-500 text-xs mt-1">
-                            + Tax: ${{ item_data.item.prorated_tax|floatformat:2 }} 
-                            + Tip: ${{ item_data.item.prorated_tip|floatformat:2 }}
-                            = <span class="font-semibold item-share-amount" data-amount="{{ item_data.item.get_per_item_share|floatformat:2 }}">${{ item_data.item.get_per_item_share|floatformat:2 }}</span> per item
-                        </p>
-                    </div>
-                    
-                    {% if viewer_name and receipt.is_finalized %}
-                    <div class="ml-4">
-                        <div class="flex items-center space-x-2">
-                            <label class="text-sm text-gray-600">{% if is_user_finalized %}Claimed:{% else %}Claim:{% endif %}</label>
-                            <input type="number" 
-                                   class="claim-quantity w-20 px-2 py-1 border rounded {% if is_user_finalized or item_data.available_quantity == 0 and item_data.my_existing_claim == 0 %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300{% endif %}"
-                                   min="0"
-                                   max="{{ item_data.my_existing_claim|add:item_data.available_quantity }}"
-                                   value="{{ item_data.my_existing_claim }}"
-                                   data-item-id="{{ item_data.item.id }}"
-                                   {% if is_user_finalized or item_data.available_quantity == 0 and item_data.my_existing_claim == 0 %}readonly disabled{% endif %}>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-                
-                {% if item_data.claims %}
-                <div class="mt-3 pt-3 border-t">
-                    <p class="text-sm text-gray-600 mb-1">Claimed by:</p>
-                    <div class="flex flex-wrap gap-2">
-                        {% for claim in item_data.claims %}
-                        <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                            {{ claim.claimer_name }} ({{ claim.quantity_claimed }})
-                        </span>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
+                {% include 'receipts/partials/item_display.html' with item=item_data.item show_calculations=True show_claims=True viewer_name=viewer_name receipt=receipt is_user_finalized=is_user_finalized available_quantity=item_data.available_quantity my_existing_claim=item_data.my_existing_claim claims=item_data.claims %}
             </div>
             {% endfor %}
         </div>
