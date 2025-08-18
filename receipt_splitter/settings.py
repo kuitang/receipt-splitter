@@ -65,6 +65,7 @@ if DEBUG:
     allowed_hosts.extend([
         '192.168.0.0/16',  # Local network range in CIDR notation
         '.local',          # .local domains (with leading dot for subdomains)
+        'kui-vibes',       # Custom development host
     ])
 
 # For production, also allow specific internal IPs we've seen in logs

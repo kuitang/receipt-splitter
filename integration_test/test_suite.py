@@ -21,6 +21,7 @@ from integration_test.base_test import (
     print_test_header, print_test_result, print_test_summary, TestResult, test_wrapper
 )
 from integration_test.mock_ocr import patch_ocr_for_tests, get_ocr_status
+from integration_test.concurrent_claims_test import ConcurrentClaimsTest
 
 
 class ReceiptWorkflowTest(IntegrationTestBase):
@@ -1203,6 +1204,16 @@ def run_all_tests():
         
         # Session security test
         results.append(("Session Security", security_test.test_session_security()))
+        
+        # Concurrent claims tests
+        time.sleep(10)  # Wait to clear rate limit before concurrent tests
+        concurrent_test = ConcurrentClaimsTest()
+        concurrent_test.setUp()
+        results.append(("Concurrent Claims - Polling Endpoint", concurrent_test.test_polling_endpoint_returns_correct_data()))
+        results.append(("Concurrent Claims - Basic Scenario", concurrent_test.test_concurrent_claims_basic()))
+        results.append(("Concurrent Claims - Availability Updates", concurrent_test.test_real_time_availability_updates()))
+        results.append(("Concurrent Claims - Participant Totals", concurrent_test.test_participant_totals_update()))
+        results.append(("Concurrent Claims - Conflicts", concurrent_test.test_concurrent_claim_conflicts()))
         
         # Rate limiting test disabled per user request
         # results.append(("Rate Limiting Security", security_test.test_rate_limiting()))

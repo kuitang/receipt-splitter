@@ -37,10 +37,19 @@ class ClaimService:
         self.receipt_repository = ReceiptRepository()
         self.validator = ValidationPipeline()
     
-    def claim_items(self, receipt_id: str, line_item_id: str, 
-                   claimer_name: str, quantity: int, session_id: str) -> Claim:
+    def finalize_claims(self, receipt_id: str, claimer_name: str, 
+                       claims_data: List[Dict], session_id: str) -> Dict:
         """
-        Process a claim for line items
+        Finalize all claims for a user at once (new total claims protocol)
+        
+        Args:
+            receipt_id: Receipt ID
+            claimer_name: Name of the person claiming
+            claims_data: List of {"line_item_id": str, "quantity": int} (total desired quantities)
+            session_id: Session ID for ownership verification
+            
+        Returns:
+            Dict with success status and updated totals
         """
         # Verify receipt exists and is finalized
         receipt = self.receipt_repository.get_by_id(receipt_id)
@@ -49,6 +58,101 @@ class ClaimService:
         
         if not receipt.is_finalized:
             raise ReceiptNotFinalizedError("Receipt must be finalized before claiming items")
+        
+        # Check if user has already finalized their claims
+        existing_finalized_claims = Claim.objects.filter(
+            line_item__receipt_id=receipt_id,
+            session_id=session_id,
+            is_finalized=True
+        )
+        
+        if existing_finalized_claims.exists():
+            raise ValueError("Claims have already been finalized and cannot be changed")
+        
+        # Validate all claims first (fail fast)
+        validation_errors = []
+        for claim_data in claims_data:
+            line_item_id = claim_data['line_item_id']
+            desired_quantity = claim_data['quantity']
+            
+            # Get line item
+            try:
+                line_item = LineItem.objects.get(id=line_item_id, receipt=receipt)
+            except LineItem.DoesNotExist:
+                validation_errors.append(f"Item {line_item_id} not found")
+                continue
+            
+            # Validate quantity is non-negative
+            if desired_quantity < 0:
+                validation_errors.append(
+                    f"{line_item.name}: Quantity cannot be negative ({desired_quantity})"
+                )
+                continue
+            
+            # Check availability (excluding this user's current claims)
+            available_for_others = self.repository.get_available_quantity_excluding_session(
+                line_item_id, session_id
+            )
+            
+            if desired_quantity > available_for_others:
+                validation_errors.append(
+                    f"{line_item.name}: Cannot claim {desired_quantity}, only {available_for_others} available"
+                )
+        
+        if validation_errors:
+            raise ValidationError("; ".join(validation_errors))
+        
+        # Delete any existing unfinalied claims for this session
+        Claim.objects.filter(
+            line_item__receipt_id=receipt_id,
+            session_id=session_id,
+            is_finalized=False
+        ).delete()
+        
+        # Create new finalized claims
+        created_claims = []
+        for claim_data in claims_data:
+            if claim_data['quantity'] > 0:  # Only create claims for positive quantities
+                claim = self.repository.create_finalized_claim(
+                    line_item_id=claim_data['line_item_id'],
+                    claimer_name=claimer_name,
+                    quantity_claimed=claim_data['quantity'],
+                    session_id=session_id
+                )
+                created_claims.append(claim)
+        
+        # Calculate new totals
+        my_total = self.calculate_name_total(receipt_id, claimer_name)
+        participant_totals = self.get_participant_totals(receipt_id)
+        
+        return {
+            'success': True,
+            'finalized': True,
+            'claims_count': len(created_claims),
+            'my_total': float(my_total),
+            'participant_totals': {
+                name: float(amount) 
+                for name, amount in participant_totals.items()
+            }
+        }
+    
+    def claim_items(self, receipt_id: str, line_item_id: str, 
+                   claimer_name: str, quantity: int, session_id: str) -> Claim:
+        """
+        LEGACY: Process individual incremental claims (deprecated)
+        Use finalize_claims() for new total claims protocol
+        """
+        # Verify receipt exists and is finalized
+        receipt = self.receipt_repository.get_by_id(receipt_id)
+        if not receipt:
+            raise ValueError(f"Receipt {receipt_id} not found")
+        
+        if not receipt.is_finalized:
+            raise ReceiptNotFinalizedError("Receipt must be finalized before claiming items")
+        
+        # Check if user has already finalized their claims
+        if self.is_user_finalized(receipt_id, session_id):
+            raise ValueError("Claims have already been finalized and cannot be changed")
         
         # Get line item
         try:
@@ -79,22 +183,24 @@ class ClaimService:
     
     def undo_claim(self, claim_id: str, session_id: str) -> bool:
         """
-        Undo a claim within the grace period
+        DEPRECATED: Undo logic removed in new protocol
+        Claims are finalized once and cannot be undone
         """
-        # Get the claim
+        # Check if claim is finalized
         claim = self.repository.get_claim_by_id(claim_id)
         if not claim:
             raise ClaimNotFoundError(f"Claim {claim_id} not found")
         
-        # Verify ownership
+        if claim.is_finalized:
+            raise ValueError("Finalized claims cannot be undone")
+        
+        # For legacy unfinalied claims, allow undo if within grace period
         if claim.session_id != session_id:
             raise PermissionError("Cannot undo another person's claim")
         
-        # Check grace period
         if not claim.is_within_grace_period():
             raise GracePeriodExpiredError("Grace period for undoing this claim has expired")
         
-        # Delete the claim
         return self.repository.delete_claim(claim_id)
     
     def get_claims_for_session(self, receipt_id: str, session_id: str) -> List[Claim]:
@@ -144,6 +250,26 @@ class ClaimService:
         Get the available quantity for a line item
         """
         return self.repository.get_available_quantity(line_item_id)
+    
+    def is_user_finalized(self, receipt_id: str, session_id: str) -> bool:
+        """
+        Check if a user has finalized their claims
+        """
+        return Claim.objects.filter(
+            line_item__receipt_id=receipt_id,
+            session_id=session_id,
+            is_finalized=True
+        ).exists()
+    
+    def get_user_pending_claims(self, receipt_id: str, session_id: str) -> List[Claim]:
+        """
+        Get user's pending (unfinalized) claims
+        """
+        return list(Claim.objects.filter(
+            line_item__receipt_id=receipt_id,
+            session_id=session_id,
+            is_finalized=False
+        ).select_related('line_item'))
     
     def validate_claimer_name(self, receipt_id: str, name: str, 
                              existing_names: Optional[List[str]] = None) -> Tuple[bool, Optional[List[str]]]:

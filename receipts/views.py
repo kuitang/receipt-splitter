@@ -245,9 +245,11 @@ def view_receipt(request, receipt_slug):
                 user_context.session_id
             )
         
-        # Get user's claims
+        # Get user's claims and finalization status
         my_claims = []
         my_total = Decimal('0')
+        my_claims_by_item = {}  # Map item_id -> quantity_claimed
+        is_user_finalized = False
         
         if viewer_name:
             my_claims = claim_service.get_claims_for_name(
@@ -258,6 +260,19 @@ def view_receipt(request, receipt_slug):
                 receipt_id,
                 viewer_name
             )
+            is_user_finalized = claim_service.is_user_finalized(
+                receipt_id, 
+                user_context.session_id
+            )
+            
+            # Create lookup for existing claims by item ID
+            for claim in my_claims:
+                my_claims_by_item[str(claim.line_item.id)] = claim.quantity_claimed
+        
+        # Add user's existing claims to items_with_claims data
+        for item_data in receipt_data['items_with_claims']:
+            item_id = str(item_data['item'].id)
+            item_data['my_existing_claim'] = my_claims_by_item.get(item_id, 0)
         
         # Prepare context
         context = {
@@ -266,7 +281,9 @@ def view_receipt(request, receipt_slug):
             'viewer_name': viewer_name or (receipt.uploader_name if is_uploader else None),
             'is_uploader': is_uploader,
             'my_claims': my_claims,
+            'my_claims_by_item': my_claims_by_item,
             'my_total': my_total,
+            'is_user_finalized': is_user_finalized,
             'show_name_form': not viewer_name and not is_uploader,
             'participant_totals': receipt_data['participant_totals'],
             'total_claimed': receipt_data['total_claimed'],
@@ -287,7 +304,7 @@ def view_receipt(request, receipt_slug):
 @rate_limit_claim
 @require_http_methods(["POST"])
 def claim_item(request, receipt_slug):
-    """Claim items on a receipt"""
+    """Finalize claims on a receipt (new total claims protocol)"""
     receipt = receipt_service.get_receipt_by_slug(receipt_slug)
     
     if not receipt:
@@ -307,39 +324,31 @@ def claim_item(request, receipt_slug):
     
     try:
         data = json.loads(request.body)
-        line_item_id = data.get('line_item_id')
-        quantity = int(data.get('quantity', 1))
         
-        # Process claim through service
-        claim = claim_service.claim_items(
+        # New protocol: accept multiple claims or single claim
+        if 'claims' in data:
+            # New format: {"claims": [{"line_item_id": "123", "quantity": 2}]}
+            claims_data = data['claims']
+        else:
+            # Legacy format: {"line_item_id": "123", "quantity": 1}
+            claims_data = [{
+                'line_item_id': data.get('line_item_id'),
+                'quantity': int(data.get('quantity', 1))
+            }]
+        
+        # Finalize all claims at once
+        result = claim_service.finalize_claims(
             receipt_id=receipt_id,
-            line_item_id=line_item_id,
             claimer_name=viewer_name,
-            quantity=quantity,
+            claims_data=claims_data,
             session_id=user_context.session_id
         )
         
-        # Get updated totals
-        my_total = claim_service.calculate_name_total(
-            receipt_id,
-            viewer_name
-        )
-        
-        participant_totals = claim_service.get_participant_totals(receipt_id)
-        
-        return JsonResponse({
-            'success': True,
-            'claim_id': str(claim.id),
-            'my_total': float(my_total),
-            'participant_totals': {
-                name: float(amount) 
-                for name, amount in participant_totals.items()
-            }
-        })
+        return JsonResponse(result)
         
     except ReceiptNotFinalizedError:
         return JsonResponse({'error': 'Receipt must be finalized first'}, status=400)
-    except InsufficientQuantityError as e:
+    except ValidationError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid request data'}, status=400)
@@ -360,6 +369,71 @@ def check_processing_status(request, receipt_slug):
         'is_complete': receipt.processing_status == 'completed',
         'error': receipt.processing_error if receipt.processing_status == 'failed' else None
     })
+
+
+@rate_limit_view
+@require_http_methods(["GET"])
+def get_claim_status(request, receipt_slug):
+    """Get current claim status for real-time updates"""
+    try:
+        receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+        
+        if not receipt:
+            return JsonResponse({'error': 'Receipt not found'}, status=404)
+        
+        receipt_id = str(receipt.id)
+        receipt_data = receipt_service.get_receipt_for_viewing(receipt_id)
+        
+        # Get current user context
+        user_context = request.user_context(receipt_id)
+        viewer_name = user_context.name
+        
+        if not viewer_name and user_context.is_uploader:
+            viewer_name = receipt.uploader_name
+        
+        # Calculate user's total and finalization status
+        my_total = Decimal('0')
+        is_user_finalized = False
+        if viewer_name:
+            my_total = claim_service.calculate_name_total(receipt_id, viewer_name)
+            is_user_finalized = claim_service.is_user_finalized(receipt_id, user_context.session_id)
+        
+        # Prepare response data
+        response_data = {
+            'success': True,
+            'viewer_name': viewer_name,
+            'is_finalized': is_user_finalized,
+            'participant_totals': [
+                {'name': participant['name'], 'amount': float(participant['amount'])}
+                for participant in receipt_data['participant_totals']
+            ],
+            'total_claimed': float(receipt_data['total_claimed']),
+            'total_unclaimed': float(receipt_data['total_unclaimed']),
+            'my_total': float(my_total),
+            'items_with_claims': []
+        }
+        
+        # Add item-level claim data
+        for item_data in receipt_data['items_with_claims']:
+            item_info = {
+                'item_id': str(item_data['item'].id),
+                'available_quantity': item_data['available_quantity'],
+                'claims': [
+                    {
+                        'claimer_name': claim.claimer_name,
+                        'quantity_claimed': claim.quantity_claimed
+                    }
+                    for claim in item_data['claims']
+                ]
+            }
+            response_data['items_with_claims'].append(item_info)
+        
+        return JsonResponse(response_data)
+        
+    except ReceiptNotFoundError:
+        return JsonResponse({'error': 'Receipt not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def unclaim_item(request, receipt_slug, claim_id):

@@ -58,15 +58,21 @@
     </div>
     {% endif %}
 
-    {% if is_uploader %}
+    {% if is_uploader or viewer_name %}
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            {% if is_uploader %}
             <p class="text-blue-800">
                 <strong>You uploaded this receipt.</strong> Share this link with your friends:
             </p>
             <div class="flex-1 max-w-lg">
                 {% include 'receipts/partials/copy_link_widget.html' with share_url=share_url widget_id='share-link-input' border_color='border-blue-300' input_bg='bg-white' button_bg='bg-white' button_hover='hover:bg-blue-100' %}
             </div>
+            {% else %}
+            <p class="text-blue-800">
+                Welcome <strong>{{ viewer_name }}</strong>! {{ receipt.uploader_name }} is requesting your payment.
+            </p>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -144,30 +150,34 @@
                     <div class="flex-1">
                         <h3 class="font-semibold text-lg">{{ item_data.item.name }}</h3>
                         <p class="text-gray-600 text-sm">
+                            {% if item_data.item.quantity > 1 %}
                             ${{ item_data.item.unit_price|floatformat:2 }} × {{ item_data.item.quantity }} = ${{ item_data.item.total_price|floatformat:2 }}
+                            {% else %}
+                            ${{ item_data.item.total_price|floatformat:2 }}
+                            {% endif %}
                         </p>
                         <p class="text-gray-500 text-xs mt-1">
                             + Tax: ${{ item_data.item.prorated_tax|floatformat:2 }} 
                             + Tip: ${{ item_data.item.prorated_tip|floatformat:2 }}
-                            = <span class="font-semibold item-share-amount" data-amount="{{ item_data.item.get_per_item_share|floatformat:2 }}">${{ item_data.item.get_per_item_share|floatformat:2 }}</span> per item
+                            = <span class="font-semibold item-share-amount" data-amount="{{ item_data.item.get_per_item_share|floatformat:2 }}">${{ item_data.item.get_per_item_share|floatformat:2 }}</span>
                         </p>
                     </div>
                     
                     {% if viewer_name and receipt.is_finalized %}
                     <div class="ml-4">
-                        {% if item_data.available_quantity > 0 %}
+                        {% if item_data.available_quantity > 0 or item_data.my_existing_claim > 0 %}
                         <div class="flex items-center space-x-2">
-                            <label class="text-sm text-gray-600">Claim:</label>
+                            <label class="text-sm text-gray-600">{% if is_user_finalized %}Claimed:{% else %}Claim:{% endif %}</label>
                             <input type="number" 
-                                   class="claim-quantity w-20 px-2 py-1 border border-gray-300 rounded"
+                                   class="claim-quantity w-20 px-2 py-1 border rounded {% if is_user_finalized %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300{% endif %}"
                                    min="0"
-                                   max="{{ item_data.available_quantity }}"
-                                   value="0"
-                                   data-item-id="{{ item_data.item.id }}">
-                            <span class="text-sm text-gray-600">of {{ item_data.available_quantity }}</span>
+                                   max="{{ item_data.my_existing_claim|add:item_data.available_quantity }}"
+                                   value="{{ item_data.my_existing_claim }}"
+                                   data-item-id="{{ item_data.item.id }}"
+                                   {% if is_user_finalized %}readonly{% endif %}>
                         </div>
                         {% else %}
-                        <span class="text-red-600 font-semibold">Fully Claimed</span>
+                        <span class="{% if is_user_finalized %}text-gray-600{% else %}text-orange-600{% endif %} font-semibold">Fully Claimed</span>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -191,23 +201,33 @@
     </div>
 
     {% if viewer_name and receipt.is_finalized %}
-    <div class="bg-white rounded-lg shadow-lg p-6 sticky bottom-4 border-t-4 border-green-500">
+    <div class="bg-white rounded-lg shadow-lg p-6 sticky bottom-4 border-t-4 {% if is_user_finalized %}border-blue-500{% else %}border-green-500{% endif %}">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div class="flex-1">
-                <p class="text-sm text-gray-600 mb-1">Your Total ({{ viewer_name }})</p>
-                <p class="text-3xl font-bold text-green-600" id="my-total" data-existing-total="{{ my_total|floatformat:2 }}">${{ my_total|floatformat:2 }}</p>
+                <p class="text-sm text-gray-600 mb-1">Your Total ({{ viewer_name }}){% if is_user_finalized %} - Finalized{% endif %}</p>
+                <p class="text-3xl font-bold {% if is_user_finalized %}text-blue-600{% else %}text-green-600{% endif %}" id="my-total">${{ my_total|floatformat:2 }}</p>
                 {% if my_claims %}
                 <p class="text-xs text-gray-500 mt-1">
                     {% for claim in my_claims %}{{ claim.line_item.name }} ({{ claim.quantity_claimed }}){% if not forloop.last %}, {% endif %}{% endfor %}
                 </p>
                 {% endif %}
+                {% if is_user_finalized %}
+                <p class="text-xs text-blue-600 mt-1">✓ Your claims have been finalized and cannot be changed</p>
+                {% endif %}
             </div>
+            {% if not is_user_finalized %}
             <button data-action="confirm-claims" 
                     id="claim-button"
                     class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
-                Claim
+                Finalize Claims
             </button>
+            {% else %}
+            <div class="text-center">
+                <div class="text-blue-600 text-2xl mb-1">✓</div>
+                <p class="text-sm text-blue-600 font-medium">Claims Finalized</p>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}

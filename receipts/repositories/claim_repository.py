@@ -83,6 +83,22 @@ class ClaimRepository:
         except LineItem.DoesNotExist:
             return 0
     
+    def get_available_quantity_excluding_session(self, line_item_id: str, session_id: str) -> int:
+        """Get available quantity excluding current session's claims"""
+        try:
+            line_item = LineItem.objects.get(id=line_item_id)
+            
+            # Count claims from other sessions only
+            claimed_by_others = Claim.objects.filter(
+                line_item_id=line_item_id
+            ).exclude(session_id=session_id).aggregate(
+                total=Sum('quantity_claimed')
+            )['total'] or 0
+            
+            return line_item.quantity - claimed_by_others
+        except LineItem.DoesNotExist:
+            return 0
+    
     def get_existing_claim(self, line_item_id: str, session_id: str) -> Optional[Claim]:
         """Get existing claim for a line item and session"""
         try:
@@ -95,7 +111,7 @@ class ClaimRepository:
     
     def create_claim(self, line_item_id: str, claimer_name: str, 
                     quantity_claimed: int, session_id: str) -> Claim:
-        """Create a new claim"""
+        """Create a new claim (legacy method)"""
         grace_period_ends = timezone.now() + timedelta(seconds=30)
         
         return Claim.objects.create(
@@ -104,6 +120,18 @@ class ClaimRepository:
             quantity_claimed=quantity_claimed,
             session_id=session_id,
             grace_period_ends=grace_period_ends
+        )
+    
+    def create_finalized_claim(self, line_item_id: str, claimer_name: str, 
+                              quantity_claimed: int, session_id: str) -> Claim:
+        """Create a new finalized claim (new total claims protocol)"""
+        return Claim.objects.create(
+            line_item_id=line_item_id,
+            claimer_name=claimer_name,
+            quantity_claimed=quantity_claimed,
+            session_id=session_id,
+            is_finalized=True,
+            finalized_at=timezone.now()
         )
     
     def update_claim(self, claim: Claim, claimer_name: str, 

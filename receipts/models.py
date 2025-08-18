@@ -114,21 +114,35 @@ class Claim(models.Model):
     quantity_claimed = models.IntegerField(default=1)
     session_id = models.CharField(max_length=100)
     claimed_at = models.DateTimeField(auto_now_add=True)
-    grace_period_ends = models.DateTimeField()
+    is_finalized = models.BooleanField(default=False)
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    
+    # Legacy fields - will be removed in cleanup
+    grace_period_ends = models.DateTimeField(null=True, blank=True)
     
     def save(self, *args, **kwargs):
-        if not self.grace_period_ends:
+        # Legacy grace period logic for backwards compatibility
+        if not self.grace_period_ends and not self.is_finalized:
             self.grace_period_ends = timezone.now() + timedelta(seconds=30)
+        
+        # Set finalized_at when finalizing
+        if self.is_finalized and not self.finalized_at:
+            self.finalized_at = timezone.now()
+            
         super().save(*args, **kwargs)
     
     def is_within_grace_period(self):
-        return timezone.now() < self.grace_period_ends
+        """Legacy method - will be removed"""
+        if self.is_finalized:
+            return False
+        return self.grace_period_ends and timezone.now() < self.grace_period_ends
     
     def get_share_amount(self):
         return self.line_item.get_per_item_share() * self.quantity_claimed
     
     def __str__(self):
-        return f"{self.claimer_name} claimed {self.quantity_claimed}x {self.line_item.name}"
+        status = " (finalized)" if self.is_finalized else ""
+        return f"{self.claimer_name} claimed {self.quantity_claimed}x {self.line_item.name}{status}"
 
 
 class ActiveViewer(models.Model):
