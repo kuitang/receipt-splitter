@@ -12,13 +12,18 @@ from django.urls import reverse
 from PIL import Image
 
 
+from unittest import mock
+from django.test import override_settings
+
+@override_settings(RATELIMIT_ENABLE=False)
+@mock.patch('receipts.services.receipt_service.process_receipt_async')
 class StrictNoFileSystemTestCase(TransactionTestCase):
     """
     Extremely strict test that fails on ANY filesystem operation
     related to image handling.
     """
     
-    def test_upload_with_strict_no_filesystem(self):
+    def test_upload_with_strict_no_filesystem(self, mock_process_receipt):
         """Test upload with strict filesystem monitoring"""
         
         # Create a list to track any file operations
@@ -98,7 +103,7 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
                             f"Detected file operations: {file_operations}"
                         )
     
-    def test_image_serving_no_filesystem(self):
+    def test_image_serving_no_filesystem(self, mock_process_receipt):
         """Test image serving without filesystem access"""
         from receipts.models import Receipt
         from django.utils import timezone

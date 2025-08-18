@@ -15,7 +15,7 @@ from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField
 from receipts.models import Receipt, LineItem, ActiveViewer, Claim
 from receipts.services.validation_pipeline import ValidationPipeline
 from receipts.async_processor import process_receipt_async, create_placeholder_receipt
-from receipts.image_storage import store_receipt_image_in_memory
+from receipts.image_storage import store_receipt_image_in_memory, delete_receipt_image_from_memory
 
 
 class ReceiptNotFoundError(Exception):
@@ -152,6 +152,9 @@ class ReceiptService:
         # Finalize the receipt
         self._finalize_receipt(receipt_id)
         
+        # Delete the image from memory
+        delete_receipt_image_from_memory(receipt_id)
+
         return {
             'success': True,
             'share_url': receipt.get_absolute_url()
