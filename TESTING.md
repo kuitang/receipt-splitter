@@ -35,6 +35,16 @@ python manage.py test receipts.test_javascript_security -v 2
 ```
 
 ## Integration Tests
+# Run all tests
+python integration_test/test_suite.py
+
+# Run specific test classes
+python integration_test/test_suite.py ValidationTest SecurityValidationTest
+
+# List available classes
+python integration_test/test_suite.py --list
+
+# Legacy commands
 ```bash
 source venv/bin/activate
 export SECRET_KEY='test-key-for-testing-only'
