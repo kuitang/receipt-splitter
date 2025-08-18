@@ -4,22 +4,18 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
+import {
+  createTestDOM,
+  setupMocks,
+  createViewPageDOM,
+  mockAuthFetch,
+  mockErrorResponse,
+  resetTestEnvironment
+} from './test-helpers.js';
 
-// Set up DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-  url: 'http://localhost',
-  pretendToBeVisual: true,
-  resources: 'usable'
-});
-
-global.window = dom.window;
-global.document = window.document;
-global.navigator = window.navigator;
-
-// Mock functions
-global.alert = vi.fn();
-global.confirm = vi.fn(() => true);
+// Set up environment
+createTestDOM();
+const mocks = setupMocks();
 
 // Import modules
 const viewPageModule = await import('../../static/js/view-page.js');
@@ -29,61 +25,55 @@ const {
   confirmClaims,
   validateClaims,
   updateTotal,
+  updateFinalizationStatus,
   _setState
 } = viewPageModule;
 
+// Helper for common test setup
+function setupTestCase(itemsConfig = {}) {
+  const defaultItem = {
+    itemId: '1',
+    name: 'Burger',
+    shareAmount: '15.00',
+    quantity: 0,
+    min: 0,
+    max: 2
+  };
+  
+  const items = [{ ...defaultItem, ...itemsConfig }];
+  document.body.innerHTML = createViewPageDOM({ items });
+  initializeViewPage();
+  _setState({ receiptSlug: 'test-receipt' });
+}
+
 describe('Invalid Claims Security Tests', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetTestEnvironment();
   });
 
   describe('Negative Quantity Protection', () => {
     it('should reject negative quantities at frontend level', async () => {
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <input type="number" class="claim-quantity" value="-5" min="0" data-item-id="1">
-        </div>
-        <p id="my-total">$0.00</p>
-        <div id="claiming-warning" class="hidden"></div>
-      `;
+      setupTestCase({ quantity: -5 });
       
-      initializeViewPage();
-      _setState({ receiptSlug: 'test-receipt' });
-      
-      global.authenticatedJsonFetch = vi.fn();
+      mockAuthFetch();
       
       await confirmClaims();
       
       // Should not make API call with negative quantities
       expect(global.authenticatedJsonFetch).not.toHaveBeenCalled();
-      expect(global.alert).toHaveBeenCalledWith('Please select items to claim');
+      expect(mocks.alert).toHaveBeenCalledWith('Please select items to claim');
     });
 
     it('should handle frontend validation of negative quantities', async () => {
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <input type="number" class="claim-quantity" value="-1" min="0" max="2" data-item-id="1">
-        </div>
-        <div id="claiming-warning" class="hidden">
-          <div id="claiming-error-details"></div>
-        </div>
-        <p id="my-total">$15.00</p>
-      `;
+      setupTestCase({ quantity: -1, max: 2 });
       
-      initializeViewPage();
-      _setState({ receiptSlug: 'test-receipt' });
-      
-      global.authenticatedJsonFetch = vi.fn();
+      mockAuthFetch();
       
       await confirmClaims();
       
       // Negative quantities are treated as 0 (no positive claims)
       expect(global.authenticatedJsonFetch).not.toHaveBeenCalled();
-      expect(global.alert).toHaveBeenCalledWith('Please select items to claim');
+      expect(mocks.alert).toHaveBeenCalledWith('Please select items to claim');
     });
   });
 
@@ -110,15 +100,15 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should prevent claims exceeding available quantity', () => {
-      document.body.innerHTML = `
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <input type="number" class="claim-quantity" value="5" max="2" data-item-id="1">
-        </div>
-        <div id="claiming-warning" class="hidden">
-          <div id="claiming-error-details"></div>
-        </div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '1',
+          name: 'Burger',
+          shareAmount: '15.00',
+          quantity: 5,
+          max: 2
+        }]
+      });
       
       const isValid = validateClaims();
       expect(isValid).toBe(false);
@@ -145,7 +135,6 @@ describe('Invalid Claims Security Tests', () => {
       `;
       
       // Simulate finalization status update
-      const { updateFinalizationStatus } = viewPageModule;
       updateFinalizationStatus(true);
       
       // UI should be locked
@@ -163,32 +152,15 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should handle server rejection of double finalization', async () => {
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <div class="item-share-amount" data-amount="10.00"></div>
-          <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="1">
-        </div>
-        <p id="my-total">$10.00</p>
-        <div id="claiming-warning" class="hidden"></div>
-      `;
-      
-      initializeViewPage();
-      _setState({ receiptSlug: 'test-receipt' });
+      setupTestCase({ quantity: 1, max: 2 });
       
       // Mock server rejection of double finalization
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: () => Promise.resolve({ 
-          error: 'Claims have already been finalized and cannot be changed' 
-        })
-      });
+      mockAuthFetch(mockErrorResponse('Claims have already been finalized and cannot be changed'));
       
       await confirmClaims();
       
       // Should show clear error message
-      expect(global.alert).toHaveBeenCalledWith(
+      expect(mocks.alert).toHaveBeenCalledWith(
         'Error finalizing claims: Claims have already been finalized and cannot be changed'
       );
     });
@@ -196,52 +168,52 @@ describe('Invalid Claims Security Tests', () => {
 
   describe('Invalid Data Protection', () => {
     it('should handle backend rejection of invalid item IDs', async () => {
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        <div class="item-container" data-item-id="999">
-          <h3>Invalid Item</h3>
-          <div class="item-share-amount" data-amount="10.00"></div>
-          <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="999">
-        </div>
-        <p id="my-total">$10.00</p>
-        <div id="claiming-warning" class="hidden"></div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [{
+          itemId: '999',
+          name: 'Invalid Item',
+          shareAmount: '10.00',
+          quantity: 1,
+          max: 2
+        }]
+      });
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
       
       // Frontend validation passes, but backend rejects invalid item ID
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: () => Promise.resolve({ error: 'Item 999 not found' })
-      });
+      mockAuthFetch(mockErrorResponse('Item 999 not found'));
       
       await confirmClaims();
       
-      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item 999 not found');
+      expect(mocks.alert).toHaveBeenCalledWith('Error finalizing claims: Item 999 not found');
     });
 
     it('should handle zero quantities correctly (valid case)', async () => {
-      document.body.innerHTML = `
-        <div id="view-page-data" data-receipt-slug="test-receipt"></div>
-        <div class="item-container" data-item-id="1">
-          <h3>Burger</h3>
-          <div class="item-share-amount" data-amount="10.00"></div>
-          <input type="number" class="claim-quantity" value="0" min="0" max="2" data-item-id="1">
-        </div>
-        <div class="item-container" data-item-id="2">
-          <h3>Fries</h3>
-          <div class="item-share-amount" data-amount="5.00"></div>
-          <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="2">
-        </div>
-        <p id="my-total">$5.00</p>
-        <div id="claiming-warning" class="hidden"></div>
-      `;
+      document.body.innerHTML = createViewPageDOM({
+        items: [
+          {
+            itemId: '1',
+            name: 'Burger',
+            shareAmount: '10.00',
+            quantity: 0,
+            max: 2
+          },
+          {
+            itemId: '2',
+            name: 'Fries',
+            shareAmount: '5.00',
+            quantity: 1,
+            max: 2
+          }
+        ],
+        myTotal: '5.00'
+      });
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
       
-      global.authenticatedJsonFetch = vi.fn().mockResolvedValue({
+      mockAuthFetch({ 
         ok: true,
         json: () => Promise.resolve({ success: true, finalized: true, claims_count: 1 })
       });
