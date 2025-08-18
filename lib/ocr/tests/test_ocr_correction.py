@@ -62,7 +62,7 @@ class TestTotalCorrection(unittest.TestCase):
         )
         
         # Validate shows error
-        is_valid, errors = receipt.validate()
+        is_valid, errors = receipt.validate_totals()
         self.assertFalse(is_valid)
         self.assertTrue(any("doesn't match receipt total" in e for e in errors))
         
@@ -81,7 +81,7 @@ class TestTotalCorrection(unittest.TestCase):
         self.assertEqual(receipt.total, Decimal("64.00"))
         
         # Validate after correction - should pass
-        is_valid_after, errors_after = receipt.validate()
+        is_valid_after, errors_after = receipt.validate_totals()
         self.assertTrue(is_valid_after)
         self.assertEqual(len(errors_after), 0)
     
@@ -95,7 +95,7 @@ class TestTotalCorrection(unittest.TestCase):
         )
         
         # Already valid
-        is_valid, _ = receipt.validate()
+        is_valid, _ = receipt.validate_totals()
         self.assertTrue(is_valid)
         
         # Apply correction

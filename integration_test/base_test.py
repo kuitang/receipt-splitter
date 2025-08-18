@@ -198,6 +198,53 @@ class IntegrationTestBase:
         self.client = Client()
         self.session_cookies = {}
         
+    def create_session(self):
+        """Create a new test client session"""
+        # Return a new instance of the same class
+        return self.__class__()
+    
+    def post(self, url: str, data: Dict[str, Any] = None, json_data: Dict[str, Any] = None, **kwargs):
+        """Make a POST request with this session"""
+        # Extract content_type if provided in kwargs
+        content_type = kwargs.pop('content_type', None)
+        
+        if json_data or content_type == 'application/json':
+            response = self.client.post(
+                url,
+                data=json.dumps(json_data) if json_data else json.dumps(data),
+                content_type='application/json',
+                **{'HTTP_COOKIE': self._format_cookies()}
+            )
+        else:
+            response = self.client.post(
+                url,
+                data=data or {},
+                **{'HTTP_COOKIE': self._format_cookies()}
+            )
+        
+        # Update session cookies
+        if response.cookies:
+            self.session_cookies.update(response.cookies)
+        
+        return response
+    
+    def get(self, url: str, **kwargs):
+        """Make a GET request with this session"""
+        response = self.client.get(
+            url,
+            **{'HTTP_COOKIE': self._format_cookies()}
+        )
+        
+        # Update session cookies
+        if response.cookies:
+            self.session_cookies.update(response.cookies)
+        
+        return response
+    
+    def _format_cookies(self) -> str:
+        """Format cookies for HTTP header"""
+        return '; '.join([f'{k}={v.value}' for k, v in self.session_cookies.items()])
+    
     def create_test_image(self, size_bytes: int = 1000, content: bytes = None) -> bytes:
         """Create a fake image for testing"""
         if content:
@@ -308,7 +355,7 @@ class IntegrationTestBase:
                 print(f"Receipt {receipt_slug} not found")
                 return False
             
-            time.sleep(0.5)
+            # Rate limiting is disabled in tests, no sleep needed
         
         print(f"Timeout waiting for processing of {receipt_slug}")
         return False
@@ -391,9 +438,18 @@ class IntegrationTestBase:
         """Finalize a receipt"""
         response = self.client.post(f'/finalize/{receipt_slug}/')
         
+        # Handle empty response content
+        data = None
+        if response.content:
+            try:
+                data = json.loads(response.content)
+            except json.JSONDecodeError:
+                # If content is not valid JSON, return as string
+                data = response.content.decode('utf-8') if isinstance(response.content, bytes) else response.content
+        
         return {
             'status_code': response.status_code,
-            'data': json.loads(response.content) if response.content else None
+            'data': data
         }
     
     def set_viewer_name(self, receipt_slug: str, viewer_name: str) -> bool:
@@ -425,9 +481,18 @@ class IntegrationTestBase:
         """Unclaim an item"""
         response = self.client.delete(f'/unclaim/{receipt_slug}/{claim_id}/')
         
+        # Handle empty response content
+        data = None
+        if response.content:
+            try:
+                data = json.loads(response.content)
+            except json.JSONDecodeError:
+                # If content is not valid JSON, return as string
+                data = response.content.decode('utf-8') if isinstance(response.content, bytes) else response.content
+        
         return {
             'status_code': response.status_code,
-            'data': json.loads(response.content) if response.content else None
+            'data': data
         }
     
     def create_new_session(self) -> 'IntegrationTestBase':

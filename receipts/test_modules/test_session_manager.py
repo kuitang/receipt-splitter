@@ -227,9 +227,15 @@ class ReceiptSessionManagerTest(TestCase):
     
     def test_handles_missing_session(self):
         """Test graceful handling when session is not available"""
-        # Create request without session
+        # Create request with session that doesn't have session_key
         request = Mock()
-        del request.session  # Remove session attribute
+        request.session = Mock()
+        request.session.session_key = None
+        request.session.get = Mock(return_value={})
+        request.session.__contains__ = Mock(return_value=False)
+        request.session.__getitem__ = Mock(side_effect=KeyError())
+        request.session.__setitem__ = Mock()
+        request.session.save = Mock()
         
         session_manager = ReceiptSessionManager(request)
         

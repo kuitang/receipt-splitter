@@ -191,14 +191,19 @@ class InputValidator:
         """Validate complete receipt data structure"""
         errors = []
         
-        # Validate restaurant name
+        # Always clean restaurant name, even if validation fails
+        original_name = data.get('restaurant_name', '')
+        cleaned_name = bleach.clean(original_name, tags=[], strip=True).strip()
+        
         try:
             data['restaurant_name'] = InputValidator.validate_name(
-                data.get('restaurant_name', ''),
+                original_name,
                 field_name="Restaurant name",
                 max_length=100
             )
         except ValidationError as e:
+            # Use cleaned name even on validation error
+            data['restaurant_name'] = cleaned_name
             # Extract the actual message, not the string representation
             if hasattr(e, 'messages') and e.messages:
                 errors.extend(e.messages)
@@ -227,26 +232,59 @@ class InputValidator:
         # Validate items
         if 'items' in data:
             for i, item in enumerate(data.get('items', [])):
+                # Always clean item name, even if validation fails
+                original_item_name = item.get('name', '')
+                cleaned_item_name = bleach.clean(original_item_name, tags=[], strip=True).strip()
+                
                 try:
                     item['name'] = InputValidator.validate_name(
-                        item.get('name', ''),
+                        original_item_name,
                         field_name=f"Item {i+1} name",
                         max_length=100
                     )
+                except ValidationError as e:
+                    # Use cleaned name even on validation error
+                    item['name'] = cleaned_item_name
+                    # Extract the actual message, not the string representation
+                    if hasattr(e, 'messages') and e.messages:
+                        errors.extend(e.messages)
+                    elif hasattr(e, 'message'):
+                        errors.append(e.message)
+                    else:
+                        errors.append(str(e).strip("[]'\""))
+                
+                try:
                     item['quantity'] = InputValidator.validate_quantity(
                         item.get('quantity', 1),
                         field_name=f"Item {i+1} quantity"
                     )
+                except ValidationError as e:
+                    if hasattr(e, 'messages') and e.messages:
+                        errors.extend(e.messages)
+                    elif hasattr(e, 'message'):
+                        errors.append(e.message)
+                    else:
+                        errors.append(str(e).strip("[]'\""))
+                
+                try:
                     item['unit_price'] = InputValidator.validate_decimal(
                         item.get('unit_price', 0),
                         field_name=f"Item {i+1} price"
                     )
+                except ValidationError as e:
+                    if hasattr(e, 'messages') and e.messages:
+                        errors.extend(e.messages)
+                    elif hasattr(e, 'message'):
+                        errors.append(e.message)
+                    else:
+                        errors.append(str(e).strip("[]'\""))
+                        
+                try:
                     item['total_price'] = InputValidator.validate_decimal(
                         item.get('total_price', 0),
                         field_name=f"Item {i+1} total"
                     )
                 except ValidationError as e:
-                    # Extract the actual message, not the string representation
                     if hasattr(e, 'messages') and e.messages:
                         errors.extend(e.messages)
                     elif hasattr(e, 'message'):

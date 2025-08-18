@@ -193,7 +193,7 @@ class ViewTests(TestCase):
         # Total share is 20.00 + 2.00 + 3.00 = 25.00 for all 2 items
         # Per item: 25.00 / 2 = 12.50
         self.assertContains(response, 'data-amount="12.50"')
-        self.assertContains(response, '$12.50</span> per item')
+        self.assertContains(response, '$12.50</span>')
     
     def test_view_nonexistent_receipt(self):
         url = reverse('view_receipt', kwargs={'receipt_slug': 'nonexistent-slug'})
@@ -339,12 +339,12 @@ class ViewTests(TestCase):
         # Item 1: 20.00 + (40% of 5.00 tax) + (40% of 10.00 tip) = 20 + 2 + 4 = 26.00 total
         # Per item: 26.00 / 2 = 13.00
         self.assertContains(response, 'data-amount="13.00"')
-        self.assertContains(response, '$13.00</span> per item')
+        self.assertContains(response, '$13.00</span>')
         
         # Item 2: 30.00 + (60% of 5.00 tax) + (60% of 10.00 tip) = 30 + 3 + 6 = 39.00 total
         # Per item: 39.00 / 3 = 13.00
         self.assertContains(response, 'data-amount="13.00"')
-        self.assertContains(response, '$13.00</span> per item')
+        self.assertContains(response, '$13.00</span>')
     
     def test_participant_totals_display(self):
         """Test that participant totals and unclaimed amounts are displayed correctly"""

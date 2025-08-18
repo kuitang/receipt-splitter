@@ -417,7 +417,8 @@ class FileSystemMonitoringTestCase(TestCase):
 class IntegrationTestCase(TransactionTestCase):
     """Integration tests for complete upload flow"""
     
-    def test_complete_upload_flow_no_disk(self):
+    @mock.patch('receipts.async_processor.process_receipt_async')
+    def test_complete_upload_flow_no_disk(self, mock_async):
         """Test complete upload flow without disk access"""
         # Monitor file operations
         with mock.patch('django.core.files.storage.default_storage.save') as mock_save:
@@ -455,23 +456,25 @@ class IntegrationTestCase(TransactionTestCase):
     def test_no_media_directory_created(self):
         """Test that no media directory is created during operations"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Override media root to temp directory
+            # Override media root to temp directory and disable async processing
             with override_settings(MEDIA_ROOT=temp_dir):
-                # Upload a receipt
-                img = Image.new('RGB', (100, 100))
-                buffer = io.BytesIO()
-                img.save(buffer, format='JPEG')
-                buffer.seek(0)
-                
-                response = self.client.post(reverse('upload_receipt'), {
-                    'uploader_name': 'Test User',
-                    'receipt_image': SimpleUploadedFile('test.jpg', buffer.getvalue())
-                })
-                
-                # Check that no subdirectories were created in media root
-                subdirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
-                self.assertEqual(len(subdirs), 0, f"Unexpected directories created: {subdirs}")
-                
-                # Check that no files were created
-                files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
-                self.assertEqual(len(files), 0, f"Unexpected files created: {files}")
+                # Patch async processing to prevent database locks
+                with mock.patch('receipts.services.receipt_service.process_receipt_async'):
+                    # Upload a receipt
+                    img = Image.new('RGB', (100, 100))
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG')
+                    buffer.seek(0)
+                    
+                    response = self.client.post(reverse('upload_receipt'), {
+                        'uploader_name': 'Test User',
+                        'receipt_image': SimpleUploadedFile('test.jpg', buffer.getvalue())
+                    })
+                    
+                    # Check that no subdirectories were created in media root
+                    subdirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
+                    self.assertEqual(len(subdirs), 0, f"Unexpected directories created: {subdirs}")
+                    
+                    # Check that no files were created
+                    files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
+                    self.assertEqual(len(files), 0, f"Unexpected files created: {files}")

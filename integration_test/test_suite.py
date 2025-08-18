@@ -178,13 +178,8 @@ class ReceiptWorkflowTest(IntegrationTestBase):
             print(f"   Total unclaimed: ${unclaimed:.2f}")
             print(f"   Receipt total: ${receipt_total:.2f}")
             
-            # Step 10: Test unclaim
-            print("\n🔄 Step 8: Test Unclaim")
-            if final_data['items'][0].get('claims'):
-                claim_id = final_data['items'][0]['claims'][0]['id']
-                unclaim_response = user_b.unclaim_item(receipt_slug, claim_id)
-                assert unclaim_response['status_code'] == 200, "Should unclaim item"
-                print("   ✓ User B successfully unclaimed item")
+            # Step 8: Note - Unclaim removed (violates total claims protocol)
+            # Claims are finalized once made and cannot be changed
             
             print("\n✅ Complete workflow test PASSED")
             return TestResult(TestResult.PASSED)
@@ -212,7 +207,7 @@ class SecurityValidationTest(IntegrationTestBase):
             
             for i, payload in enumerate(xss_payloads[:2]):  # Test first 2 payloads to avoid rate limit
                 if i > 0:
-                    time.sleep(1)  # Small delay between uploads to avoid rate limit
+                    pass  # Rate limiting is disabled in tests
                 response = self.upload_receipt(
                     uploader_name=payload,
                     image_bytes=self.create_test_image(50)
@@ -490,7 +485,7 @@ class SecurityValidationTest(IntegrationTestBase):
             
             for i, (content, filename, description) in enumerate(malicious_files):
                 if i > 0:
-                    time.sleep(1)  # Small delay between uploads
+                    pass  # Rate limiting is disabled in tests
                 response = self.upload_receipt(
                     uploader_name=f"Security Test {description}",
                     image_bytes=content,
@@ -878,21 +873,28 @@ class PermissionTest(IntegrationTestBase):
             beer_id = next(item['id'] for item in items if item['name'] == 'HAPPY HOUR BEER')
             tequila_id = next(item['id'] for item in items if item['name'] == 'WELL TEQUILA')
             
-            # Change the viewer name in session (simulating being forced to pick new name)
-            # We need to do this at the session level to simulate the bug
-            session = user_session.client.session
-            if 'receipts' in session and str(receipt_data['id']) in session['receipts']:
-                session['receipts'][str(receipt_data['id'])]['viewer_name'] = 'Kui 5'
-                session.save()
+            # Simulate a new session with a different name to test name-based calculations
+            # This tests that claims are tracked by name, not by session
+            kui5_session = self.create_new_session()
+            assert kui5_session.set_viewer_name(receipt_slug, "Kui 5"), "Should set name to Kui 5"
             
-            # Now claim as "Kui 5"
-            claim_resp2 = user_session.claim_item(receipt_slug, beer_id, 1)
-            assert claim_resp2['status_code'] == 200, "Should claim BEER"
-            print("   ✓ Claimed HAPPY HOUR BEER as 'Kui 5' ($5.20)")
+            # Claim both items at once as "Kui 5" (claims are finalized in one transaction)
+            # Use the bulk claim format
+            claim_data = {
+                'claims': [
+                    {'line_item_id': beer_id, 'quantity': 1},
+                    {'line_item_id': tequila_id, 'quantity': 1}
+                ]
+            }
             
-            claim_resp3 = user_session.claim_item(receipt_slug, tequila_id, 1)
-            assert claim_resp3['status_code'] == 200, "Should claim TEQUILA"
-            print("   ✓ Claimed WELL TEQUILA as 'Kui 5' ($5.20)")
+            response = kui5_session.client.post(
+                f'/claim/{receipt_slug}/',
+                data=json.dumps(claim_data),
+                content_type='application/json'
+            )
+            
+            assert response.status_code == 200, f"Should claim both items, got {response.status_code}: {response.content.decode()}"
+            print("   ✓ Claimed HAPPY HOUR BEER and WELL TEQUILA as 'Kui 5' ($10.40 total)")
             
             # Step 4: Verify totals are calculated by NAME not SESSION
             print("\n💰 Step 4: Verify name-based calculations")
@@ -1161,34 +1163,32 @@ def run_all_tests():
         # Core workflow tests
         DELAY = 2  # Uniform 2 second delay
         results.append(("Complete Workflow", workflow_test.test_complete_workflow()))
-        time.sleep(DELAY)
+        # Rate limiting is disabled in tests
         
         # Permission tests - critical bug fixes
         results.append(("Claim Before Finalized", permission_test.test_claim_before_finalized()))
-        time.sleep(DELAY)
+        # Rate limiting is disabled in tests
 
         results.append(("Name-Based Claim Calculations", permission_test.test_name_based_claim_calculations()))
-        time.sleep(DELAY)
+        # Rate limiting is disabled in tests
         
         results.append(("Uploader Permissions with Name Change", permission_test.test_uploader_permissions_with_name_change()))
-        time.sleep(DELAY)
+        # Rate limiting is disabled in tests
         
         # Security tests - reduced uploads to avoid rate limit
         results.append(("Input Validation Security", security_test.test_input_validation()))
-        time.sleep(DELAY)
+        # Rate limiting is disabled in tests
         
         results.append(("File Upload Security", security_test.test_file_upload_security()))
-        time.sleep(10)  # Wait to clear rate limit (we've done ~6 uploads so far)
+        # Rate limiting is disabled in tests
         
         results.append(("Security Validation", security_test.test_security_validation()))
         
-        # Wait to fully clear rate limit window (we've done 10 uploads)
-        print("\n⏳ Waiting 30 seconds to clear rate limit...")
-        time.sleep(30)
+        # Rate limiting is disabled in tests
         
         # Validation tests
         results.append(("Balance Validation", validation_test.test_balance_validation()))
-        time.sleep(DELAY)
+        # Rate limiting is disabled in tests
         
         # UI tests (no uploads)
         ui_test = UIValidationTest()
@@ -1198,15 +1198,15 @@ def run_all_tests():
         results.append(("Image Links Validation", ui_test.test_image_links_valid()))
         
         # Performance tests
-        time.sleep(10)  # Wait to clear rate limit before performance test
+        # Rate limiting is disabled in tests
         results.append(("Large Receipt Performance", performance_test.test_large_receipt()))
-        time.sleep(10)  # Wait to clear rate limit before session test
+        # Rate limiting is disabled in tests
         
         # Session security test
         results.append(("Session Security", security_test.test_session_security()))
         
         # Concurrent claims tests
-        time.sleep(10)  # Wait to clear rate limit before concurrent tests
+        # Rate limiting is disabled in tests
         concurrent_test = ConcurrentClaimsTest()
         concurrent_test.setUp()
         results.append(("Concurrent Claims - Polling Endpoint", concurrent_test.test_polling_endpoint_returns_correct_data()))

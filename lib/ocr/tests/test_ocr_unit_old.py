@@ -86,7 +86,7 @@ class TestReceiptData(unittest.TestCase):
         self.assertEqual(len(result['items']), 2)
     
     def test_validation_valid(self):
-        is_valid, errors = self.receipt.validate()
+        is_valid, errors = self.receipt.validate_totals()
         self.assertTrue(is_valid)
         self.assertEqual(len(errors), 0)
     
@@ -103,7 +103,7 @@ class TestReceiptData(unittest.TestCase):
             confidence_score=0.9
         )
         
-        is_valid, errors = receipt.validate()
+        is_valid, errors = receipt.validate_totals()
         self.assertFalse(is_valid)
         self.assertTrue(any("doesn't match subtotal" in e for e in errors))
     
@@ -120,25 +120,23 @@ class TestReceiptData(unittest.TestCase):
             confidence_score=0.9
         )
         
-        is_valid, errors = receipt.validate()
+        is_valid, errors = receipt.validate_totals()
         self.assertFalse(is_valid)
         self.assertTrue(any("doesn't match receipt total" in e for e in errors))
     
     def test_validation_negative_values(self):
-        receipt = ReceiptData(
-            restaurant_name="Test",
-            date=datetime.now(),
-            items=[],
-            subtotal=Decimal("-10.00"),
-            tax=Decimal("1.00"),
-            tip=Decimal("2.00"),
-            total=Decimal("-7.00"),
-            confidence_score=0.9
-        )
-        
-        is_valid, errors = receipt.validate()
-        self.assertFalse(is_valid)
-        self.assertTrue(any("Negative values" in e for e in errors))
+        # Test that negative values are rejected by Pydantic
+        with self.assertRaises(ValueError):
+            receipt = ReceiptData(
+                restaurant_name="Test",
+                date=datetime.now(),
+                items=[],
+                subtotal=Decimal("-10.00"),
+                tax=Decimal("1.00"),
+                tip=Decimal("2.00"),
+                total=Decimal("-7.00"),
+                confidence_score=0.9
+            )
 
 
 class TestReceiptOCR(unittest.TestCase):
