@@ -21,6 +21,9 @@ global.navigator = window.navigator;
 global.alert = vi.fn();
 global.confirm = vi.fn(() => true);
 
+// Note: Navigation errors in JSDOM are expected and don't break tests
+// They appear as stderr but tests still pass
+
 // Mock escapeHtml function from utils
 global.escapeHtml = vi.fn((text) => {
   // Simple HTML escaping for tests
@@ -459,7 +462,7 @@ describe('View Page Claiming Functionality', () => {
           <div class="item-share-amount" data-amount="15.50"></div>
           <div class="ml-4">
             <div class="flex items-center space-x-2">
-              <input type="number" class="claim-quantity w-20 px-2 py-1 border border-gray-300 rounded"
+              <input type="number" class="claim-quantity w-12 h-8 px-2 py-1 border border-gray-300 rounded-lg text-center tabular-nums"
                      min="0" max="2" value="0" data-item-id="1">
               <span class="text-sm text-gray-600">of 2</span>
             </div>
@@ -731,11 +734,11 @@ describe('View Page Claiming Functionality', () => {
         
         // Enabled input should use gray-300 border
         const enabledClasses = getClaimInputClasses(false);
-        expect(enabledClasses).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-300');
+        expect(enabledClasses).toBe('claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-300 focus:ring-2 focus:ring-blue-500');
         
         // Disabled input should use gray-200 border and gray-50 background
         const disabledClasses = getClaimInputClasses(true);
-        expect(disabledClasses).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600');
+        expect(disabledClasses).toBe('claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-200 bg-gray-50 text-gray-600');
         
         // Test in actual DOM update scenario
         document.body.innerHTML = `
@@ -760,7 +763,7 @@ describe('View Page Claiming Functionality', () => {
         const input = document.querySelector('.claim-quantity[data-item-id="1"]');
         expect(input).toBeTruthy();
         expect(input.disabled).toBe(true);
-        expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600');
+        expect(input.className).toBe('claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-200 bg-gray-50 text-gray-600');
       });
 
       it('should maintain consistent disabled input styling between server and real-time updates', () => {

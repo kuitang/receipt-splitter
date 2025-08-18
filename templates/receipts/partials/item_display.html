@@ -76,15 +76,20 @@ Context variables:
         
         {% if show_claims and viewer_name and receipt.is_finalized %}
         <div class="ml-4 flex-shrink-0">
-            <div class="flex items-center space-x-2">
-                <label class="text-sm text-gray-600">{% if is_user_finalized %}Claimed:{% else %}Claim:{% endif %}</label>
+            <div class="flex items-center space-x-1">
+                <button type="button" class="claim-minus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}bg-gray-300 cursor-not-allowed{% else %}bg-orange-600 hover:bg-orange-700{% endif %}" 
+                        data-item-id="{{ item.id }}"
+                        {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}disabled{% endif %}>−</button>
                 <input type="number" 
-                       class="claim-quantity w-20 px-2 py-1 border rounded {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300{% endif %}"
+                       class="claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300 focus:ring-2 focus:ring-blue-500{% endif %}"
                        min="0"
                        max="{{ my_existing_claim|add:available_quantity }}"
                        value="{{ my_existing_claim|default:0 }}"
                        data-item-id="{{ item.id }}"
                        {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}readonly disabled{% endif %}>
+                <button type="button" class="claim-plus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}bg-gray-300 cursor-not-allowed{% else %}bg-green-600 hover:bg-green-700{% endif %}" 
+                        data-item-id="{{ item.id }}"
+                        {% if is_user_finalized or available_quantity == 0 and my_existing_claim == 0 %}disabled{% endif %}>+</button>
             </div>
         </div>
         {% endif %}

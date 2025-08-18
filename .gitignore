@@ -15,3 +15,5 @@ htmlcov/
 openai_key.sh
 node_modules/
 SECURITY_AUDIT_REPORT.md
+cookies.txt
+viewer_cookies.txt

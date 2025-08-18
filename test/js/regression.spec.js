@@ -22,6 +22,9 @@ global.alert = vi.fn();
 global.confirm = vi.fn(() => true);
 global.escapeHtml = vi.fn((text) => String(text).replace(/[&<>"']/g, ''));
 
+// Note: Navigation errors in JSDOM are expected and don't break tests
+// They appear as stderr but tests still pass
+
 // Import modules
 const viewPageModule = await import('../../static/js/view-page.js');
 

@@ -18,8 +18,8 @@ const MAX_POLLING_ERRORS = 3;
 
 // CSS class constants for claim inputs
 const CLAIM_INPUT_CLASSES = {
-    base: 'claim-quantity w-20 px-2 py-1 border rounded',
-    enabled: 'border-gray-300',
+    base: 'claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums',
+    enabled: 'border-gray-300 focus:ring-2 focus:ring-blue-500',
     disabled: 'border-gray-200 bg-gray-50 text-gray-600'
 };
 
@@ -388,12 +388,13 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
             
             // Always show input field, just change its state
             if (!hasInput) {
-                const labelText = isFinalized ? 'Claimed:' : 'Claim:';
                 const disabledAttr = shouldDisable ? 'readonly disabled' : '';
                 
                 claimSection.innerHTML = `
-                    <div class="flex items-center space-x-2">
-                        <label class="text-sm text-gray-600">${labelText}</label>
+                    <div class="flex items-center space-x-1">
+                        <button type="button" class="claim-minus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium ${shouldDisable ? 'bg-gray-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'}" 
+                                data-item-id="${itemData.item_id}"
+                                ${shouldDisable ? 'disabled' : ''}>−</button>
                         <input type="number" 
                                class="${getClaimInputClasses(shouldDisable)}"
                                min="0"
@@ -401,6 +402,9 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                                value="${myExistingClaim}"
                                data-item-id="${itemData.item_id}"
                                ${disabledAttr}>
+                        <button type="button" class="claim-plus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium ${shouldDisable ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}" 
+                                data-item-id="${itemData.item_id}"
+                                ${shouldDisable ? 'disabled' : ''}>+</button>
                     </div>
                 `;
                 
@@ -409,6 +413,38 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                     const newInput = claimSection.querySelector('.claim-quantity');
                     if (newInput) {
                         newInput.addEventListener('input', updateTotal);
+                    }
+                    
+                    // Attach +/- button event listeners
+                    const minusBtn = claimSection.querySelector('.claim-minus');
+                    const plusBtn = claimSection.querySelector('.claim-plus');
+                    
+                    if (minusBtn) {
+                        minusBtn.addEventListener('click', () => {
+                            const input = claimSection.querySelector('.claim-quantity');
+                            if (input) {
+                                const currentValue = parseInt(input.value) || 0;
+                                const minValue = parseInt(input.getAttribute('min')) || 0;
+                                if (currentValue > minValue) {
+                                    input.value = currentValue - 1;
+                                    updateTotal();
+                                }
+                            }
+                        });
+                    }
+                    
+                    if (plusBtn) {
+                        plusBtn.addEventListener('click', () => {
+                            const input = claimSection.querySelector('.claim-quantity');
+                            if (input) {
+                                const currentValue = parseInt(input.value) || 0;
+                                const maxValue = parseInt(input.getAttribute('max')) || 0;
+                                if (currentValue < maxValue) {
+                                    input.value = currentValue + 1;
+                                    updateTotal();
+                                }
+                            }
+                        });
                     }
                 }
             } else {
@@ -696,6 +732,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach quantity input handlers
     document.querySelectorAll('.claim-quantity').forEach(input => {
         input.addEventListener('input', updateTotal);
+    });
+    
+    // Attach +/- button handlers
+    document.querySelectorAll('.claim-minus').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            
+            const itemId = btn.dataset.itemId;
+            const input = document.querySelector(`.claim-quantity[data-item-id="${itemId}"]`);
+            if (input) {
+                const currentValue = parseInt(input.value) || 0;
+                const minValue = parseInt(input.getAttribute('min')) || 0;
+                if (currentValue > minValue) {
+                    input.value = currentValue - 1;
+                    updateTotal();
+                }
+            }
+        });
+    });
+    
+    document.querySelectorAll('.claim-plus').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            
+            const itemId = btn.dataset.itemId;
+            const input = document.querySelector(`.claim-quantity[data-item-id="${itemId}"]`);
+            if (input) {
+                const currentValue = parseInt(input.value) || 0;
+                const maxValue = parseInt(input.getAttribute('max')) || 0;
+                if (currentValue < maxValue) {
+                    input.value = currentValue + 1;
+                    updateTotal();
+                }
+            }
+        });
     });
     
     // Initialize button state

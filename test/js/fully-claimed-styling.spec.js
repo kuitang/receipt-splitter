@@ -24,6 +24,9 @@ global.fetch = vi.fn();
 global.authenticatedJsonFetch = vi.fn();
 global.escapeHtml = (text) => text; // Simple mock for escapeHtml
 
+// Note: Navigation errors in JSDOM are expected and don't break tests
+// They appear as stderr but tests still pass
+
 // Import module
 const viewPageModule = await import('../../static/js/view-page.js');
 const { updateItemClaims } = viewPageModule;
@@ -35,7 +38,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
   });
 
   describe('All fully claimed scenarios should have consistent disabled styling', () => {
-    const expectedDisabledClasses = 'claim-quantity w-20 px-2 py-1 border rounded border-gray-200 bg-gray-50 text-gray-600';
+    const expectedDisabledClasses = 'claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-200 bg-gray-50 text-gray-600';
     const expectedContainerOpacity = 'opacity-50';
 
     it('should show disabled input when item is fully claimed by others', () => {
@@ -160,7 +163,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
       // Assert: Should show ENABLED input
       expect(input).toBeTruthy();
-      expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-300');
+      expect(input.className).toBe('claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-300 focus:ring-2 focus:ring-blue-500');
       expect(input.disabled).toBe(false);
       expect(input.readOnly).toBe(false);
       
@@ -192,7 +195,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
       // Assert: Should show ENABLED input
       expect(input).toBeTruthy();
-      expect(input.className).toBe('claim-quantity w-20 px-2 py-1 border rounded border-gray-300');
+      expect(input.className).toBe('claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-300 focus:ring-2 focus:ring-blue-500');
       expect(input.disabled).toBe(false);
       expect(input.readOnly).toBe(false);
       expect(input.value).toBe('1'); // Shows existing claim
@@ -209,7 +212,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
             <div class="flex items-center space-x-2">
               <label class="text-sm text-gray-600">Claim:</label>
               <input type="number" 
-                     class="claim-quantity w-20 px-2 py-1 border border-gray-300 rounded"
+                     class="claim-quantity w-12 h-8 px-2 py-1 border border-gray-300 rounded-lg text-center tabular-nums"
                      value="0"
                      data-item-id="600">
             </div>
