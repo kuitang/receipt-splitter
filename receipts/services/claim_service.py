@@ -145,10 +145,6 @@ class ClaimService:
                     finalized_at=timezone.now()
                 ))
         
-        # Debug logging
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[finalize_claims] Creating {len(claims_to_create)} claims for claimer_name='{claimer_name}', session_id={session_id}")
         
         # Single bulk insert for all claims
         created_claims = Claim.objects.bulk_create(claims_to_create)

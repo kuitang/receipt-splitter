@@ -47,10 +47,6 @@ class QueryCountMiddleware:
         response['X-Query-Count'] = str(query_count)
         response['X-Response-Time-Ms'] = f"{duration_ms:.2f}"
         
-        # Always log query count for monitoring (temporarily for debugging)
-        logger.info(
-            f"Query count: {query_count} queries in {duration_ms:.2f}ms for {request.method} {request.path}"
-        )
         
         # Log warning if query count is high
         if query_count > self.QUERY_COUNT_WARNING_THRESHOLD:

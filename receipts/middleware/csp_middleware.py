@@ -89,7 +89,6 @@ class SimpleStrictCSPMiddleware(MiddlewareMixin):
         if settings.DEBUG:
             # Report-only in development to identify issues
             response['Content-Security-Policy-Report-Only'] = csp_header
-            print(f"CSP Report-Only: {csp_header[:100]}...")  # Debug logging
         else:
             # Enforce in production
             response['Content-Security-Policy'] = csp_header
