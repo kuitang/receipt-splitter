@@ -280,6 +280,8 @@ class ReceiptService:
         
         names = list(receipt.viewers.values_list('viewer_name', flat=True))
         names.extend(self._get_all_claimer_names(receipt_id))
+        # Include the uploader's name in collision check
+        names.append(receipt.uploader_name)
         
         return list(set(names))  # Remove duplicates
     
