@@ -2,20 +2,22 @@
  * Tests for item display formatting
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { JSDOM } from 'jsdom';
+import { describe, it, expect } from 'vitest';
+import { createTestDOM } from './test-helpers.js';
 
 // Set up DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-  url: 'http://localhost',
-  pretendToBeVisual: true,
-  resources: 'usable'
-});
-
-global.window = dom.window;
-global.document = window.document;
+createTestDOM();
 
 describe('Item Display Formatting', () => {
+  
+  // Helper function to format item display
+  function formatItemDisplay(item) {
+    if (item.quantity > 1) {
+      return `$${item.unit_price.toFixed(2)} × ${item.quantity} = $${item.total_price.toFixed(2)}`;
+    } else {
+      return `$${item.total_price.toFixed(2)}`;
+    }
+  }
   
   describe('Single Item Display (× 1 omission)', () => {
     it('should omit "× 1" for single quantity items', () => {
@@ -27,13 +29,7 @@ describe('Item Display Formatting', () => {
         total_price: 15.50
       };
       
-      // Template logic: {% if item.quantity > 1 %}
-      let displayText;
-      if (singleItem.quantity > 1) {
-        displayText = `$${singleItem.unit_price.toFixed(2)} × ${singleItem.quantity} = $${singleItem.total_price.toFixed(2)}`;
-      } else {
-        displayText = `$${singleItem.total_price.toFixed(2)}`;
-      }
+      const displayText = formatItemDisplay(singleItem);
       
       // Should show just the price for single items
       expect(displayText).toBe('$15.50');
@@ -49,13 +45,7 @@ describe('Item Display Formatting', () => {
         total_price: 17.50
       };
       
-      // Template logic: {% if item.quantity > 1 %}
-      let displayText;
-      if (multipleItem.quantity > 1) {
-        displayText = `$${multipleItem.unit_price.toFixed(2)} × ${multipleItem.quantity} = $${multipleItem.total_price.toFixed(2)}`;
-      } else {
-        displayText = `$${multipleItem.total_price.toFixed(2)}`;
-      }
+      const displayText = formatItemDisplay(multipleItem);
       
       // Should show multiplication for multiple items
       expect(displayText).toBe('$8.75 × 2 = $17.50');
@@ -70,12 +60,7 @@ describe('Item Display Formatting', () => {
         total_price: 0.00
       };
       
-      let displayText;
-      if (zeroItem.quantity > 1) {
-        displayText = `$${zeroItem.unit_price.toFixed(2)} × ${zeroItem.quantity} = $${zeroItem.total_price.toFixed(2)}`;
-      } else {
-        displayText = `$${zeroItem.total_price.toFixed(2)}`;
-      }
+      const displayText = formatItemDisplay(zeroItem);
       
       // Should show just the price (no multiplication)
       expect(displayText).toBe('$0.00');
@@ -93,13 +78,7 @@ describe('Item Display Formatting', () => {
       ];
       
       testItems.forEach(item => {
-        let displayText;
-        if (item.quantity > 1) {
-          displayText = `$${item.unit_price.toFixed(2)} × ${item.quantity} = $${item.total_price.toFixed(2)}`;
-        } else {
-          displayText = `$${item.total_price.toFixed(2)}`;
-        }
-        
+        const displayText = formatItemDisplay(item);
         expect(displayText).toBe(item.expected);
       });
     });

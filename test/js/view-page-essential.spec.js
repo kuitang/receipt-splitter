@@ -4,22 +4,16 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
+import {
+  createTestDOM,
+  setupMocks,
+  createViewPageDOM,
+  resetTestEnvironment
+} from './test-helpers.js';
 
-// Set up DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-  url: 'http://localhost',
-  pretendToBeVisual: true,
-  resources: 'usable'
-});
-
-global.window = dom.window;
-global.document = window.document;
-global.navigator = window.navigator;
-
-// Mock functions
-global.alert = vi.fn();
-global.confirm = vi.fn(() => true);
+// Set up environment
+createTestDOM();
+const mocks = setupMocks();
 
 // Import the modules
 const utilsModule = await import('../../static/js/utils.js');
@@ -35,33 +29,23 @@ const {
   _setState
 } = viewPageModule;
 
+// Helper for test setup
+function setupTest() {
+  document.body.innerHTML = createViewPageDOM({
+    items: [{
+      itemId: '1',
+      name: 'Burger',
+      shareAmount: '15.50',
+      max: 2
+    }]
+  });
+  initializeViewPage();
+}
+
 describe('View Page Essential Unit Tests', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    
-    // Set up minimal realistic DOM structure
-    document.body.innerHTML = `
-      <div id="view-page-data" 
-           data-receipt-slug="test-receipt" 
-           data-receipt-id="123">
-      </div>
-      
-      <div class="item-container" data-item-id="1">
-        <h3>Burger</h3>
-        <div class="item-share-amount" data-amount="15.50"></div>
-        <input type="number" class="claim-quantity" 
-               data-item-id="1" min="0" max="2" value="0">
-      </div>
-      
-      <div id="claiming-warning" class="hidden">
-        <div id="claiming-error-details"></div>
-      </div>
-      
-      <p id="my-total">$0.00</p>
-      <button id="claim-button" disabled>Finalize Claims</button>
-    `;
-    
-    initializeViewPage();
+    resetTestEnvironment();
+    setupTest();
   });
 
   describe('Essential Error Handling', () => {
