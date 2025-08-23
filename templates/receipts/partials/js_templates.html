@@ -42,3 +42,64 @@ These are hidden on page load and cloned by JavaScript when needed.
 <template id="processing-timeout-template">
     <span class="text-sm text-orange-600">Taking longer than expected...</span>
 </template>
+
+<!-- Template for the Add Tip modal -->
+<template id="add-tip-modal-template">
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-lg w-full mx-4" data-component="add-tip-modal">
+            <h3 class="text-2xl font-semibold text-gray-900 mb-4">Did you mean to add a tip?</h3>
+            <p class="text-gray-600 mb-6">You can add a tip based on a percentage or a specific dollar amount.</p>
+
+            <!-- Percentage buttons -->
+            <div class="mb-4">
+                <p class="font-semibold text-gray-700 mb-2">Quick Tip (on pre-tax amount)</p>
+                <div class="flex space-x-2">
+                    <button data-action="set-tip-percentage" data-value="15" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">15%</button>
+                    <button data-action="set-tip-percentage" data-value="20" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">20%</button>
+                    <button data-action="set-tip-percentage" data-value="25" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">25%</button>
+                </div>
+            </div>
+
+            <!-- Custom Tip Input -->
+            <div class="border-t pt-4">
+                <p class="font-semibold text-gray-700 mb-2">Custom Tip</p>
+                <div class="flex items-center space-x-2">
+                    <input type="number" data-input="tip-value" placeholder="Enter value" class="flex-grow p-2 border border-gray-300 rounded-lg">
+                    <div class="flex">
+                        <button data-action="set-tip-type" data-type="percentage" class="px-4 py-2 border border-gray-300 rounded-l-lg bg-gray-200">
+                            %
+                        </button>
+                        <button data-action="set-tip-type" data-type="dollar" class="px-4 py-2 border-t border-b border-r border-gray-300 rounded-r-lg">
+                            $
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tip basis for percentage -->
+            <div data-show-for="percentage" class="mt-4 hidden">
+                 <p class="font-semibold text-gray-700 mb-2">Calculate tip on:</p>
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center">
+                        <input type="radio" name="tip-basis" value="pre-tax" checked class="form-radio">
+                        <span class="ml-2">Pre-tax subtotal</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="tip-basis" value="post-tax" class="form-radio">
+                        <span class="ml-2">Total with tax</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="mt-6 flex justify-end space-x-4">
+                <button data-action="close-tip-modal" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300">
+                    No Tip
+                </button>
+                <button data-action="apply-tip" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+                    Apply Tip
+                </button>
+            </div>
+        </div>
+    </div>
+</template>

@@ -36,8 +36,8 @@ class MockReceiptData:
             ],
             "subtotal": 25.49,
             "tax": 2.16,
-            "tip": 4.00,
-            "total": 31.65,
+            "tip": 0.00,
+            "total": 27.65,
             "confidence_score": 0.95,
             "notes": "Mock OCR data"
         }
