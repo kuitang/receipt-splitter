@@ -1,4 +1,4 @@
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.template import Template, Context
 from unittest.mock import patch
@@ -462,12 +462,12 @@ class ViewTests(TestCase):
         response_data = json.loads(response.content)
         self.assertEqual(response_data['error'], 'An unexpected error occurred.')
 
-    @patch('receipts.views.logging.getLogger')
+    @override_settings(RATELIMIT_ENABLE=False)
+    @patch('receipts.views.logger')
     @patch('receipts.views.receipt_service.create_receipt')
-    def test_upload_receipt_unexpected_exception(self, mock_create_receipt, mock_getLogger):
+    def test_upload_receipt_unexpected_exception(self, mock_create_receipt, mock_logger):
         """Test that an unexpected exception in upload_receipt returns a 500 and is logged."""
         mock_create_receipt.side_effect = Exception("Something went wrong")
-        mock_logger = mock_getLogger.return_value
 
         url = reverse('upload_receipt')
         data = {'uploader_name': 'Test Uploader'}
