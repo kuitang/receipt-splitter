@@ -1,0 +1,56 @@
+{% comment %}
+Editable item row for edit page.
+Context: item (LineItem object, optional), container_class (optional)
+{% endcomment %}
+
+<div class="item-row {{ container_class|default:'' }}" {% if item %}data-item-id="{{ item.id }}"{% endif %}>
+    <div class="flex-1 border rounded-lg p-4 relative">
+        <!-- Delete button: inside box (top-right) -->
+        <button data-action="remove-item" class="absolute top-2 right-2 text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
+            <div class="w-5 h-5 flex items-center justify-center text-lg font-bold">×</div>
+        </button>
+        
+        <!-- Mobile: stack name on top, quantity/price below -->
+        <!-- Desktop: keep original single-line layout -->
+        <div class="flex flex-col sm:flex-row sm:gap-2 sm:items-center pr-8">
+            <div class="flex-1 mb-2 sm:mb-0">
+                <input type="text" 
+                       value="{% if item %}{{ item.name|escape }}{% endif %}"
+                       placeholder="Item name" 
+                       class="item-name font-semibold text-lg text-gray-900 bg-transparent border-0 p-0 focus:bg-white focus:border focus:border-blue-500 focus:rounded-lg focus:px-3 focus:py-2 hover:bg-gray-50 hover:rounded-lg hover:px-3 hover:py-2 transition-all duration-200 outline-none w-full" 
+                       style="cursor: text;">
+            </div>
+            <!-- Mobile: Put quantity/price on same line below name -->
+            <div class="flex gap-2 items-center">
+                <div class="w-12 sm:w-16">
+                    <input type="number" 
+                           value="{% if item %}{{ item.quantity }}{% else %}1{% endif %}"
+                           min="1"
+                           max="99"
+                           placeholder="Qt"
+                           class="item-quantity w-full px-1 sm:px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-center tabular-nums">
+                </div>
+                <span class="text-gray-500 font-medium">×</span>
+                <div class="w-20 sm:w-24">
+                    <input type="number" 
+                           value="{% if item %}{{ item.unit_price|floatformat:2 }}{% endif %}"
+                           step="0.01"
+                           placeholder="Price"
+                           class="item-price w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-right tabular-nums">
+                </div>
+                <span class="text-gray-500 font-medium">=</span>
+                <div class="flex-1 sm:w-28">
+                    <input type="number" 
+                           value="{% if item %}{{ item.total_price|floatformat:2 }}{% endif %}"
+                           step="0.01"
+                           placeholder="Total"
+                           class="item-total w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-blue-500 text-right tabular-nums bg-gray-50"
+                           readonly>
+                </div>
+            </div>
+        </div>
+        <div class="mt-2">
+            <p class="text-gray-500 text-xs item-proration"></p>
+        </div>
+    </div>
+</div>

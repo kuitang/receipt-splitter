@@ -1,0 +1,29 @@
+{% comment %}
+Claim controls partial for plus/minus/quantity interface.
+Context variables:
+- item_id: The item ID for data attributes (required)
+- current_value: Current claim quantity value (default: 0)
+- max_value: Maximum allowed quantity (default: 0)
+- disabled: Boolean to disable controls (default: False)
+- size: 'normal' or 'compact' for different sizing (default: 'normal')
+{% endcomment %}
+
+{% with current_value=current_value|default:0 max_value=max_value|default:0 disabled=disabled|default:False size=size|default:'normal' %}
+<div class="flex items-center space-x-1">
+    <button type="button" 
+            class="claim-minus {% if size == 'compact' %}h-6 w-6 text-xs{% else %}h-8 w-8 text-sm{% endif %} rounded-lg flex items-center justify-center text-white font-medium {% if disabled or current_value == 0 %}bg-gray-300 cursor-not-allowed{% else %}bg-orange-600 hover:bg-orange-700{% endif %}" 
+            data-item-id="{{ item_id }}"
+            {% if disabled or current_value == 0 %}disabled{% endif %}>−</button>
+    <input type="number" 
+           class="claim-quantity {% if size == 'compact' %}w-10 h-6 px-1 py-0 text-xs{% else %}w-12 h-8 px-2 py-1{% endif %} border rounded-lg text-center tabular-nums {% if disabled %}border-gray-200 bg-gray-50 text-gray-600{% else %}border-gray-300 focus:ring-2 focus:ring-blue-500{% endif %}"
+           min="0"
+           max="{{ max_value }}"
+           value="{{ current_value }}"
+           data-item-id="{{ item_id }}"
+           {% if disabled %}readonly disabled{% endif %}>
+    <button type="button" 
+            class="claim-plus {% if size == 'compact' %}h-6 w-6 text-xs{% else %}h-8 w-8 text-sm{% endif %} rounded-lg flex items-center justify-center text-white font-medium {% if disabled or current_value >= max_value %}bg-gray-300 cursor-not-allowed{% else %}bg-green-600 hover:bg-green-700{% endif %}" 
+            data-item-id="{{ item_id }}"
+            {% if disabled or current_value >= max_value %}disabled{% endif %}>+</button>
+</div>
+{% endwith %}

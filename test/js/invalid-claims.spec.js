@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -16,6 +17,8 @@ const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
 global.window = dom.window;
 global.document = window.document;
 global.navigator = window.navigator;
+
+// Note: Navigation errors in JSDOM are expected but don't break test functionality
 
 // Mock functions
 global.alert = vi.fn();
@@ -39,7 +42,7 @@ describe('Invalid Claims Security Tests', () => {
 
   describe('Negative Quantity Protection', () => {
     it('should reject negative quantities at frontend level', async () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         <div class="item-container" data-item-id="1">
           <h3>Burger</h3>
@@ -47,7 +50,7 @@ describe('Invalid Claims Security Tests', () => {
         </div>
         <p id="my-total">$0.00</p>
         <div id="claiming-warning" class="hidden"></div>
-      `;
+      `);
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -62,7 +65,7 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should handle frontend validation of negative quantities', async () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         <div class="item-container" data-item-id="1">
           <h3>Burger</h3>
@@ -72,7 +75,7 @@ describe('Invalid Claims Security Tests', () => {
           <div id="claiming-error-details"></div>
         </div>
         <p id="my-total">$15.00</p>
-      `;
+      `);
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -89,7 +92,7 @@ describe('Invalid Claims Security Tests', () => {
 
   describe('Extreme Quantity Protection', () => {
     it('should handle extremely large quantities', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="1">
           <div class="item-share-amount" data-amount="10.00"></div>
           <input type="number" class="claim-quantity" value="999999999" max="1" data-item-id="1">
@@ -98,7 +101,7 @@ describe('Invalid Claims Security Tests', () => {
         <div id="claiming-warning" class="hidden">
           <div id="claiming-error-details"></div>
         </div>
-      `;
+      `);
       
       // Should trigger validation error (exceeds max)
       const isValid = validateClaims();
@@ -110,7 +113,7 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should prevent claims exceeding available quantity', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="1">
           <h3>Burger</h3>
           <input type="number" class="claim-quantity" value="5" max="2" data-item-id="1">
@@ -118,7 +121,7 @@ describe('Invalid Claims Security Tests', () => {
         <div id="claiming-warning" class="hidden">
           <div id="claiming-error-details"></div>
         </div>
-      `;
+      `);
       
       const isValid = validateClaims();
       expect(isValid).toBe(false);
@@ -131,7 +134,7 @@ describe('Invalid Claims Security Tests', () => {
 
   describe('Double Finalization Protection', () => {
     it('should lock UI after finalization status update', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="sticky bottom-4 border-green-500">
           <p class="text-sm text-gray-600">Your Total (test)</p>
           <p id="my-total" class="text-green-600">$10.00</p>
@@ -142,7 +145,7 @@ describe('Invalid Claims Security Tests', () => {
             <input type="number" class="claim-quantity border-gray-300" value="1" data-item-id="1">
           </div>
         </div>
-      `;
+      `);
       
       // Simulate finalization status update
       const { updateFinalizationStatus } = viewPageModule;
@@ -163,7 +166,7 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should handle server rejection of double finalization', async () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         <div class="item-container" data-item-id="1">
           <h3>Burger</h3>
@@ -172,7 +175,7 @@ describe('Invalid Claims Security Tests', () => {
         </div>
         <p id="my-total">$10.00</p>
         <div id="claiming-warning" class="hidden"></div>
-      `;
+      `);
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -196,7 +199,7 @@ describe('Invalid Claims Security Tests', () => {
 
   describe('Invalid Data Protection', () => {
     it('should handle backend rejection of invalid item IDs', async () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         <div class="item-container" data-item-id="999">
           <h3>Invalid Item</h3>
@@ -205,7 +208,7 @@ describe('Invalid Claims Security Tests', () => {
         </div>
         <p id="my-total">$10.00</p>
         <div id="claiming-warning" class="hidden"></div>
-      `;
+      `);
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -222,7 +225,7 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should handle zero quantities correctly (valid case)', async () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         <div class="item-container" data-item-id="1">
           <h3>Burger</h3>
@@ -236,7 +239,7 @@ describe('Invalid Claims Security Tests', () => {
         </div>
         <p id="my-total">$5.00</p>
         <div id="claiming-warning" class="hidden"></div>
-      `;
+      `);
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -263,13 +266,13 @@ describe('Invalid Claims Security Tests', () => {
 
   describe('Malformed Input Protection', () => {
     it('should handle non-numeric input values', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="1">
           <div class="item-share-amount" data-amount="10.00"></div>
           <input type="number" class="claim-quantity" value="abc" data-item-id="1">
         </div>
         <p id="my-total">$10.00</p>
-      `;
+      `);
       
       updateTotal();
       
@@ -279,13 +282,13 @@ describe('Invalid Claims Security Tests', () => {
     });
 
     it('should handle decimal quantities (round down)', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="1">
           <div class="item-share-amount" data-amount="10.00"></div>
           <input type="number" class="claim-quantity" value="2.7" data-item-id="1">
         </div>
         <p id="my-total">$0.00</p>
-      `;
+      `);
       
       updateTotal();
       

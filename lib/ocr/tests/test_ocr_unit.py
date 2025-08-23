@@ -245,14 +245,10 @@ class TestReceiptOCR(unittest.TestCase):
 class TestIntegration(unittest.TestCase):
     """Test full integration flow"""
     
-    @patch('lib.ocr.ocr_lib.OpenAI')
+    @patch('lib.ocr.ocr_lib.ReceiptOCR._ocr_api_call')
     @patch('PIL.ImageOps.exif_transpose')
     @patch('lib.ocr.ocr_lib.Image.open')
-    def test_process_image_success(self, mock_image_open, mock_exif, mock_openai_class):
-        # Setup mocks
-        mock_client = MagicMock()
-        mock_openai_class.return_value = mock_client
-        
+    def test_process_image_success(self, mock_image_open, mock_exif, mock_ocr_api_call):
         # Mock image
         mock_image = MagicMock()
         mock_image.mode = 'RGB'
@@ -262,10 +258,8 @@ class TestIntegration(unittest.TestCase):
         # Mock exif_transpose to return the same image with size preserved
         mock_exif.return_value = mock_image
         
-        # Mock API response with valid JSON
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
+        # Mock OCR API call to return JSON string directly
+        mock_ocr_api_call.return_value = json.dumps({
             'restaurant_name': 'Test Restaurant',
             'date': '2023-10-06',
             'items': [
@@ -282,11 +276,9 @@ class TestIntegration(unittest.TestCase):
             'total': 15.00,
             'confidence_score': 0.95
         })
-        mock_response.usage = None
-        mock_client.chat.completions.create.return_value = mock_response
         
-        # Test - use bytes to avoid file system checks
-        ocr = ReceiptOCR("test_key", seed_test_cache=False)
+        # Test - use bytes to avoid file system checks, specify model explicitly
+        ocr = ReceiptOCR("test_key", model="gpt-4o", seed_test_cache=False)
         
         # Process image from bytes
         dummy_image = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00'
@@ -297,8 +289,8 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(receipt.total, Decimal('15.00'))
         self.assertEqual(len(receipt.items), 1)
         
-        # Verify API was called
-        mock_client.chat.completions.create.assert_called_once()
+        # Verify OCR API method was called
+        mock_ocr_api_call.assert_called_once()
     
     @patch('lib.ocr.ocr_lib.OpenAI')
     @patch('PIL.ImageOps.exif_transpose')

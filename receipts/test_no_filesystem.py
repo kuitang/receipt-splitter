@@ -110,7 +110,7 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
         from decimal import Decimal
         from django.core.cache import cache
         
-        # Create receipt
+        # Create receipt (unfinalized so image can be served)
         receipt = Receipt.objects.create(
             uploader_name='Test User',
             restaurant_name='Test Restaurant',
@@ -119,7 +119,7 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
             tax=Decimal('1.00'),
             tip=Decimal('2.00'),
             total=Decimal('13.00'),
-            is_finalized=True  # Make it public
+            is_finalized=False  # Keep unfinalized for image access
         )
         
         # Store image in cache
@@ -142,6 +142,16 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
             return original_open(path, *args, **kwargs)
         
         with mock.patch('builtins.open', side_effect=monitor_open):
+            # Set up session as uploader
+            session = self.client.session
+            session['receipts'] = {
+                str(receipt.id): {
+                    'is_uploader': True,
+                    'viewer_name': 'Test User'
+                }
+            }
+            session.save()
+            
             # Request image
             response = self.client.get(
                 reverse('serve_receipt_image', args=[receipt.slug])

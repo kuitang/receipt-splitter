@@ -8,8 +8,8 @@ Django web app for splitting bills based on actual consumption using OCR. No acc
 python3 -m venv venv && source venv/bin/activate
 pip install django pillow pillow-heif channels daphne openai
 export OPENAI_API_KEY=your_key_here  # Optional, uses mock data without it
-python manage.py migrate
-python manage.py runserver
+python3 manage.py migrate
+python3 manage.py runserver
 ```
 
 Visit http://localhost:8000
@@ -17,8 +17,9 @@ Visit http://localhost:8000
 ## Testing
 
 ```bash
-python manage.py test receipts -v 2  # All 15 tests should pass
-python integration_test/run_tests.sh  # Integration tests
+python3 manage.py test receipts -v 2  # Django unit tests
+python3 integration_test/run_tests.sh  # Integration tests
+npm test -- --run                     # JavaScript tests (headless)
 ```
 
 ## Key Features
@@ -36,13 +37,5 @@ python integration_test/run_tests.sh  # Integration tests
 2. **Edit** → validate/correct extracted data  
 3. **Finalize** → generate shareable URL
 4. **Claim** → friends select items → see individual totals
-
-## Architecture
-
-- **Django 5.2.5** - Backend with SQLite database
-- **OpenAI Vision API** - Receipt OCR processing
-- **Session-based auth** - Edit tokens, no user registration
-- **Rate limiting** - 10/min upload, 30/min update, 15/min claim
-- **Security** - UUID4 + slug URLs, input validation, XSS protection
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for technical details.

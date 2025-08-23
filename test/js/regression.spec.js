@@ -5,6 +5,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { testTemplates, setupTestTemplates } from './generated-templates.js';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -17,13 +19,15 @@ global.window = dom.window;
 global.document = window.document;
 global.navigator = window.navigator;
 
+// Note: Navigation errors in JSDOM are expected but handled with try-catch in the code
+
 // Mock functions
 global.alert = vi.fn();
 global.confirm = vi.fn(() => true);
 global.escapeHtml = vi.fn((text) => String(text).replace(/[&<>"']/g, ''));
 
-// Note: Navigation errors in JSDOM are expected and don't break tests
-// They appear as stderr but tests still pass
+// Import template utils (this attaches to window automatically)
+await import('../../static/js/template-utils.js');
 
 // Import modules
 const viewPageModule = await import('../../static/js/view-page.js');
@@ -47,7 +51,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
   describe('Bug: kuizy Fries Scenario (Protocol Mismatch)', () => {
     it('should allow user to claim additional items when they have existing claims', async () => {
       // The exact original bug: kuizy couldn't claim 2nd Fries
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         
         <!-- Fries item with kuizy's existing claim pre-populated -->
@@ -64,7 +68,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
         <p class="text-sm text-gray-600 mb-1">Your Total (kuizy)</p>
         <p id="my-total">$8.75</p>
         <div id="claiming-warning" class="hidden"></div>
-      `;
+      `);
+      
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -103,14 +108,15 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
   describe('Bug: Frontend Total Calculation Double-Counting', () => {
     it('should prevent double-counting existing claims (vibes $22.60 vs $11.30 bug)', () => {
       // The exact bug from screenshot: vibes showed $22.60 instead of $11.30
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="180">
           <h3>Salad</h3>
           <div class="item-share-amount" data-amount="11.30"></div>
           <input type="number" class="claim-quantity" value="1" data-item-id="180">
         </div>
         <p id="my-total">$0.00</p>
-      `;
+      `);
+      
       
       updateTotal();
       
@@ -123,7 +129,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Polling Overwrites User Input State', () => {
     it('should preserve user input when polling updates arrive', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="142">
           <h3>Fries</h3>
           <div class="ml-4">
@@ -132,7 +138,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       const input = document.querySelector('.claim-quantity');
       
@@ -155,10 +162,11 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
     
     it('should preserve local total calculation when server returns 0 before finalization', () => {
       // Setup DOM with claim button visible (not finalized)
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="my-total">$25.50</div>
         <button id="claim-button" style="display: block;">Finalize Claims</button>
-      `;
+      `);
+      
       
       // Simulate polling with server returning 0 (no finalized claims)
       updateMyTotal(0);
@@ -171,7 +179,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
     
     it('should use server total when user has finalized claims', () => {
       // Setup DOM with claim button hidden (finalized)
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="wrapper">
           <div id="my-total">$25.50</div>
           <button id="claim-button" style="display: none;">Finalize Claims</button>
@@ -179,7 +187,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             <p class="text-sm text-blue-600 font-medium">Claims Finalized</p>
           </div>
         </div>
-      `;
+      `);
+      
       
       // Move button into wrapper with finalized indicator (can't mock parentElement directly)
       const wrapper = document.querySelector('.wrapper');
@@ -196,10 +205,11 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
     
     it('should use server total when it is non-zero', () => {
       // Setup DOM with claim button visible (not finalized)
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="my-total">$0.00</div>
         <button id="claim-button" style="display: block;">Finalize Claims</button>
-      `;
+      `);
+      
       
       // Simulate polling with server returning non-zero total
       updateMyTotal(15.25);
@@ -212,7 +222,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: "Fully Claimed" Logic and Styling', () => {
     it('should show disabled input when user has no claims and no availability', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="142">
           <div class="ml-4">
             <div class="flex items-center space-x-2">
@@ -227,7 +237,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       // Case 1: User has existing claims, item has no availability
       // Should show input (not "Fully Claimed") because user has existing claims
@@ -262,7 +273,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
     });
 
     it('should use consistent grey styling for disabled items', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="142">
           <div class="ml-4">
             <div class="flex items-center space-x-2">
@@ -270,7 +281,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       const pollData = [{
         item_id: '142',
@@ -294,7 +306,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Confusing UI Text Removed', () => {
     it('should not show confusing "of X" text after polling updates', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="142">
           <div class="ml-4">
             <div class="flex items-center space-x-2">
@@ -303,7 +315,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       const pollData = [{
         item_id: '142',
@@ -321,7 +334,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Single Modal Confirmation', () => {
     it('should show only one confirmation modal when finalizing', async () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" data-receipt-slug="test-receipt"></div>
         <div class="item-container" data-item-id="142">
           <h3>Fries</h3>
@@ -330,7 +343,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
         </div>
         <p id="my-total">$8.75</p>
         <div id="claiming-warning" class="hidden"></div>
-      `;
+      `);
+      
       
       initializeViewPage();
       _setState({ receiptSlug: 'test-receipt' });
@@ -350,7 +364,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Finalization State Management', () => {
     it('should lock UI after finalization via polling', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="sticky bottom-4 border-green-500">
           <p class="text-sm text-gray-600">Your Total (kuizy)</p>
           <p id="my-total" class="text-green-600">$15.50</p>
@@ -364,7 +378,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       // Simulate finalization via polling
       updateFinalizationStatus(true);
@@ -391,7 +406,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
   describe('Bug: Real-time Update State Preservation', () => {
     it('should preserve user input during polling when user is actively editing', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="space-y-2">
           <div class="flex justify-between items-center">
             <span class="text-gray-700">Alice</span>
@@ -413,7 +428,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
           <p class="text-sm text-gray-600">Your Total (kuizy)</p>
           <p id="my-total">$8.75</p>
         </div>
-      `;
+      `);
+      
       
       const input = document.querySelector('.claim-quantity');
       
@@ -452,7 +468,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
 
     it('should handle complete real-time update cycle with fully claimed items', () => {
       // Test the full polling cycle including "Fully Claimed" transitions
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="space-y-2">
           <div class="flex justify-between items-center">
             <span class="text-gray-700">kuizy</span>
@@ -479,7 +495,8 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       // kuizy increases Fries to 2
       const friesInput = document.querySelector('.claim-quantity[data-item-id="142"]');

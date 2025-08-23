@@ -1,0 +1,35 @@
+{% comment %}
+Display item row for view page.
+Context: item (LineItem), show_calculations, show_claims, claims, viewer_name, receipt, is_user_finalized, available_quantity, my_existing_claim, container_class
+{% endcomment %}
+
+<div class="{{ container_class|default:'' }}">
+    <div class="flex justify-between items-start">
+        <div>
+            <h3 class="font-semibold text-lg text-gray-900">{{ item.name|escape }}</h3>
+            <p class="text-gray-600 text-sm">
+                {% if item.quantity > 1 %}
+                ${{ item.unit_price|floatformat:2 }} × {{ item.quantity }} = ${{ item.total_price|floatformat:2 }}
+                {% else %}
+                ${{ item.total_price|floatformat:2 }}
+                {% endif %}
+            </p>
+        </div>
+        
+        {% if show_claims and viewer_name and receipt.is_finalized %}
+        <div class="ml-4 flex-shrink-0">
+            {% include 'receipts/partials/claim_controls.html' with item_id=item.id current_value=my_existing_claim|default:0 max_value=my_existing_claim|add:available_quantity disabled=is_user_finalized|default:False %}
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if show_calculations %}
+    <div class="mt-1">
+        <p class="text-gray-500 text-xs">+ Tax: ${{ item.prorated_tax|floatformat:2 }} + Tip: ${{ item.prorated_tip|floatformat:2 }} = <span class="font-semibold item-share-amount" data-amount="{{ item.get_per_item_share|floatformat:2 }}">${{ item.get_per_item_share|floatformat:2 }}</span> per item</p>
+    </div>
+    {% endif %}
+
+    {% if claims %}
+    {% include 'receipts/partials/claims_display.html' with claims=claims %}
+    {% endif %}
+</div>

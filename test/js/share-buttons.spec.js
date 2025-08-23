@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -38,7 +39,7 @@ describe('Share Button Functionality', () => {
     originalNavigator = global.navigator;
     
     // Minimal DOM setup for share widget tests
-    document.body.innerHTML = `
+    setBodyHTML(`
       <input id="share-link-input" value="https://example.com/r/test123/" readonly>
       <button data-action="native-share" data-widget-id="share-link-input" title="Share"></button>
       <button data-action="copy-share-url" data-widget-id="share-link-input" title="Copy to clipboard"></button>
@@ -47,7 +48,7 @@ describe('Share Button Functionality', () => {
         <a data-action="share-messenger" data-widget-id="share-link-input"></a>
         <a data-action="share-sms" data-widget-id="share-link-input"></a>
       </div>
-    `;
+    `);
     
     // Reset mocks
     vi.clearAllMocks();
@@ -217,10 +218,10 @@ describe('Share Button Functionality', () => {
 
   describe('Error Handling and Edge Cases', () => {
     it('should handle missing widget ID gracefully', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <button data-action="copy-share-url">Copy</button>
         <button data-action="native-share">Share</button>
-      `;
+      `);
       
       const copyBtn = document.querySelector('[data-action="copy-share-url"]');
       const shareBtn = document.querySelector('[data-action="native-share"]');
@@ -232,9 +233,9 @@ describe('Share Button Functionality', () => {
     });
 
     it('should handle missing input element gracefully', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <button data-action="copy-share-url" data-widget-id="nonexistent">Copy</button>
-      `;
+      `);
       
       const copyBtn = document.querySelector('[data-action="copy-share-url"]');
       

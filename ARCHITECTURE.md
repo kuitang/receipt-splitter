@@ -13,8 +13,7 @@
 - **receipts/services/validation_pipeline.py** - Centralized validation
 
 ### Data Access Layer
-- **receipts/repositories/receipt_repository.py** - Receipt data access
-- **receipts/repositories/claim_repository.py** - Claim data access
+- Services directly access Django models (no repository pattern implemented)
 
 ### OCR & Image Processing
 - **receipts/ocr_service.py** - Django integration for OCR
@@ -37,9 +36,12 @@
 - **receipts/validation.py** - Additional validation rules
 
 ### Testing
-- **receipts/tests.py** - Unit tests
+- **receipts/tests.py** - Main unit tests
+- **receipts/test_*.py** - Individual test modules (claim_totals, image_memory, etc.)
+- **receipts/test_modules/** - Additional test modules
 - **integration_test/test_suite.py** - Integration tests
 - **lib/ocr/tests/** - OCR unit tests
+- **test/js/** - JavaScript tests with Vitest
 
 ### Deployment
 - **Dockerfile** - Container configuration
@@ -55,12 +57,12 @@
 
 ## Request Flow
 1. **Upload**: views.py → async_processor.py → ocr_service.py → Receipt created
-2. **Edit**: views.py → ReceiptService → ValidationPipeline → ReceiptRepository
-3. **Claim**: views.py → ClaimService → ClaimRepository
+2. **Edit**: views.py → ReceiptService → ValidationPipeline → Django ORM
+3. **Claim**: views.py → ClaimService → Django ORM
 4. **View**: views.py → Templates with session-based permissions
 
 ## Key Design Patterns
 - **Service Layer**: Business logic separated from views
-- **Repository Pattern**: Data access abstraction
+- **Direct ORM Access**: Services use Django ORM directly
 - **Validation Pipeline**: Centralized validation logic
 - **Session-based Auth**: Edit tokens and viewer names in sessions

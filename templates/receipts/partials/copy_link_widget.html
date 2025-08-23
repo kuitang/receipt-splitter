@@ -1,7 +1,7 @@
 <div class="flex flex-col gap-2">
     <div class="flex items-center">
         <input type="text" 
-               value="{{ share_url }}" 
+               value="{{ share_url|escape }}" 
                readonly 
                id="{{ widget_id }}"
                class="flex-1 px-3 py-2 {{ border_color|default:'border-gray-300' }} border rounded-l-lg {{ input_bg|default:'bg-gray-50' }}">

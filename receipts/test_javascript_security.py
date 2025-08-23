@@ -311,7 +311,9 @@ class JavaScriptFunctionSecurityTests(TestCase):
         content = response.content.decode()
         
         # The page should include utils.js which contains escapeHtml
-        self.assertTrue(re.search(r'/static/js/utils\.[a-f0-9]+\.js', content))
+        # In DEBUG mode, files aren't hashed; in production they are
+        utils_pattern = r'/static/js/utils(\.([a-f0-9]+))?\.js'
+        self.assertTrue(re.search(utils_pattern, content), f"utils.js not found in content: {content[:500]}...")
     
     def test_copy_widget_uses_data_attribute(self):
         """Test that copy widget uses safe data attribute approach"""

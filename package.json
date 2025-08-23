@@ -5,6 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "generate-templates": ". venv/bin/activate && python manage.py generate_test_templates",
+    "pretest": "npm run generate-templates",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",

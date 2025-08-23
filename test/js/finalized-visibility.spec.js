@@ -8,6 +8,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { testTemplates, setupTestTemplates } from './generated-templates.js';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -27,6 +29,9 @@ global.fetch = vi.fn();
 global.authenticatedJsonFetch = vi.fn();
 global.escapeHtml = (text) => text;
 
+// Import template utils (this attaches to window automatically)
+await import('../../static/js/template-utils.js');
+
 // Import module
 const viewPageModule = await import('../../static/js/view-page.js');
 const { updateItemClaims, updateFinalizationStatus } = viewPageModule;
@@ -35,6 +40,8 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '';
+    // Set up templates for each test
+    setupTestTemplates(document);
   });
 
   describe('Critical: Claims must remain visible after finalization', () => {
@@ -42,14 +49,15 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
       // This tests that the template condition {% if viewer_name %} works
       // without requiring receipt.is_finalized
       
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="100">
           <h3>Pizza</h3>
           <div class="ml-4">
             <!-- Input should be here when viewer_name exists -->
           </div>
         </div>
-      `;
+      `);
+      
       
       const itemsData = [{
         item_id: '100',
@@ -72,12 +80,13 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
     });
 
     it('should show finalized claims to new viewers', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="200">
           <h3>Salad</h3>
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
       
       const itemsData = [{
         item_id: '200',
@@ -106,7 +115,7 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
     });
 
     it('should show all finalized claims to uploader', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="space-y-3">
           <div class="item-container" data-item-id="301">
             <h3>Burger</h3>
@@ -117,7 +126,8 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
             <div class="ml-4"></div>
           </div>
         </div>
-      `;
+      `);
+      
       
       const itemsData = [
         {
@@ -162,7 +172,7 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
 
     it('should maintain visibility through finalization process', () => {
       // Start with active claiming
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="sticky bottom-4 border-green-500">
           <p class="text-sm text-gray-600">Your Total (Frank)</p>
           <p id="my-total" class="text-green-600">$25.00</p>
@@ -177,7 +187,8 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
       
       const input = document.querySelector('.claim-quantity');
       expect(input).toBeTruthy();
@@ -204,12 +215,13 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
 
   describe('Edge Cases', () => {
     it('should handle receipt with no claims yet', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="500">
           <h3>Dessert</h3>
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
       
       const itemsData = [{
         item_id: '500',
@@ -226,12 +238,13 @@ describe('REGRESSION: Finalized Claims Visibility', () => {
     });
 
     it('should handle mixed finalized and unfinalized users', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="600">
           <h3>Appetizer</h3>
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
       
       const itemsData = [{
         item_id: '600',

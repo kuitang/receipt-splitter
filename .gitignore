@@ -17,3 +17,8 @@ node_modules/
 SECURITY_AUDIT_REPORT.md
 cookies.txt
 viewer_cookies.txt
+
+# Generated test files (auto-generated from Django templates)
+test/js/generated-templates.js
+test/js/test-templates.html
+test-results-*.json

@@ -1,106 +1,116 @@
-# CLAUDE.md - Autonomous Software Development System
+# CLAUDE.md
 
-## System Overview
-I am an autonomous software development system with full sandbox permissions and git repository access. I maintain complete development history through frequent commits and systematic documentation.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Primary Directive
-Autonomously implement the webapp specified in PRD.md by:
-- Implementing one feature at a time following incremental development
-- Testing each feature thoroughly before proceeding (unit tests + HTTP endpoint testing via curl)
-- Committing working code with evidence of testing in commit messages
-- Maintaining clean, production-ready code throughout the process
+## Development Commands
 
-## Core Development Workflow
+### Setup & Environment
+```bash
+# Install dependencies (virtual environment already activated)
+pip install -r requirements.txt
 
-### Planning Phase
-- Analyze PRD.md requirements and break into implementable features
-- Create detailed implementation plan with clear success criteria
-- Prioritize features for incremental development
+# Database migrations
+python3 manage.py migrate
 
-### Development Cycle
-1. **Feature Implementation**
-   - Write minimal, working code for one feature
-   - Follow existing codebase patterns and conventions
-   - Focus on functionality over optimization
+# Start development server (usually already running)
+python3 manage.py runserver
+```
 
-2. **Testing & Validation**
-   - Write unit tests for core logic
-   - Test HTTP endpoints with curl commands
-   - Document test results and evidence
+### Testing
+```bash
+# Run Django unit tests (all should pass)
+python3 manage.py test receipts -v 2
 
-3. **Quality Assurance**
-   - Run linting and type checking
-   - Ensure code follows best practices
-   - Verify no sensitive data or artifacts
+# Run specific test module
+python3 manage.py test receipts.test_claim_totals
 
-4. **Git Management**
-   - Stage and commit working code with descriptive messages
-   - Include test evidence in commit descriptions
-   - Maintain clean .gitignore
+# Integration tests with mock OCR (requires server running on localhost:8000)
+cd integration_test && ./run_tests.sh
 
-5. **Documentation**
-   - Update LOG.md with progress and decisions
-   - Document any architectural changes
-   - Record issues and resolutions
+# Integration tests with real OpenAI API
+cd integration_test && ./run_tests.sh --real
 
+# JavaScript tests (always run headless to avoid timeout)
+npm test -- --run           # Vitest test suite (headless)
+npm run test:watch          # Watch mode
+npm run test:coverage       # Coverage report
+npm run test:ui             # UI test runner
 
-## Operating Principles
+# IMPORTANT: Default 'npm test' is interactive and will timeout after 2min waiting for input
+# Always use 'npm test -- --run' or set CI=true environment variable
 
-1. **Incremental Development**: Implement features in small, testable chunks
-2. **Test-Driven Validation**: Every feature must pass tests before moving forward
-3. **Frequent Commits**: Commit working code after each completed feature
-4. **Evidence-Based Progress**: Document test results and validation in commits
-5. **Clean Codebase**: Maintain production-ready code throughout development
-6. **Autonomous Operation**: Continue development until all PRD requirements are met
+# Generate test templates for JavaScript tests
+npm run generate-templates  # Same as: python3 manage.py generate_test_templates
+```
 
-## Essential Documentation
+### Frontend Development
+```bash
+# Browser-based JavaScript tests (requires server running)
+# Visit: http://localhost:8000/static/run_tests.html
+npm run test:browser
 
-- **LOG.md**: Chronological development progress with timestamps
-- **ERRORS.md**: Issues encountered and their resolutions
-- **ARCHITECTURE.md**: Current system architecture and design decisions
+# Legacy JavaScript tests
+npm run test:legacy
+```
 
-## Technology Stack
+## Architecture Overview
 
-- **Backend**: Django (multi-page webapp for easy testing)
-- **Database**: SQLite (simple, file-based)
-- **Frontend**: HTMX + Tailwind CSS (progressive enhancement)
-- **Testing**: Django test framework + curl for HTTP endpoint validation
-- **Python Environment**: Use virtualenv to find python. Do not start the server -- the server is already running and autoloads new code.
+### Core Application Structure
+- **Django 5.2.5** backend with SQLite database
+- **Session-based authentication** (no user accounts, edit tokens)
+- **HTMX + Tailwind CSS** frontend with progressive enhancement
+- **OpenAI Vision API** for receipt OCR processing
 
-## Image Generation
-Generate static images using OpenAI's image generation API by creating a dedicated script. The script should:
-- Use the `gpt-image-1` model for image generation
-- Be committed to git for version control
-- Save generated images to appropriate directories
-- Store image prompts in separate files for documentation
-- As an exception, you may save the generated images to git
+### Key Directories & Files
+- `receipts/models.py` - Django models (Receipt, LineItem, Claim)
+- `receipts/views.py` - HTTP request handlers
+- `receipts/services/` - Business logic (receipt_service.py, claim_service.py)
+- `receipts/repositories/` - Data access layer
+- `lib/ocr/` - OCR processing with caching and structured outputs
+- `templates/receipts/` - Django templates with reusable partials
+- `static/js/` - JavaScript modules (edit-page.js, view-page.js, utils.js)
+- `integration_test/` - Full-stack integration tests
+- `test/js/` - JavaScript unit tests with Vitest
 
-**Image Style Guidelines**: Create illustrative (not photorealistic) images featuring conventionally attractive groups of friends enjoying various activities and adventures. Emphasize positive, inclusive themes with vibrant, engaging visuals.
+### Request Flow
+1. **Upload** → OCR processing → Receipt creation
+2. **Edit** → Validation pipeline → Receipt updates  
+3. **Finalize** → Generate shareable URL with 6-char slug
+4. **Claim** → Session-based item claiming by participants
 
-## Development Guidelines
+### Testing Strategy
+- **Django unit tests**: Core business logic and models
+- **Integration tests**: Full HTTP workflow with mock/real OCR
+- **JavaScript tests**: Frontend components and interactions
+- Runtime logs stored in `run/` directory (excluded from git)
 
-1. **File Organization**
-   - Keep runtime logs and temporary data in `run/` directory
-   - Exclude `run/` from git commits via `.gitignore`
-   - Maintain clean separation between code and runtime artifacts
+### Security Features
+- Rate limiting (10/min upload, 30/min update, 15/min claim)
+- Content Security Policy middleware  
+- Input validation and XSS protection
+- UUID4-based slugs for receipt URLs
+- Session-based edit tokens
 
-2. **Security & Best Practices**
-   - Never commit secrets, API keys, or sensitive data
-   - Use environment variables for configuration
-   - Follow Django security best practices
-   - Validate all user inputs
+## Additional Documentation
 
-3. **Git Management**
-   - Commit working code after each completed feature
-   - Include test evidence in commit messages
-   - Use descriptive commit messages with timestamps
-   - Maintain clean `.gitignore` file
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed file locations and system architecture
+- **[PRD_IMPROVED.md](PRD_IMPROVED.md)** - Product requirements document
+- **[README.md](README.md)** - User-facing setup and features overview
 
-## Success Criteria
+## Development Notes
 
-Development is complete when:
-- All PRD.md requirements are implemented and tested
-- All HTTP endpoints respond correctly (validated via curl)
-- Unit tests pass for core functionality
-- Code follows best practices and is production-ready
-- Documentation accurately reflects the current system
+### OCR Processing
+- Uses OpenAI Vision API with structured outputs via Pydantic models
+- Mock data available for testing without API costs
+- Test image: `lib/ocr/test_data/IMG_6839.HEIC` with hardcoded results
+- Response caching system for API efficiency
+
+### File Organization
+- Runtime logs and temp data in `run/` directory (git-ignored)
+- Images processed in memory only (no persistent storage)
+- Static files served by Django in development
+
+### Environment Variables
+- `OPENAI_API_KEY` - Optional, uses mock data without it  
+- `INTEGRATION_TEST_REAL_OPENAI_OCR=true` - Use real API in tests
+- `DEBUG=true` - Enable debug mode for testing
