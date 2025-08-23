@@ -163,7 +163,7 @@ def get_mock_receipt_data():
         ],
         "subtotal": 35.94,
         "tax": 3.24,
-        "tip": 6.00,
-        "total": 45.18,
+        "tip": 0.00,
+        "total": 39.18,
         "confidence_score": 1.0  # Mock data is 100% confident
     }

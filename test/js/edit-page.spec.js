@@ -542,4 +542,86 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       }).not.toThrow();
     });
   });
+
+  describe('Add Tip Modal', () => {
+    beforeEach(() => {
+      // Set up a receipt with $0 tip
+      setBodyHTML(`
+        <div id="edit-page-data"
+             data-receipt-slug="test-receipt"
+             data-receipt-id="123"
+             data-receipt-tip="0.00"
+             data-is-processing="false">
+        </div>
+        <input id="subtotal" type="number" value="100.00">
+        <input id="tax" type="number" value="10.00">
+        <input id="tip" type="number" value="0.00">
+        <input id="total" type="number" value="110.00">
+        <div id="items-container"></div>
+      `);
+      initializeEditPage();
+      // Manually trigger the modal initialization for testing
+      editPageModule.initializeTipModal();
+    });
+
+    it('should open the modal if the tip is $0', () => {
+      expect(document.querySelector('[data-component="add-tip-modal"]')).not.toBeNull();
+    });
+
+    it('should calculate 15% tip correctly on pre-tax amount', () => {
+      const modal = document.querySelector('[data-component="add-tip-modal"]');
+      modal.querySelector('[data-action="set-tip-percentage"][data-value="15"]').click();
+      modal.querySelector('[data-action="apply-tip"]').click();
+
+      expect(document.getElementById('tip').value).toBe('15.00');
+      expect(document.getElementById('total').value).toBe('125.00');
+    });
+
+    it('should calculate 20% tip on post-tax amount', () => {
+      const modal = document.querySelector('[data-component="add-tip-modal"]');
+      modal.querySelector('input[name="tip-basis"][value="post-tax"]').click();
+      modal.querySelector('[data-action="set-tip-percentage"][data-value="20"]').click();
+      modal.querySelector('[data-action="apply-tip"]').click();
+
+      expect(document.getElementById('tip').value).toBe('22.00'); // 20% of 110
+      expect(document.getElementById('total').value).toBe('132.00');
+    });
+
+    it('should handle custom dollar amount', () => {
+      const modal = document.querySelector('[data-component="add-tip-modal"]');
+      modal.querySelector('[data-action="set-tip-type"][data-type="dollar"]').click();
+      modal.querySelector('[data-input="tip-value"]').value = '12.34';
+      modal.querySelector('[data-action="apply-tip"]').click();
+
+      expect(document.getElementById('tip').value).toBe('12.34');
+      expect(document.getElementById('total').value).toBe('122.34');
+    });
+
+    it('should convert from percentage to dollar', () => {
+        const modal = document.querySelector('[data-component="add-tip-modal"]');
+        const tipValueInput = modal.querySelector('[data-input="tip-value"]');
+
+        tipValueInput.value = '18'; // 18%
+        modal.querySelector('[data-action="set-tip-type"][data-type="dollar"]').click();
+
+        expect(tipValueInput.value).toBe('18.00');
+    });
+
+    it('should convert from dollar to percentage', () => {
+        const modal = document.querySelector('[data-component="add-tip-modal"]');
+        const tipValueInput = modal.querySelector('[data-input="tip-value"]');
+
+        modal.querySelector('[data-action="set-tip-type"][data-type="dollar"]').click();
+        tipValueInput.value = '25'; // $25
+        modal.querySelector('[data-action="set-tip-type"][data-type="percentage"]').click();
+
+        expect(tipValueInput.value).toBe('25.00');
+    });
+
+    it('should close the modal when "No Tip" is clicked', () => {
+      const modal = document.querySelector('[data-component="add-tip-modal"]');
+      modal.querySelector('[data-action="close-tip-modal"]').click();
+      expect(document.querySelector('[data-component="add-tip-modal"]')).toBeNull();
+    });
+  });
 });

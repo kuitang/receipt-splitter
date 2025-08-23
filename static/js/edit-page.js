@@ -6,6 +6,7 @@
 // Page state variables
 let receiptSlug = null;
 let receiptId = null;
+let receiptTip = 0;
 let isProcessing = false;
 let receiptIsBalanced = true;
 
@@ -17,6 +18,7 @@ function initializeEditPage() {
     if (container) {
         receiptSlug = container.dataset.receiptSlug;
         receiptId = container.dataset.receiptId;
+        receiptTip = parseFloat(container.dataset.receiptTip) || 0;
         isProcessing = container.dataset.isProcessing === 'true';
     }
 }
@@ -557,6 +559,137 @@ function initializeProcessingAnimations() {
 }
 
 // ============================================================================
+// TIP MODAL FUNCTIONS
+// ============================================================================
+
+function initializeTipModal() {
+    const template = document.getElementById('add-tip-modal-template');
+    if (!template) return;
+
+    const modal = template.content.cloneNode(true).firstElementChild;
+    document.body.appendChild(modal);
+
+    const tipValueInput = modal.querySelector('[data-input="tip-value"]');
+    const tipTypeButtons = modal.querySelectorAll('[data-action="set-tip-type"]');
+    const tipBasisOptions = modal.querySelector('[data-show-for="percentage"]');
+    const tipBasisRadios = modal.querySelectorAll('input[name="tip-basis"]');
+
+    let tipType = 'percentage'; // 'percentage' or 'dollar'
+    let presetTipApplied = false;
+
+    function updateTipTypeUI() {
+        tipTypeButtons.forEach(btn => {
+            if (btn.dataset.type === tipType) {
+                btn.classList.add('bg-gray-200');
+            } else {
+                btn.classList.remove('bg-gray-200');
+            }
+        });
+        tipBasisOptions.classList.toggle('hidden', tipType !== 'percentage');
+    }
+
+    function calculateTip() {
+        const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
+        const tax = parseFloat(document.getElementById('tax').value) || 0;
+        let inputValue = parseFloat(tipValueInput.value) || 0;
+
+        if (presetTipApplied) {
+            const tipBasis = modal.querySelector('input[name="tip-basis"]:checked').value;
+            const base = tipBasis === 'pre-tax' ? subtotal : subtotal + tax;
+            return base * (inputValue / 100);
+        }
+
+        if (tipType === 'percentage') {
+            const tipBasis = modal.querySelector('input[name="tip-basis"]:checked').value;
+            const base = tipBasis === 'pre-tax' ? subtotal : subtotal + tax;
+            return base * (inputValue / 100);
+        } else {
+            return inputValue;
+        }
+    }
+
+    modal.querySelectorAll('[data-action="set-tip-percentage"]').forEach(button => {
+        button.addEventListener('click', () => {
+            tipType = 'percentage';
+            tipValueInput.value = button.dataset.value;
+            presetTipApplied = true;
+            updateTipTypeUI();
+        });
+    });
+
+    tipTypeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const previousTipType = tipType;
+            tipType = button.dataset.type;
+            presetTipApplied = false;
+            updateTipTypeUI();
+
+            const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
+            const tax = parseFloat(document.getElementById('tax').value) || 0;
+            const inputValue = parseFloat(tipValueInput.value) || 0;
+
+            if (tipType === 'percentage' && previousTipType === 'dollar') {
+                const base = subtotal > 0 ? subtotal : 1;
+                tipValueInput.value = ((inputValue / base) * 100).toFixed(2);
+            } else if (tipType === 'dollar' && previousTipType === 'percentage') {
+                const tipBasis = modal.querySelector('input[name="tip-basis"]:checked').value;
+                const base = tipBasis === 'pre-tax' ? subtotal : subtotal + tax;
+                tipValueInput.value = (base * (inputValue / 100)).toFixed(2);
+            }
+        });
+    });
+
+    tipValueInput.addEventListener('input', () => {
+        presetTipApplied = false;
+    });
+
+    tipBasisRadios.forEach(radio => {
+        radio.addEventListener('input', () => {
+            presetTipApplied = false;
+            updateQuickTipLabel();
+        });
+    });
+
+    // Function to update the quick tip label based on selected basis
+    function updateQuickTipLabel() {
+        const quickTipLabel = modal.querySelector('[data-text="quick-tip-label"]');
+        const selectedBasis = modal.querySelector('input[name="tip-basis"]:checked');
+        if (quickTipLabel && selectedBasis) {
+            // Get the exact text from the radio button label and make it lowercase
+            const radioLabel = selectedBasis.parentElement.querySelector('span').textContent;
+            const basisText = radioLabel.toLowerCase();
+            quickTipLabel.textContent = `Quick Tip (on ${basisText})`;
+        }
+    }
+
+    // Set initial label state
+    updateQuickTipLabel();
+
+    modal.querySelector('[data-action="apply-tip"]').addEventListener('click', () => {
+        const finalTip = calculateTip();
+        const tipField = document.getElementById('tip');
+        const totalField = document.getElementById('total');
+        const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
+        const tax = parseFloat(document.getElementById('tax').value) || 0;
+
+        tipField.value = finalTip.toFixed(2);
+        totalField.value = (subtotal + tax + finalTip).toFixed(2);
+
+        // Trigger updates
+        tipField.dispatchEvent(new Event('input'));
+
+        modal.remove();
+    });
+
+    modal.querySelector('[data-action="close-tip-modal"]').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    updateTipTypeUI();
+}
+
+
+// ============================================================================
 // PAGE INITIALIZATION
 // ============================================================================
 
@@ -590,6 +723,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Initial balance check
         checkAndDisplayBalance();
+
+        // Show tip modal if tip is zero
+        console.log('Checking tip modal condition:', receiptTip, 'type:', typeof receiptTip);
+        if (receiptTip === 0 || Math.abs(receiptTip) < 0.01) {
+            console.log('Initializing tip modal for zero/near-zero tip');
+            initializeTipModal();
+        }
     }
     
     // Attach button event handlers
@@ -655,6 +795,9 @@ if (typeof module !== 'undefined' && module.exports) {
         // Processing
         startProcessingPoll,
         initializeProcessingAnimations,
+
+        // Tip Modal
+        initializeTipModal,
         
         // State variables (for testing)
         _getState: () => ({ receiptSlug, receiptId, isProcessing, receiptIsBalanced }),
