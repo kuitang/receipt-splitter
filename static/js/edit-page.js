@@ -646,8 +646,24 @@ function initializeTipModal() {
     tipBasisRadios.forEach(radio => {
         radio.addEventListener('input', () => {
             presetTipApplied = false;
+            updateQuickTipLabel();
         });
     });
+
+    // Function to update the quick tip label based on selected basis
+    function updateQuickTipLabel() {
+        const quickTipLabel = modal.querySelector('[data-text="quick-tip-label"]');
+        const selectedBasis = modal.querySelector('input[name="tip-basis"]:checked');
+        if (quickTipLabel && selectedBasis) {
+            // Get the exact text from the radio button label and make it lowercase
+            const radioLabel = selectedBasis.parentElement.querySelector('span').textContent;
+            const basisText = radioLabel.toLowerCase();
+            quickTipLabel.textContent = `Quick Tip (on ${basisText})`;
+        }
+    }
+
+    // Set initial label state
+    updateQuickTipLabel();
 
     modal.querySelector('[data-action="apply-tip"]').addEventListener('click', () => {
         const finalTip = calculateTip();
@@ -709,7 +725,9 @@ document.addEventListener('DOMContentLoaded', () => {
         checkAndDisplayBalance();
 
         // Show tip modal if tip is zero
-        if (receiptTip === 0) {
+        console.log('Checking tip modal condition:', receiptTip, 'type:', typeof receiptTip);
+        if (receiptTip === 0 || Math.abs(receiptTip) < 0.01) {
+            console.log('Initializing tip modal for zero/near-zero tip');
             initializeTipModal();
         }
     }
