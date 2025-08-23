@@ -5,6 +5,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { testTemplates, setupTestTemplates } from './generated-templates.js';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -17,12 +19,11 @@ global.window = dom.window;
 global.document = window.document;
 global.navigator = window.navigator;
 
+// Note: Navigation errors in JSDOM are expected but handled with try-catch in the code
+
 // Mock alert and confirm
 global.alert = vi.fn();
 global.confirm = vi.fn(() => true);
-
-// Note: Navigation errors in JSDOM are expected and don't break tests
-// They appear as stderr but tests still pass
 
 // Mock escapeHtml function from utils
 global.escapeHtml = vi.fn((text) => {
@@ -42,6 +43,9 @@ global.fetch = vi.fn(() =>
     json: () => Promise.resolve({ success: true })
   })
 );
+
+// Import template utils (this attaches to window automatically)
+await import('../../static/js/template-utils.js');
 
 // Import the modules
 const utilsModule = await import('../../static/js/utils.js');
@@ -76,7 +80,7 @@ describe('View Page Claiming Functionality', () => {
     vi.clearAllMocks();
     
     // Set up realistic DOM structure
-    document.body.innerHTML = `
+    setBodyHTML(`
       <div id="view-page-data" 
            data-receipt-slug="test-receipt" 
            data-receipt-id="123">
@@ -112,7 +116,10 @@ describe('View Page Claiming Functionality', () => {
       <!-- Total display and button -->
       <p id="my-total" data-existing-total="25.50">$25.50</p>
       <button id="claim-button" data-action="confirm-claims" disabled>Claim</button>
-    `;
+    `);
+    
+    // Add the Django-generated templates to the DOM
+    setupTestTemplates(document);
     
     // Initialize
     initializeViewPage();
@@ -437,7 +444,7 @@ describe('View Page Claiming Functionality', () => {
       });
       
       // Set up more comprehensive DOM for polling tests
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div id="view-page-data" 
              data-receipt-slug="test-receipt" 
              data-receipt-id="123">
@@ -485,7 +492,8 @@ describe('View Page Claiming Functionality', () => {
         
         <p id="my-total" data-existing-total="0.00">$0.00</p>
         <button id="claim-button" data-action="confirm-claims" disabled>Claim</button>
-      `;
+      `);
+      
       
       initializeViewPage();
     });
@@ -741,7 +749,7 @@ describe('View Page Claiming Functionality', () => {
         expect(disabledClasses).toBe('claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums border-gray-200 bg-gray-50 text-gray-600');
         
         // Test in actual DOM update scenario
-        document.body.innerHTML = `
+        setBodyHTML(`
           <div class="item-container" data-item-id="1">
             <div class="ml-4">
               <div class="flex items-center space-x-2">
@@ -749,7 +757,8 @@ describe('View Page Claiming Functionality', () => {
               </div>
             </div>
           </div>
-        `;
+        `);
+        
         
         // Update item to fully claimed state
         const itemsData = [{

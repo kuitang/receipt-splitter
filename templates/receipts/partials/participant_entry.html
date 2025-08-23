@@ -1,0 +1,14 @@
+{% comment %}
+Participant entry for totals display.
+Context: name, amount (for templates), or data attributes (for JS templates)
+{% endcomment %}
+
+<div class="flex justify-between items-center">
+    {% if name %}
+        <span class="text-gray-700">{{ name }}</span>
+        <span class="font-medium tabular-nums">${{ amount|floatformat:2 }}</span>
+    {% else %}
+        <span class="text-gray-700" data-participant-name></span>
+        <span class="font-medium tabular-nums" data-participant-amount></span>
+    {% endif %}
+</div>

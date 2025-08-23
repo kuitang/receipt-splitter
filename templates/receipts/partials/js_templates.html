@@ -1,0 +1,44 @@
+{% comment %}
+JavaScript templates rendered server-side to avoid HTML duplication.
+These are hidden on page load and cloned by JavaScript when needed.
+{% endcomment %}
+
+<!-- Template for new item rows in edit page -->
+<template id="item-row-template">
+    {% include 'receipts/partials/item_row_editable.html' %}
+</template>
+
+<!-- Template for claim input widget -->
+<template id="claim-input-template">
+    {% include 'receipts/partials/claim_controls.html' with item_id='' current_value=0 max_value=0 %}
+</template>
+
+<!-- Template for claims display -->
+<template id="claims-display-template">
+    {% include 'receipts/partials/claims_display.html' with for_template=True %}
+</template>
+
+<!-- Template for single claim badge -->
+<template id="claim-badge-template">
+    {% include 'receipts/partials/claim_badge.html' %}
+</template>
+
+<!-- Template for participant entry -->
+<template id="participant-entry-template">
+    {% include 'receipts/partials/participant_entry.html' %}
+</template>
+
+<!-- Template for polling error banner -->
+<template id="polling-error-template">
+    {% include 'receipts/partials/warning_banner.html' with banner_id='polling-error-banner' title='Connection Issue' type='warning' details_id='polling-error-message' visible=True %}
+</template>
+
+<!-- Template for processing status messages -->
+<template id="processing-failed-template">
+    <div class="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">×</div>
+    <span class="text-sm text-red-600">Processing failed. Please try again.</span>
+</template>
+
+<template id="processing-timeout-template">
+    <span class="text-sm text-orange-600">Taking longer than expected...</span>
+</template>

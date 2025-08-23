@@ -270,8 +270,8 @@ class UploaderImagePermissionTests(TransactionTestCase):
         self.assertEqual(response.status_code, 403)
     
     @patch('receipts.image_storage.get_receipt_image_from_memory')
-    def test_anyone_can_view_image_after_finalized(self, mock_get_image):
-        """Test that anyone can view image after receipt is finalized"""
+    def test_finalized_images_not_accessible(self, mock_get_image):
+        """Test that finalized receipt images are not accessible (images deleted on finalization)"""
         mock_get_image.return_value = (b'fake_image_data', 'image/jpeg')
         
         # Set up session as non-uploader
@@ -289,9 +289,9 @@ class UploaderImagePermissionTests(TransactionTestCase):
             reverse('serve_receipt_image', kwargs={'receipt_slug': self.finalized_receipt.slug})
         )
         
-        # Should be able to view finalized receipt image
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b'fake_image_data')
+        # Should not be able to view finalized receipt image (defense in depth)
+        self.assertEqual(response.status_code, 404)
+        self.assertIn(b'Image not available for finalized receipts', response.content)
     
     def test_edit_page_redirect_for_non_uploader(self):
         """Test that non-uploaders cannot access edit page"""

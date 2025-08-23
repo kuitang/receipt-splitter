@@ -6,7 +6,7 @@
             <div class="flex-1">
                 <input type="text" 
                        name="item_name_{{ item.id }}"
-                       value="{{ item.name }}"
+                       value="{{ item.name|escape }}"
                        class="font-semibold w-full border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none">
             </div>
             <div class="flex items-center gap-4">

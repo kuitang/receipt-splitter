@@ -5,6 +5,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { testTemplates, setupTestTemplates } from './generated-templates.js';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -17,6 +19,8 @@ global.window = dom.window;
 global.document = window.document;
 global.navigator = window.navigator;
 
+// Note: Navigation errors in JSDOM are expected for tests that trigger navigation
+
 // Mock functions
 global.alert = vi.fn();
 global.confirm = vi.fn(() => true);
@@ -27,6 +31,9 @@ global.escapeHtml = (text) => text; // Simple mock for escapeHtml
 // Note: Navigation errors in JSDOM are expected and don't break tests
 // They appear as stderr but tests still pass
 
+// Import template utils (this attaches to window automatically)
+await import('../../static/js/template-utils.js');
+
 // Import module
 const viewPageModule = await import('../../static/js/view-page.js');
 const { updateItemClaims } = viewPageModule;
@@ -35,6 +42,8 @@ describe('Fully Claimed Items - Consistent Styling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '';
+    // Set up templates for each test
+    setupTestTemplates(document);
   });
 
   describe('All fully claimed scenarios should have consistent disabled styling', () => {
@@ -43,11 +52,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
     it('should show disabled input when item is fully claimed by others', () => {
       // Setup: Item fully claimed by other users
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="100">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '100',
@@ -77,11 +87,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
     it('should show disabled input when user has finalized their claims', () => {
       // Setup: User has finalized claims
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="200">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '200',
@@ -109,11 +120,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
     it('should show disabled input when item has no availability and user has no claims', () => {
       // Setup: Mixed scenario - some claimed by user, some by others, none available
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="300">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '300',
@@ -141,11 +153,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
     it('should show enabled input when item is available and user not finalized', () => {
       // Setup: Item has availability and user hasn't finalized
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="400">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '400',
@@ -173,11 +186,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
     it('should show enabled input when user has existing claims and more available', () => {
       // Setup: User has claims but can claim more
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="500">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '500',
@@ -206,7 +220,7 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
     it('should update existing input to disabled when it becomes fully claimed', () => {
       // Setup: Start with enabled input
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="600">
           <div class="ml-4">
             <div class="flex items-center space-x-2">
@@ -218,7 +232,8 @@ describe('Fully Claimed Items - Consistent Styling', () => {
             </div>
           </div>
         </div>
-      `;
+      `);
+      
 
       const container = document.querySelector('[data-item-id="600"]');
       let input = container.querySelector('.claim-quantity');
@@ -253,11 +268,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
 
   describe('Edge cases', () => {
     it('should handle zero quantity items correctly', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="700">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '700',
@@ -276,11 +292,12 @@ describe('Fully Claimed Items - Consistent Styling', () => {
     });
 
     it('should handle user with exact amount claimed as available', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <div class="item-container" data-item-id="800">
           <div class="ml-4"></div>
         </div>
-      `;
+      `);
+      
 
       const pollData = [{
         item_id: '800',

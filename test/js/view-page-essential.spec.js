@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -40,7 +41,7 @@ describe('View Page Essential Unit Tests', () => {
     vi.clearAllMocks();
     
     // Set up minimal realistic DOM structure
-    document.body.innerHTML = `
+    setBodyHTML(`
       <div id="view-page-data" 
            data-receipt-slug="test-receipt" 
            data-receipt-id="123">
@@ -59,7 +60,7 @@ describe('View Page Essential Unit Tests', () => {
       
       <p id="my-total">$0.00</p>
       <button id="claim-button" disabled>Finalize Claims</button>
-    `;
+    `);
     
     initializeViewPage();
   });

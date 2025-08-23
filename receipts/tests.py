@@ -1,5 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.template import Template, Context
 from unittest.mock import patch
 from django.utils import timezone
 from decimal import Decimal
@@ -541,3 +542,48 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 500)
         response_data = json.loads(response.content)
         self.assertEqual(response_data['error'], 'An unexpected error occurred.')
+
+
+class ItemDisplayTemplateTests(TestCase):
+    
+    def setUp(self):
+        self.receipt = Receipt.objects.create(
+            uploader_name="Test User", 
+            restaurant_name="Test Restaurant",
+            date=timezone.now(),
+            subtotal=Decimal("100.00"),
+            tax=Decimal("10.00"), 
+            tip=Decimal("15.00"),
+            total=Decimal("125.00"),
+            is_finalized=True
+        )
+    
+    def test_item_display_logic(self):
+        """Test template logic: quantity 0,1 show price only; quantity >1 shows multiplication"""
+        template = Template(
+            "{% if item.quantity > 1 %}"
+            "${{ item.unit_price|floatformat:2 }} × {{ item.quantity }} = ${{ item.total_price|floatformat:2 }}"
+            "{% else %}"
+            "${{ item.total_price|floatformat:2 }}"
+            "{% endif %}")
+        
+        # Test quantity = 0 (edge case)
+        item = LineItem.objects.create(
+            receipt=self.receipt, name="Zero Item", quantity=0,
+            unit_price=Decimal("10.00"), total_price=Decimal("0.00"))
+        rendered = template.render(Context({'item': item}))
+        self.assertEqual(rendered, "$0.00")
+        
+        # Test quantity = 1 (single item)
+        item.quantity = 1
+        item.total_price = Decimal("15.50")
+        rendered = template.render(Context({'item': item}))
+        self.assertEqual(rendered, "$15.50")
+        self.assertNotIn("×", rendered)
+        
+        # Test quantity = 2 (multiple items)
+        item.quantity = 2
+        item.unit_price = Decimal("8.75")
+        item.total_price = Decimal("17.50")
+        rendered = template.render(Context({'item': item}))
+        self.assertEqual(rendered, "$8.75 × 2 = $17.50")

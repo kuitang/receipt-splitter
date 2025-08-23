@@ -351,8 +351,8 @@ class ViewsTestCase(NoFileSystemMixin, TransactionTestCase):
         # Should return 403
         self.assertEqual(response.status_code, 403)
         
-    def test_serve_receipt_image_finalized_public(self):
-        """Test that finalized receipt images are public"""
+    def test_serve_receipt_image_finalized_inaccessible(self):
+        """Test that finalized receipt images are not accessible (regression test for image deletion)"""
         # Create finalized receipt
         receipt = Receipt.objects.create(
             uploader_name='Test User',
@@ -365,18 +365,30 @@ class ViewsTestCase(NoFileSystemMixin, TransactionTestCase):
             is_finalized=True
         )
         
-        # Store image in memory
+        # Store image in memory initially (simulating pre-finalization state)
         test_image_data = b'Test image content'
         cache_key = f"receipt_image_{receipt.id}"
         cache.set(cache_key, test_image_data, timeout=IMAGE_CACHE_TIMEOUT)
         cache.set(f"{cache_key}_type", "image/jpeg", timeout=IMAGE_CACHE_TIMEOUT)
         
-        # Request without being uploader
-        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
+        # Delete image from memory (simulating finalization behavior)
+        from receipts.image_storage import delete_receipt_image_from_memory
+        delete_receipt_image_from_memory(str(receipt.id))
         
-        # Should return 200 (public access)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, test_image_data)
+        # Request from uploader - should return 404 since finalized receipts don't serve images
+        session = self.client.session
+        session[f'receipt_{receipt.id}_uploader_id'] = 'test-uploader-id'
+        session.save()
+        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
+        self.assertEqual(response.status_code, 404)
+        self.assertIn(b'Image not available for finalized receipts', response.content)
+        
+        # Request from non-uploader - should return 404 since image is deleted
+        session = self.client.session
+        session.pop(f'receipt_{receipt.id}_uploader_id', None)
+        session.save()
+        response = self.client.get(reverse('serve_receipt_image', args=[receipt.slug]))
+        self.assertEqual(response.status_code, 404)
 
 
 class FileSystemMonitoringTestCase(TestCase):

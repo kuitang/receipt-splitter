@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { setBodyHTML } from './test-setup.js';
 
 // Set up DOM environment
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -32,7 +33,7 @@ const viewPageModule = await import('../../static/js/view-page.js');
 describe('Plus/Minus Controls', () => {
   beforeEach(() => {
     // Reset DOM
-    document.body.innerHTML = `
+    setBodyHTML(`
       <div class="item-container" data-item-id="1">
         <div class="ml-4 flex-shrink-0">
           <div class="flex items-center space-x-1">
@@ -72,7 +73,7 @@ describe('Plus/Minus Controls', () => {
       
       <div id="my-total">$0.00</div>
       <button id="claim-button">Confirm Claims</button>
-    `;
+    `);
 
     // Mock updateTotal function
     global.updateTotal = vi.fn();
@@ -241,10 +242,10 @@ describe('Plus/Minus Controls', () => {
 
   describe('Edge Cases and Error Handling', () => {
     it('should handle missing data-item-id gracefully', () => {
-      document.body.innerHTML += `
+      setBodyHTML(document.body.innerHTML + `
         <button class="claim-plus">+</button>
         <button class="claim-minus">-</button>
-      `;
+      `);
       
       const plusBtn = document.querySelector('.claim-plus:not([data-item-id])');
       const minusBtn = document.querySelector('.claim-minus:not([data-item-id])');
@@ -257,10 +258,10 @@ describe('Plus/Minus Controls', () => {
     });
 
     it('should handle missing input gracefully', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <button class="claim-plus" data-item-id="999">+</button>
         <button class="claim-minus" data-item-id="999">-</button>
-      `;
+      `);
       
       const plusBtn = document.querySelector('.claim-plus[data-item-id="999"]');
       const minusBtn = document.querySelector('.claim-minus[data-item-id="999"]');
@@ -273,10 +274,10 @@ describe('Plus/Minus Controls', () => {
     });
 
     it('should handle missing max attribute', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <input class="claim-quantity" data-item-id="test" value="5">
         <button class="claim-plus" data-item-id="test">+</button>
-      `;
+      `);
       
       const input = document.querySelector('.claim-quantity[data-item-id="test"]');
       const plusBtn = document.querySelector('.claim-plus[data-item-id="test"]');
@@ -288,10 +289,10 @@ describe('Plus/Minus Controls', () => {
     });
 
     it('should handle missing min attribute', () => {
-      document.body.innerHTML = `
+      setBodyHTML(`
         <input class="claim-quantity" data-item-id="test" value="0">
         <button class="claim-minus" data-item-id="test">-</button>
-      `;
+      `);
       
       const input = document.querySelector('.claim-quantity[data-item-id="test"]');
       const minusBtn = document.querySelector('.claim-minus[data-item-id="test"]');

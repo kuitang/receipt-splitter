@@ -190,12 +190,13 @@ function updateParticipantTotals(participantTotals) {
     
     // Add updated participant entries
     participantTotals.forEach(participant => {
-        const entry = document.createElement('div');
-        entry.className = 'flex justify-between items-center';
-        entry.innerHTML = `
-            <span class="text-gray-700">${escapeHtml(participant.name)}</span>
-            <span class="font-medium tabular-nums">$${participant.amount.toFixed(2)}</span>
-        `;
+        let entry;
+        
+        // Use template to create participant entry
+        const entryFragment = window.TemplateUtils.createParticipantEntry(participant.name, participant.amount);
+        if (entryFragment) {
+            entry = entryFragment.firstElementChild || entryFragment.querySelector('div');
+        }
         
         // Insert before the "Not Claimed" entry if it exists
         const notClaimedEntry = participantsDiv.querySelector('.text-orange-600');
@@ -388,25 +389,20 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
             
             // Always show input field, just change its state
             if (!hasInput) {
-                const disabledAttr = shouldDisable ? 'readonly disabled' : '';
+                // Use template to create claim input
+                const claimInput = window.TemplateUtils.createClaimInput(
+                    itemData.item_id,
+                    totalPossible,
+                    myExistingClaim,
+                    shouldDisable
+                );
                 
-                claimSection.innerHTML = `
-                    <div class="flex items-center space-x-1">
-                        <button type="button" class="claim-minus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium ${shouldDisable ? 'bg-gray-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'}" 
-                                data-item-id="${itemData.item_id}"
-                                ${shouldDisable ? 'disabled' : ''}>−</button>
-                        <input type="number" 
-                               class="${getClaimInputClasses(shouldDisable)}"
-                               min="0"
-                               max="${totalPossible}"
-                               value="${myExistingClaim}"
-                               data-item-id="${itemData.item_id}"
-                               ${disabledAttr}>
-                        <button type="button" class="claim-plus h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-medium ${shouldDisable ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}" 
-                                data-item-id="${itemData.item_id}"
-                                ${shouldDisable ? 'disabled' : ''}>+</button>
-                    </div>
-                `;
+                if (claimInput) {
+                    claimSection.innerHTML = '';
+                    claimSection.appendChild(claimInput);
+                } else {
+                    console.error('Failed to create claim input from template');
+                }
                 
                 // Re-attach event listener for the new input (only if not disabled)
                 if (!shouldDisable) {
@@ -493,17 +489,12 @@ function updateItemClaimsDisplay(itemContainer, claims) {
         itemContainer.appendChild(claimsSection);
     }
     
-    // Update claims content
-    claimsSection.innerHTML = `
-        <p class="text-sm text-gray-600 mb-1">Claimed by:</p>
-        <div class="flex flex-wrap gap-2">
-            ${claims.map(claim => `
-                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                    ${escapeHtml(claim.claimer_name)} (${claim.quantity_claimed})
-                </span>
-            `).join('')}
-        </div>
-    `;
+    // Update claims content using template
+    const claimsDisplay = window.TemplateUtils.createClaimsDisplay(claims);
+    if (claimsDisplay) {
+        claimsSection.innerHTML = '';
+        claimsSection.appendChild(claimsDisplay);
+    }
 }
 
 /**
@@ -516,24 +507,9 @@ function showPollingError(message) {
         existingBanner.remove();
     }
     
-    const banner = document.createElement('div');
-    banner.id = 'polling-error-banner';
-    banner.className = 'fixed top-0 left-0 right-0 z-40 bg-yellow-50 border-b-4 border-yellow-500 p-4';
-    banner.innerHTML = `
-        <div class="max-w-6xl mx-auto">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <div class="w-5 h-5 bg-yellow-400 text-white rounded-full flex items-center justify-center text-xs font-bold">!</div>
-                </div>
-                <div class="ml-3">
-                    <h3 class="text-sm font-medium text-yellow-800">Connection Issue</h3>
-                    <div class="mt-2 text-sm text-yellow-700">
-                        ${escapeHtml(message)}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    // Use template to create polling error banner
+    const bannerFragment = window.TemplateUtils.createPollingErrorBanner(message);
+    const banner = bannerFragment ? (bannerFragment.firstElementChild || bannerFragment.querySelector('#polling-error-banner')) : null;
     
     document.body.insertBefore(banner, document.body.firstChild);
 }
@@ -585,7 +561,13 @@ function validateClaims() {
     const errorDetails = document.getElementById('claiming-error-details');
     
     if (errors.length > 0 && warningBanner && errorDetails) {
-        errorDetails.innerHTML = errors.map(error => `<div>• ${error}</div>`).join('');
+        // Clear and rebuild error list using DOM methods
+        errorDetails.innerHTML = '';
+        errors.forEach(error => {
+            const div = document.createElement('div');
+            div.textContent = `• ${error}`;
+            errorDetails.appendChild(div);
+        });
         warningBanner.classList.remove('hidden');
     } else if (warningBanner) {
         warningBanner.classList.add('hidden');
@@ -719,7 +701,12 @@ async function confirmClaims() {
     // Redirect to the view page to show finalized state
     // Using explicit redirect instead of reload to avoid any session/state issues
     if (typeof window !== 'undefined' && window.location) {
-        window.location.href = `/r/${receiptSlug}/`;
+        try {
+            window.location.href = `/r/${receiptSlug}/`;
+        } catch (e) {
+            // Navigation not supported in test environments (JSDOM) - this is expected
+            console.log('Navigation attempted but not supported in test environment');
+        }
     }
 }
 

@@ -543,9 +543,13 @@ def serve_receipt_image(request, receipt_slug):
     
     receipt_id = str(receipt.id)
     
-    # Check if user is the uploader (for security)
+    # Check if user is the uploader and receipt is not finalized (for security)
     user_context = request.user_context(receipt_id)
-    if not user_context.is_uploader and not receipt.is_finalized:
+    if receipt.is_finalized:
+        # Images are deleted after finalization - defense in depth
+        return HttpResponse('Image not available for finalized receipts', status=404)
+    
+    if not user_context.is_uploader:
         # Only uploader can see image during editing
         return HttpResponse(status=403)
     
