@@ -11,18 +11,8 @@ env:
 jobs:
   review_app:
     runs-on: ubuntu-latest
-    outputs:
-      url: ${{ steps.deploy.outputs.url }}
-    # Only run one deployment at a time per PR.
     concurrency:
       group: pr-${{ github.event.number }}
-
-    # Deploying apps with this "review" environment allows the URL for the app to be displayed in the PR UI.
-    # Feel free to change the name of this environment.
-    environment:
-      name: review
-      # The script in the `deploy` sets the URL output for each review app.
-      url: ${{ steps.deploy.outputs.url }}
     steps:
       - name: Get code
         uses: actions/checkout@v4
@@ -32,3 +22,10 @@ jobs:
         uses: superfly/fly-pr-review-apps@1.2.1
         with:
           config: fly.review.toml
+
+      - name: Allocate shared IPv4 for preview app
+        if: github.event.action != 'closed'
+        run: |
+          APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
+          echo "Allocating shared IPv4 for app: $APP_NAME"
+          fly ips allocate-v4 --shared -a "$APP_NAME" || echo "IPv4 allocation failed or already exists"
