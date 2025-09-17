@@ -539,30 +539,50 @@ async function nativeShare(inputId, event) {
 /**
  * Initialize share functionality
  */
-function initializeShareButtons() {
+function initializeShareButtons(protocol) {
     try {
         console.log('Initializing share buttons...');
-        
-        // Detect mobile devices
+
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const isHTTPS = window.location.protocol === 'https:';
-        
-        console.log('Is mobile:', isMobile, 'Is HTTPS:', isHTTPS, 'Has Web Share:', !!navigator.share);
-        
-        // Check if Web Share API is available and we're on HTTPS
+        const isHTTPS = (protocol || window.location.protocol) === 'https:';
+
+        // Data to check for sharability. We use generic data because
+        // specific receipt details may not be available when this runs.
+        const checkShareData = {
+            title: 'Receipt',
+            text: 'Check out this receipt',
+            url: window.location.href,
+        };
+
+        let canNativeShare = false;
         if (navigator.share && isHTTPS) {
+            // navigator.canShare is the most reliable check.
+            if (navigator.canShare && navigator.canShare(checkShareData)) {
+                canNativeShare = true;
+            } else if (!navigator.canShare) {
+                // Fallback for browsers that have `navigator.share` but not `navigator.canShare`
+                // This is less reliable and might still fail on click, but it's better than nothing.
+                // We assume if `share` exists, it might work. This maintains some of the old behavior
+                // for browsers that haven't updated to `canShare` yet.
+                canNativeShare = true;
+            }
+        }
+
+        console.log('Is mobile:', isMobile, 'Is HTTPS:', isHTTPS, 'Can native share:', canNativeShare);
+
+        if (canNativeShare) {
             console.log('Using native Web Share API');
-            
+
             // Show native share buttons
             document.querySelectorAll('.mobile-share-btn').forEach(btn => {
                 btn.classList.remove('hidden');
             });
-            
+
             // Hide fallback buttons
             document.querySelectorAll('.mobile-fallback-share').forEach(div => {
                 div.classList.add('hidden');
             });
-            
+
             // Attach native share handlers
             document.querySelectorAll('[data-action="native-share"]').forEach(btn => {
                 if (!btn.hasAttribute('data-initialized')) {
@@ -574,19 +594,19 @@ function initializeShareButtons() {
                     });
                 }
             });
-        } else if (isMobile && !isHTTPS) {
-            console.log('Mobile on HTTP - showing fallback buttons');
-            
+        } else if (isMobile) {
+            console.log('Mobile device detected, but native share not available. Showing fallback buttons.');
+
             // Hide native share button
             document.querySelectorAll('.mobile-share-btn').forEach(btn => {
                 btn.classList.add('hidden');
             });
-            
+
             // Show fallback buttons
             document.querySelectorAll('.mobile-fallback-share').forEach(div => {
                 div.classList.remove('hidden');
             });
-            
+
             // Attach WhatsApp handlers
             document.querySelectorAll('[data-action="share-whatsapp"]').forEach(link => {
                 if (!link.hasAttribute('data-initialized')) {
@@ -603,7 +623,7 @@ function initializeShareButtons() {
                     });
                 }
             });
-            
+
             // Attach Messenger handlers
             document.querySelectorAll('[data-action="share-messenger"]').forEach(link => {
                 if (!link.hasAttribute('data-initialized')) {
@@ -620,7 +640,7 @@ function initializeShareButtons() {
                     });
                 }
             });
-            
+
             // Attach SMS handlers
             document.querySelectorAll('[data-action="share-sms"]').forEach(link => {
                 if (!link.hasAttribute('data-initialized')) {
@@ -638,7 +658,7 @@ function initializeShareButtons() {
                 }
             });
         }
-        
+
         // Attach copy handlers (always available)
         document.querySelectorAll('[data-action="copy-share-url"]').forEach(btn => {
             if (!btn.hasAttribute('data-initialized')) {
@@ -649,7 +669,7 @@ function initializeShareButtons() {
                 });
             }
         });
-        
+
         console.log('Share buttons initialized successfully');
     } catch (error) {
         console.error('Error initializing share buttons:', error);
