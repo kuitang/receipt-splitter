@@ -29,3 +29,36 @@ jobs:
           APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
           echo "Allocating shared IPv4 for app: $APP_NAME"
           fly ips allocate-v4 --shared -a "$APP_NAME" || echo "IPv4 allocation failed or already exists"
+
+      - name: Destroy preview database resources
+        if: github.event.action == 'closed'
+        run: |
+          APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
+          DB_APP_NAME="${APP_NAME}-db"
+          echo "Cleaning up database app: $DB_APP_NAME"
+
+          if fly apps info "$DB_APP_NAME" > /dev/null 2>&1; then
+            MACHINE_IDS=$(fly machines list -a "$DB_APP_NAME" --json | jq -r '.[].id')
+            if [ -n "$MACHINE_IDS" ]; then
+              for MACHINE_ID in $MACHINE_IDS; do
+                echo "Destroying database machine $MACHINE_ID"
+                fly machines destroy "$MACHINE_ID" -a "$DB_APP_NAME" --force || echo "Failed to destroy machine $MACHINE_ID"
+              done
+            else
+              echo "No machines found for $DB_APP_NAME"
+            fi
+
+            VOLUME_IDS=$(fly volumes list -a "$DB_APP_NAME" --json | jq -r '.[]?.id')
+            if [ -n "$VOLUME_IDS" ]; then
+              for VOLUME_ID in $VOLUME_IDS; do
+                echo "Destroying database volume $VOLUME_ID"
+                fly volumes destroy "$VOLUME_ID" -a "$DB_APP_NAME" --yes || echo "Failed to destroy volume $VOLUME_ID"
+              done
+            else
+              echo "No volumes found for $DB_APP_NAME"
+            fi
+
+            fly apps destroy "$DB_APP_NAME" --yes || echo "Failed to destroy database app $DB_APP_NAME"
+          else
+            echo "Database app $DB_APP_NAME does not exist, skipping."
+          fi
