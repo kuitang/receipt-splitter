@@ -41,7 +41,7 @@ describe('Share Button Functionality', () => {
     // Minimal DOM setup for share widget tests
     setBodyHTML(`
       <input id="share-link-input" value="https://example.com/r/test123/" readonly>
-      <button data-action="native-share" data-widget-id="share-link-input" title="Share"></button>
+      <button data-action="native-share" data-widget-id="share-link-input" class="mobile-share-btn hidden" title="Share"></button>
       <button data-action="copy-share-url" data-widget-id="share-link-input" title="Copy to clipboard"></button>
       <div class="mobile-fallback-share hidden">
         <a data-action="share-whatsapp" data-widget-id="share-link-input"></a>
@@ -315,6 +315,93 @@ describe('Share Button Functionality', () => {
       
       expect(fallbackBtns.length).toBeGreaterThanOrEqual(3);
       expect(copyBtn).toBeTruthy();
+    });
+  });
+
+  describe('Share Button Logic with navigator.canShare', () => {
+
+    beforeEach(() => {
+        // Reset navigator to a clean state for each test
+        global.navigator = { ...originalNavigator };
+        Object.defineProperty(global.navigator, 'userAgent', {
+            value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X)', // mobile
+            configurable: true
+        });
+    });
+
+    it('should show native share button when canShare returns true', async () => {
+        // Mock navigator.share and navigator.canShare
+        global.navigator.share = vi.fn();
+        global.navigator.canShare = vi.fn(() => true);
+
+        // Re-initialize buttons to apply new mocks
+        const { initializeShareButtons } = await import('../../static/js/utils.js?v=6');
+        initializeShareButtons('https:');
+
+        const nativeShareBtn = document.querySelector('.mobile-share-btn');
+        const fallbackContainer = document.querySelector('.mobile-fallback-share');
+
+        expect(nativeShareBtn.classList.contains('hidden')).toBe(false);
+        expect(fallbackContainer.classList.contains('hidden')).toBe(true);
+        expect(global.navigator.canShare).toHaveBeenCalled();
+    });
+
+    it('should show fallback buttons when canShare returns false on mobile', async () => {
+        // Mock navigator.share and navigator.canShare
+        global.navigator.share = vi.fn();
+        global.navigator.canShare = vi.fn(() => false);
+
+        // Re-initialize buttons
+        const { initializeShareButtons } = await import('../../static/js/utils.js?v=7');
+        initializeShareButtons('https:');
+
+        const nativeShareBtn = document.querySelector('.mobile-share-btn');
+        const fallbackContainer = document.querySelector('.mobile-fallback-share');
+
+        expect(nativeShareBtn.classList.contains('hidden')).toBe(true);
+        expect(fallbackContainer.classList.contains('hidden')).toBe(false);
+        expect(global.navigator.canShare).toHaveBeenCalled();
+    });
+
+    it('should show native share button as fallback if canShare is missing but share exists', async () => {
+        global.navigator.share = vi.fn();
+        // canShare is undefined
+
+        const { initializeShareButtons } = await import('../../static/js/utils.js?v=8');
+        initializeShareButtons('https:');
+
+        const nativeShareBtn = document.querySelector('.mobile-share-btn');
+        const fallbackContainer = document.querySelector('.mobile-fallback-share');
+
+        expect(nativeShareBtn.classList.contains('hidden')).toBe(false);
+        expect(fallbackContainer.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show fallback buttons when share itself is missing on mobile', async () => {
+        // navigator.share is undefined
+
+        const { initializeShareButtons } = await import('../../static/js/utils.js?v=9');
+        initializeShareButtons('https:');
+
+        const nativeShareBtn = document.querySelector('.mobile-share-btn');
+        const fallbackContainer = document.querySelector('.mobile-fallback-share');
+
+        expect(nativeShareBtn.classList.contains('hidden')).toBe(true);
+        expect(fallbackContainer.classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show fallback buttons on http', async () => {
+        global.navigator.share = vi.fn();
+        global.navigator.canShare = vi.fn(() => true);
+
+        const { initializeShareButtons } = await import('../../static/js/utils.js?v=10');
+        initializeShareButtons('http:');
+
+        const nativeShareBtn = document.querySelector('.mobile-share-btn');
+        const fallbackContainer = document.querySelector('.mobile-fallback-share');
+
+        expect(nativeShareBtn.classList.contains('hidden')).toBe(true);
+        expect(fallbackContainer.classList.contains('hidden')).toBe(false);
     });
   });
 });
