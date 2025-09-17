@@ -15,7 +15,7 @@ class Receipt(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    slug = models.CharField(max_length=10, unique=True, db_index=True, blank=True)
+    slug = models.CharField(max_length=10, unique=True, blank=True)
     uploader_name = models.CharField(max_length=50)
     restaurant_name = models.CharField(max_length=100)
     date = models.DateTimeField()

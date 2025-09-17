@@ -46,7 +46,7 @@ class Migration(migrations.Migration):
             model_name="receipt",
             name="slug",
             field=models.CharField(
-                blank=True, db_index=True, max_length=10, default=''
+                blank=True, max_length=10, default=''
             ),
         ),
         # Generate slugs for existing receipts
@@ -59,7 +59,7 @@ class Migration(migrations.Migration):
             model_name="receipt",
             name="slug",
             field=models.CharField(
-                blank=True, db_index=True, max_length=10, unique=True
+                blank=True, max_length=10, unique=True
             ),
         ),
     ]
