@@ -1,0 +1,31 @@
+name: Deploy Review App
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  # Set this to your Fly.io preferred region.
+  FLY_REGION: ewr
+
+jobs:
+  review_app:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pr-${{ github.event.number }}
+    steps:
+      - name: Get code
+        uses: actions/checkout@v4
+
+      - name: Deploy PR app to Fly.io
+        id: deploy
+        uses: superfly/fly-pr-review-apps@latest
+        with:
+          config: fly.review.toml
+
+      - name: Allocate shared IPv4 for preview app
+        if: github.event.action != 'closed'
+        run: |
+          APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
+          echo "Allocating shared IPv4 for app: $APP_NAME"
+          fly ips allocate-v4 --shared -a "$APP_NAME" || echo "IPv4 allocation failed or already exists"
