@@ -25,7 +25,7 @@ def patch_mock_ocr() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def integration_client() -> IntegrationTestBase:
+def integration_client(db) -> IntegrationTestBase:
     """Return a fresh integration test client for each test."""
     return IntegrationTestBase()
 
@@ -38,7 +38,7 @@ def heic_fixture_bytes() -> bytes:
 
 
 @pytest.fixture
-def finalized_receipt(integration_client: IntegrationTestBase) -> Tuple[str, dict, list[int]]:
+def finalized_receipt(integration_client: IntegrationTestBase, db) -> Tuple[str, dict, list[int]]:
     """Create, balance, and finalize a receipt for claim-related tests."""
     slug, receipt_data, item_ids = _create_finalized_receipt(integration_client)
     return slug, receipt_data, item_ids

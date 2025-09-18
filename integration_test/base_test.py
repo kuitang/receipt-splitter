@@ -3,20 +3,10 @@ Base classes and utilities for integration testing.
 Ensures tests interact only via HTTP API, not direct module imports.
 """
 
-import os
 import json
 import time
 from typing import Dict, Any, Optional
 from decimal import Decimal
-
-# Setup Django environment
-# Use test settings if available to disable rate limiting
-if os.path.exists('test_settings.py'):
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_settings')
-else:
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'receipt_splitter.settings')
-import django
-django.setup()
 
 # Only import Django test client, not app modules
 from django.test import Client

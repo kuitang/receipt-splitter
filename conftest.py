@@ -1,33 +1,14 @@
 import os
 from pathlib import Path
 
-import django
 import pytest
-from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.test.utils import get_runner, setup_test_environment, teardown_test_environment
 
 
 def pytest_configure():
     os.environ.setdefault("SECRET_KEY", "test-secret")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
     os.environ.setdefault("USE_ASYNC_PROCESSING", "false")
-
-
-def pytest_sessionstart(session):
-    django.setup()
-    setup_test_environment()
-    test_runner_class = get_runner(settings)
-    session._django_runner = test_runner_class(verbosity=1, interactive=False)
-    session._django_db_cfg = session._django_runner.setup_databases()
-
-
-def pytest_sessionfinish(session, exitstatus):
-    runner = getattr(session, "_django_runner", None)
-    db_cfg = getattr(session, "_django_db_cfg", None)
-    if runner and db_cfg:
-        runner.teardown_databases(db_cfg)
-    teardown_test_environment()
 
 
 def _sniff_mime_from_signature(file_content: bytes) -> str:
@@ -73,5 +54,6 @@ def pytest_collection_modifyitems(config, items):
         path = Path(str(item.fspath))
         if "integration_test" in path.parts:
             item.add_marker("integration")
+            item.add_marker(pytest.mark.django_db)
         else:
             item.add_marker("backend")
