@@ -1,6 +1,9 @@
 # fly.toml app configuration file generated for receipt-splitter on 2025-08-16
 # This is the configuration for review apps.
 
+app = "pr-${{ github.event.number }}-receipt-splitter"
+primary_region = "ewr"
+
 [build]
 
 [env]
@@ -17,6 +20,7 @@
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
+  max_machines_per_region = 1
   processes = ["web"]
 
 
