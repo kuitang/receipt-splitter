@@ -14,6 +14,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from lib.ocr.ocr_lib import ReceiptOCR
 
 
+TEST_PNG = (
+    b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00'
+    b'\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x00\x00\x00\x00IEND\xaeB`\x82'
+)
+
+
 def test_ocr_cache():
     """Test that OCR caching works correctly"""
     
@@ -32,7 +38,7 @@ def test_ocr_cache():
     ocr = ReceiptOCR(api_key, cache_size=5)
     
     # Create a simple test image (1x1 white pixel PNG)
-    test_image = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x00\x00\x00\x00IEND\xaeB`\x82'
+    test_image = TEST_PNG
     
     print("\n1️⃣  First call (should be a cache MISS)...")
     start_time = time.time()
@@ -147,7 +153,7 @@ def test_mock_cache():
     # Test with mock
     ocr = MockReceiptOCR("dummy_key", cache_size=5)
     
-    test_image = b"test_image_data"
+    test_image = TEST_PNG
     
     # First call
     result1 = ocr.process_image_bytes(test_image)

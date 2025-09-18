@@ -3,55 +3,14 @@ Base classes and utilities for integration testing.
 Ensures tests interact only via HTTP API, not direct module imports.
 """
 
-import os
-import sys
 import json
 import time
-from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from decimal import Decimal
-import functools
-
-# Setup Django environment
-# Use test settings if available to disable rate limiting
-if os.path.exists('test_settings.py'):
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_settings')
-else:
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'receipt_splitter.settings')
-import django
-django.setup()
 
 # Only import Django test client, not app modules
 from django.test import Client
 
-
-def test_wrapper(func):
-    """Decorator to handle common test exception handling"""
-    @functools.wraps(func)
-    def wrapper(self):
-        # Extract test name from docstring or function name
-        test_name = (func.__doc__ or func.__name__.replace('_', ' ').title()).strip()
-        print_test_header(test_name)
-        
-        try:
-            # Run the actual test
-            result = func(self)
-            # If test doesn't return a result, assume passed
-            if result is None:
-                return TestResult(TestResult.PASSED)
-            return result
-            
-        except AssertionError as e:
-            # Use generic "Test" or extract category from class name
-            category = self.__class__.__name__.replace('Test', '').replace('Validation', '')
-            print(f"\n❌ {category} test failed: {e}")
-            return TestResult(TestResult.FAILED, str(e))
-            
-        except Exception as e:
-            print(f"\n❌ Unexpected error: {e}")
-            return TestResult(TestResult.FAILED, f"Unexpected error: {e}")
-    
-    return wrapper
 
 
 class IntegrationTestBase:
@@ -545,30 +504,6 @@ class IntegrationTestBase:
         receipts.delete()
         return count
     
-    def run_tests(self) -> List[tuple[str, 'TestResult']]:
-        """Run all test methods in this class and return results"""
-        import inspect
-        results = []
-        
-        # Find all methods that start with 'test_' and are callable
-        test_methods = [
-            method for method_name, method in inspect.getmembers(self, predicate=inspect.ismethod)
-            if method_name.startswith('test_') and callable(method)
-        ]
-        
-        for method in test_methods:
-            method_name = method.__name__
-            try:
-                result = method()
-                # Ensure result is a TestResult object
-                if not isinstance(result, TestResult):
-                    result = TestResult(TestResult.PASSED)
-                results.append((method_name, result))
-            except Exception as e:
-                results.append((method_name, TestResult(TestResult.FAILED, str(e))))
-        
-        return results
-    
     def setup_receipt(self, uploader_name="Test User", wait=True, user_instance=None):
         """Helper method to upload receipt and wait for processing"""
         instance = user_instance or self
@@ -598,68 +533,3 @@ class IntegrationTestBase:
                 total_claimed += amount
         
         return claims_by_user, total_claimed
-
-
-def print_test_header(test_name: str):
-    """Print a formatted test header"""
-    print("\n" + "=" * 70)
-    print(f"🧪 {test_name}")
-    print("=" * 70)
-
-
-def print_test_result(passed: bool, message: str):
-    """Print a formatted test result"""
-    icon = "✅" if passed else "❌"
-    print(f"{icon} {message}")
-
-
-class TestResult:
-    """Represents the result of a test"""
-    PASSED = "passed"
-    FAILED = "failed" 
-    SKIPPED = "skipped"
-    
-    def __init__(self, status: str, reason: str = ""):
-        self.status = status
-        self.reason = reason
-    
-    def __bool__(self):
-        # For backward compatibility - only truly passed tests return True
-        return self.status == self.PASSED
-
-
-def print_test_summary(results: List[tuple[str, TestResult]]):
-    """Print test summary with passed/failed/skipped breakdown"""
-    passed = sum(1 for _, result in results if result.status == TestResult.PASSED)
-    failed = sum(1 for _, result in results if result.status == TestResult.FAILED)
-    skipped = sum(1 for _, result in results if result.status == TestResult.SKIPPED)
-    total = len(results)
-    
-    print("\n" + "=" * 70)
-    print("TEST SUMMARY")
-    print("=" * 70)
-    
-    for test_name, result in results:
-        if result.status == TestResult.PASSED:
-            icon = "✅"
-            status_text = test_name
-        elif result.status == TestResult.FAILED:
-            icon = "❌"
-            status_text = f"{test_name} - {result.reason}" if result.reason else test_name
-        else:  # SKIPPED
-            icon = "⚠️"
-            status_text = f"{test_name} - {result.reason}" if result.reason else f"{test_name} - SKIPPED"
-        
-        print(f"  {icon} {status_text}")
-    
-    print("-" * 70)
-    print(f"Results: {passed} passed, {failed} failed, {skipped} skipped ({total} total)")
-    
-    if failed > 0:
-        print(f"❌ {failed} TEST(S) FAILED")
-    elif skipped > 0:
-        print(f"⚠️ {skipped} TEST(S) SKIPPED - {passed}/{passed + failed} core tests passed")
-    else:
-        print("✅ ALL TESTS PASSED")
-    
-    print("=" * 70)

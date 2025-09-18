@@ -11,6 +11,13 @@ CACHES = {
     }
 }
 
+if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS'].update({
+        'timeout': 30,
+        'check_same_thread': False,
+    })
+
 # Ensure test mode
 DEBUG = False
 TESTING = True

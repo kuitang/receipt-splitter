@@ -49,6 +49,8 @@ class NoFileSystemMixin:
                 'django/',  # Django framework
                 '.sqlite',  # Database
                 'test_',  # Test files
+                'pytest-cache',  # Pytest cache directory
+                'pytest_cache',
             ]
             if any(pattern in path_str for pattern in allowed_patterns):
                 return self.original_open(path, *args, **kwargs)

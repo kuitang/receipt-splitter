@@ -39,7 +39,7 @@
 - **receipts/tests.py** - Main unit tests
 - **receipts/test_*.py** - Individual test modules (claim_totals, image_memory, etc.)
 - **receipts/test_modules/** - Additional test modules
-- **integration_test/test_suite.py** - Integration tests
+- **integration_test/test_*.py** - Pytest integration suites (workflow, claims, UI)
 - **lib/ocr/tests/** - OCR unit tests
 - **test/js/** - JavaScript tests with Vitest
 
