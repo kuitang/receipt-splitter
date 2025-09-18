@@ -1,203 +1,99 @@
-# Testing Commands
+# Test Suites
+
+The project test harness is organised into three independent suites so they can run in
+parallel in CI or locally. All Python tests use **pytest** with `pytest-django` and share
+the same configuration defined in `pytest.ini`.
 
 ## Prerequisites
 
-Before running any tests, ensure the environment is properly set up:
-
 ```bash
-# 1. Activate virtual environment
-source venv/bin/activate
-
-# 2. Set required environment variables
-export SECRET_KEY='test-key-for-testing-only'
-
-# 3. Collect static files (required for integration tests)
-python3 manage.py collectstatic --noinput
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+npm install
 ```
 
-**Note**: Use `python3` instead of `python` as the python command may not be available in some environments.
+Environment variables are automatically populated for the test runner (`SECRET_KEY`,
+`DJANGO_SETTINGS_MODULE`, `USE_ASYNC_PROCESSING`) so no additional exports are required.
+If you prefer to supply your own values, set them before invoking the commands below.
 
-## JavaScript Tests
+## 1. Backend Unit Tests
+
+Covers Django models, services, validators and the OCR helper modules. Uses an
+in-memory SQLite database managed by `pytest-django`.
+
+```bash
+pytest -m backend
+```
+
+### Notes
+- Runs all tests in `receipts/` and `lib/ocr/tests/`.
+- Requires the `libmagic` system library in production; the pytest harness stubs
+  MIME detection when the shared object is not present so local runs remain
+  reliable.
+- Database is created/destroyed automatically; no need to run migrations manually.
+
+## 2. Integration Tests
+
+Exercises pytest-native scenarios in `integration_test/test_*.py`. Each module
+focuses on a cohesive area (workflow, claims, UI) so failures surface quickly
+without paging through ad-hoc console output.
+
+```bash
+pytest -m integration
+```
+
+### Notes
+- Uses the mocked OCR pipeline by default; set
+  `INTEGRATION_TEST_REAL_OPENAI_OCR=true` to hit the real API.
+- Creates and finalises receipts via Django's test client, so no development
+  server is required.
+- Safe to run in parallel with the backend suite because each test initialises its
+  own database transaction.
+
+## 3. Frontend (Vitest) Suite
+
+JavaScript unit tests run headless via Vitest. Test HTML templates are generated before
+Vitest executes so no manual Django setup is required.
+
 ```bash
 npm test -- --run
 ```
 
-**IMPORTANT**: Navigation errors in console output are JSDOM limitations, NOT test failures. If the test summary shows "X passed", all tests are successful.
-
-## Django Unit Tests
-```bash
-source venv/bin/activate
-export SECRET_KEY='test-key-for-testing-only'
-python3 manage.py test
-```
-
-## Security Tests
-```bash
-source venv/bin/activate
-export SECRET_KEY='test-key-for-testing-only'
-python3 manage.py test receipts.test_javascript_security -v 2
-```
-
-## Integration Tests
-```bash
-source venv/bin/activate
-export SECRET_KEY='test-key-for-testing-only'
-python3 integration_test/test_suite.py
-```
-
-# Run specific test classes
-```bash
-python3 integration_test/test_suite.py ValidationTest SecurityValidationTest
-```
-
-# List available classes
-```bash
-python3 integration_test/test_suite.py --list
-```
-
-# Legacy commands
-```bash
-source venv/bin/activate
-export SECRET_KEY='test-key-for-testing-only'
-cd integration_test && ./run_tests.sh
-```
-
-**Note**: Integration tests automatically set `DEBUG=true` to avoid static file hashing issues.
-
-## OCR Unit Tests
-```bash
-source venv/bin/activate
-export SECRET_KEY='test-key-for-testing-only'
-python3 -m unittest discover lib.ocr.tests -v
-```
-
-## Quick Test Commands for CI/Automation
-
-For automated testing environments, run all tests with these commands:
-
-```bash
-# Prerequisites
-source venv/bin/activate
-export SECRET_KEY='test-key-for-testing-only'
-python3 manage.py collectstatic --noinput
-
-# Run all test suites
-npm test -- --run                        # JavaScript (131 tests pass - ignore navigation errors)
-python3 manage.py test                   # Django unit tests
-python3 integration_test/test_suite.py   # Integration tests (all 20 pass)
-python3 -m unittest discover lib.ocr.tests -v  # OCR unit tests
-```
-
-**IMPORTANT FOR AUTOMATED TESTING**: JavaScript tests show 'Error: Not implemented: navigation' messages in stderr, but these are JSDOM limitations, NOT test failures. If the test summary shows "X passed", all tests are successful.
-
-## Expected Test Output
-
-### Successful Test Runs
-
-JavaScript tests (JSDOM navigation errors are normal):
-```bash
- ✓ test/js/finalized-visibility.spec.js  (6 tests) 422ms
- ✓ test/js/view-page-essential.spec.js  (8 tests) 401ms
- ✓ test/js/edit-page.spec.js  (18 tests) 7459ms
-
- Test Files  9 passed (9)
-      Tests  131 passed (131)
-   Duration  10.13s
-```
-
-Django unit tests:
-```bash
-test_bug_scenario_same_session_different_names ... ok
-test_participant_totals_grouped_by_name ... ok
-
-----------------------------------------------------------------------
-Ran 11 tests in 0.049s
-
-OK
-```
-
-Integration tests:
-```bash
-  ✅ Balance Validation
-  ✅ Security Validation
-  ✅ UI Design Consistency
-  ✅ Concurrent Claims - Basic Scenario
-----------------------------------------------------------------------
-Results: 20 passed, 0 failed, 0 skipped (20 total)
-✅ ALL TESTS PASSED
-```
-
-OCR unit tests:
-```bash
-................
-----------------------------------------------------------------------
-Ran 18 tests in 1.324s
-
-OK
-```
-
 ### Notes
-- **JSDOM Errors**: Lines like `Error: Not implemented: navigation` in JavaScript tests are JSDOM limitations, not actual failures
-- **Success Indicators**: Look for "X passed (X)" counts and "OK" status rather than individual error messages
-- **Debug Output**: OCR tests may show validation messages - these are informational, not failures
+- The `pretest` hook calls `python3 scripts/generate_test_templates.py` which injects
+  the required environment variables automatically.
+- Messages such as `Error: Not implemented: navigation` come from JSDOM and can be
+  ignored as long as Vitest reports all tests passing.
 
-## Known Issues
-
-1. **Python Command**: Use `python3` instead of `python` - the `python` command may not be available
-2. **JavaScript Navigation Errors**: JSDOM shows navigation errors in stderr - these are NOT test failures, ignore them
-3. **OCR Mock Integration**: Some OCR integration tests have complex mocking requirements 
-4. **Timezone Warnings**: DateTimeField warnings in test environment (not production issue)
-
-## JavaScript Template System Testing
-
-When running JavaScript tests with the new template-based system, the tests need access to the Django-rendered HTML templates. To eliminate duplication, templates are automatically generated from Django before tests run.
-
-### Automatic Template Generation
-
-Templates are generated from Django using a management command:
+## Running Everything Sequentially
 
 ```bash
-# Manually generate templates
-python manage.py generate_test_templates
-
-# Or use npm (automatically runs before tests)
-npm run generate-templates
+pytest -m backend
+pytest -m integration
+npm test -- --run
 ```
 
-This generates:
-- `test/js/generated-templates.js` - JavaScript module with templates
-- `test/js/test-templates.html` - HTML reference file
+## Parallel Execution
 
-### Test Setup
+The suites do not share state. You can run them in parallel processes (or CI jobs)
+as long as each process installs dependencies and creates its own virtual environment.
 
-Tests import and use the generated templates:
+## Manual Checks
 
-```javascript
-import { testTemplates, setupTestTemplates } from './generated-templates.js';
+The `manual_tests/` directory contains exploratory scripts that are intentionally
+excluded from automated runs. For example:
 
-beforeEach(() => {
-    document.body.innerHTML = `
-        <!-- Regular test DOM elements -->
-        <div id="items-container"></div>
-    `;
-    
-    // Add Django-generated templates to DOM
-    setupTestTemplates(document);
-});
+```bash
+python manual_tests/rate_limiting_check.py
 ```
 
-### Template Requirements
+This script requires a locally running development server and is useful for spot
+checking rate-limiting behaviour.
 
-The following templates are included in the generated file:
-- `item-row-template`: Required for `addItem()` function in edit-page.js
-- `claim-input-template`: Required for claim input generation in view-page.js  
-- `participant-entry-template`: Required for participant display functions
-- `claims-display-template`: Required for claims display functions
-- `polling-error-template`: Required for error banner display
+## Troubleshooting
 
-### Important Notes
-
-1. **DO NOT EDIT** `generated-templates.js` manually - it's auto-generated
-2. Templates are automatically regenerated before tests run (`npm test`)
-3. If templates change in Django, they'll be automatically updated in tests
-4. This ensures tests always use the actual Django templates (single source of truth)
+- **Missing libmagic** – Install the `libmagic` system package (`libmagic1` on
+  Debian/Ubuntu). Tests provide a signature-based stub when the shared object is
+  unavailable, but the production build expects the real library.
+- **Vitest template errors** – Ensure `python3` is on your `PATH`; the helper script
+  uses it to call `manage.py generate_test_templates`.

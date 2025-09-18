@@ -36,6 +36,12 @@ def process_receipt_async(receipt_id, original_image_file):
     logger.info(f"Started async OCR processing for receipt {receipt_id}")
 
 
+def process_receipt_sync(receipt_id, original_image_file):
+    """Process receipt OCR synchronously (used when async is disabled in tests)."""
+    image_bytes, format_hint = get_image_bytes_for_ocr(original_image_file)
+    _process_receipt_worker(receipt_id, image_bytes, format_hint)
+
+
 def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
     """
     Worker function that runs in background thread

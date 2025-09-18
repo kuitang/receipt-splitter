@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "generate-templates": ". venv/bin/activate && python manage.py generate_test_templates",
+    "generate-templates": "python3 scripts/generate_test_templates.py",
     "pretest": "npm run generate-templates",
     "test": "vitest",
     "test:ui": "vitest --ui",

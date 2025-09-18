@@ -1,6 +1,7 @@
 # Legacy Tests to Remove
 
-These test files have been superseded by the consolidated integration test suite in `integration_test/test_suite.py`.
+These test files have been superseded by the pytest-based integration suite in
+`integration_test/test_*.py`.
 
 ## Files to Remove After Verification
 

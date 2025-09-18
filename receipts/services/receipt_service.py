@@ -6,6 +6,7 @@ from typing import Dict, Optional, Tuple, List
 from decimal import Decimal
 from datetime import datetime
 from django.utils import timezone
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.signing import Signer, BadSignature
 from django.core.cache import cache
@@ -14,7 +15,11 @@ from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField
 
 from receipts.models import Receipt, LineItem, ActiveViewer, Claim
 from receipts.services.validation_pipeline import ValidationPipeline
-from receipts.async_processor import process_receipt_async, create_placeholder_receipt
+from receipts.async_processor import (
+    process_receipt_async,
+    process_receipt_sync,
+    create_placeholder_receipt,
+)
 from receipts.image_storage import store_receipt_image_in_memory, delete_receipt_image_from_memory
 
 
@@ -48,9 +53,12 @@ class ReceiptService:
         # Create placeholder receipt
         receipt = create_placeholder_receipt(validated_name, validated_image)
         
-        # Start async OCR processing
-        process_receipt_async(receipt.id, validated_image)
-        
+        # Start OCR processing according to configuration
+        if getattr(settings, "USE_ASYNC_PROCESSING", True):
+            process_receipt_async(receipt.id, validated_image)
+        else:
+            process_receipt_sync(receipt.id, validated_image)
+
         return receipt
     
     def get_receipt_by_id(self, receipt_id: str) -> Optional[Receipt]:

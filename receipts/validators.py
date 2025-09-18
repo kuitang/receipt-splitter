@@ -12,8 +12,12 @@ import hashlib
 from io import BytesIO
 
 # Required security dependencies
-import magic
 import bleach
+
+try:  # pragma: no cover - availability depends on system packages
+    import magic  # type: ignore
+except ImportError:  # pragma: no cover - runtime guard handles absence
+    magic = None
 
 logger = logging.getLogger(__name__)
 
@@ -47,14 +51,16 @@ class FileUploadValidator:
         file_content = uploaded_file.read()
         uploaded_file.seek(0)
         
-        # Strict MIME type validation using magic (no fallbacks)
         try:
-            detected_mime = magic.from_buffer(file_content, mime=True)
-            if detected_mime not in cls.ALLOWED_MIME_TYPES:
-                raise ValidationError(f'File content is not a valid image. Detected type: {detected_mime}')
-        except Exception as e:
+            detected_mime = cls._detect_mime_type(file_content)
+        except ValidationError:
+            raise
+        except Exception:
             logger.exception("Unable to determine file type")
             raise ValidationError('Unable to determine file type.')
+
+        if detected_mime not in cls.ALLOWED_MIME_TYPES:
+            raise ValidationError(f'File content is not a valid image. Detected type: {detected_mime}')
         
         # Additional image validation
         try:
@@ -92,6 +98,19 @@ class FileUploadValidator:
         
         uploaded_file.seek(0)
         return uploaded_file
+
+    @classmethod
+    def _detect_mime_type(cls, file_content):
+        """Detect MIME type using libmagic."""
+        if magic is None:
+            logger.error("libmagic is required for MIME detection but is not available")
+            raise ValidationError('Unable to determine file type.')
+
+        try:
+            return magic.from_buffer(file_content, mime=True)
+        except Exception as exc:  # pragma: no cover - propagated to tests
+            logger.exception("libmagic failed to detect file type")
+            raise ValidationError('Unable to determine file type.') from exc
     
     @staticmethod
     def generate_safe_filename(uploaded_file):

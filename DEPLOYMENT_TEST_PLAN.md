@@ -75,7 +75,7 @@ This test plan ensures that the deployment-related changes work correctly with b
 - **Commands**:
   ```bash
   export INTEGRATION_TEST_REAL_OPENAI_OCR=false
-  python integration_test/test_suite.py
+  pytest -m integration
   ```
 - **Expected**: All tests pass
 
@@ -189,7 +189,7 @@ This test plan ensures that the deployment-related changes work correctly with b
 6. **Integration Tests**
    ```bash
    export INTEGRATION_TEST_REAL_OPENAI_OCR=false
-   python integration_test/test_suite.py
+   pytest -m integration
    ```
 
 7. **JavaScript Tests**

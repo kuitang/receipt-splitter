@@ -17,8 +17,8 @@ Visit http://localhost:8000
 ## Testing
 
 ```bash
-python3 manage.py test receipts -v 2  # Django unit tests
-python3 integration_test/run_tests.sh  # Integration tests
+pytest -m backend                     # Django + library unit tests
+pytest -m integration                                   # Full workflow integration
 npm test -- --run                     # JavaScript tests (headless)
 ```
 
