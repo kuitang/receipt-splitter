@@ -17,14 +17,15 @@ def main() -> int:
     env.setdefault("SECRET_KEY", "test-secret")
     env.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
 
-    # Use virtualenv Python to ensure Django is available
+    # Use virtualenv Python if available, otherwise use current interpreter (for CI)
     venv_python = PROJECT_ROOT / "venv" / "bin" / "python"
-    if not venv_python.exists():
-        print(f"Error: Virtual environment not found at {venv_python}", file=sys.stderr)
-        print("Please run: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt", file=sys.stderr)
-        return 1
+    if venv_python.exists():
+        python_executable = str(venv_python)
+    else:
+        # In CI or non-venv environments, use the current Python interpreter
+        python_executable = sys.executable
 
-    command = [str(venv_python), "manage.py", "generate_test_templates"]
+    command = [python_executable, "manage.py", "generate_test_templates"]
     return subprocess.call(command, cwd=PROJECT_ROOT, env=env)
 
 
