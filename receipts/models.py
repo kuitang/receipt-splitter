@@ -77,7 +77,9 @@ class Receipt(models.Model):
 class LineItem(models.Model):
     receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name='items')
     name = models.CharField(max_length=200)
-    quantity = models.IntegerField(default=1)
+    quantity = models.IntegerField(default=1) # Deprecated
+    quantity_numerator = models.PositiveIntegerField(default=1)
+    quantity_denominator = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=12, decimal_places=6)
     total_price = models.DecimalField(max_digits=12, decimal_places=6)
     prorated_tax = models.DecimalField(max_digits=12, decimal_places=6, default=0)
@@ -111,7 +113,9 @@ class LineItem(models.Model):
 class Claim(models.Model):
     line_item = models.ForeignKey(LineItem, on_delete=models.CASCADE, related_name='claims')
     claimer_name = models.CharField(max_length=50)
-    quantity_claimed = models.IntegerField(default=1)
+    quantity_claimed = models.IntegerField(default=1) # Deprecated
+    quantity_numerator = models.PositiveIntegerField(default=1)
+    quantity_denominator = models.PositiveIntegerField(default=1)
     session_id = models.CharField(max_length=100)
     claimed_at = models.DateTimeField(auto_now_add=True)
     is_finalized = models.BooleanField(default=False)

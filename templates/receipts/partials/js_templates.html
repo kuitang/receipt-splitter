@@ -8,6 +8,29 @@ These are hidden on page load and cloned by JavaScript when needed.
     {% include 'receipts/partials/item_row_editable.html' %}
 </template>
 
+<!-- Template for the subdivide modal -->
+<template id="subdivide-modal-template">
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 class="text-xl font-semibold text-gray-900 mb-4">Subdivide Item</h3>
+            <p class="text-gray-600 mb-4">How many people are splitting this item?</p>
+            <input type="number"
+                   min="1"
+                   max="99"
+                   class="subdivide-input w-full px-3 py-2 border border-gray-300 rounded-lg text-center tabular-nums"
+                   placeholder="Enter number of people">
+            <div class="mt-4 flex justify-end space-x-2">
+                <button data-action="cancel-subdivide" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium">
+                    Cancel
+                </button>
+                <button data-action="apply-subdivide" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                    Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
 <!-- Template for claim input widget -->
 <template id="claim-input-template">
     {% include 'receipts/partials/claim_controls.html' with item_id='' current_value=0 max_value=0 %}

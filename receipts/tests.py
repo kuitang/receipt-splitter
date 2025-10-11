@@ -286,8 +286,13 @@ class ViewTests(TestCase):
         
         url = reverse('claim_item', kwargs={'receipt_slug': self.receipt.slug})
         data = {
-            'line_item_id': self.item.id,
-            'quantity': 1
+            'claims': [
+                {
+                    'line_item_id': self.item.id,
+                    'quantity_numerator': 1,
+                    'quantity_denominator': 1
+                }
+            ]
         }
         
         response = self.client.post(
@@ -302,7 +307,8 @@ class ViewTests(TestCase):
         
         claims = Claim.objects.filter(line_item=self.item)
         self.assertEqual(claims.count(), 1)
-        self.assertEqual(claims.first().quantity_claimed, 1)
+        self.assertEqual(claims.first().quantity_numerator, 1)
+        self.assertEqual(claims.first().quantity_denominator, 1)
 
     def test_claim_item_on_unfinalized_receipt(self):
         self.receipt.is_finalized = False

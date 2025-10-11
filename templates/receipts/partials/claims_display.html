@@ -8,7 +8,7 @@ Context: claims (list), for_template (boolean - true when used in JS templates)
     <div class="flex flex-wrap gap-2"{% if for_template %} data-claims-container{% endif %}>
         {% if not for_template %}
             {% for claim in claims %}
-                {% include 'receipts/partials/claim_badge.html' with claimer_name=claim.claimer_name quantity=claim.quantity_claimed %}
+                {% include 'receipts/partials/claim_badge.html' with claim=claim %}
             {% endfor %}
         {% endif %}
     </div>

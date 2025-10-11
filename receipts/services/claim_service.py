@@ -4,6 +4,7 @@ Encapsulates all business logic related to claims
 """
 from typing import Dict, Optional, List, Tuple
 from decimal import Decimal
+from fractions import Fraction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
@@ -11,7 +12,7 @@ from datetime import timedelta
 
 from receipts.models import Claim, LineItem, Receipt
 from django.db.models import QuerySet, Sum, F, DecimalField, Prefetch, Q, Value
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Cast
 from receipts.services.validation_pipeline import ValidationPipeline
 from receipts.middleware.query_monitor import log_query_performance
 
@@ -39,29 +40,28 @@ class ClaimService:
         self.validator = ValidationPipeline()
     
     @log_query_performance
-    def finalize_claims(self, receipt_id: str, claimer_name: str, 
+    def finalize_claims(self, receipt_id: str, claimer_name: str,
                        claims_data: List[Dict], session_id: str) -> Dict:
         """
         Finalize all claims for a user at once (new total claims protocol)
-        
+
         Args:
             receipt_id: Receipt ID
             claimer_name: Name of the person claiming
-            claims_data: List of {"line_item_id": str, "quantity": int} (total desired quantities)
+            claims_data: List of {"line_item_id": str, "quantity_numerator": int, "quantity_denominator": int}
             session_id: Session ID for ownership verification
-            
+
         Returns:
             Dict with success status and updated totals
         """
-        # Single optimized query: get receipt + check if user finalized in ONE query!
         from django.db.models import Exists, OuterRef
-        
+
         user_finalized_subquery = Claim.objects.filter(
             line_item__receipt_id=OuterRef('id'),
             session_id=session_id,
             is_finalized=True
         )
-        
+
         try:
             receipt = Receipt.objects.prefetch_related(
                 'items',
@@ -71,115 +71,112 @@ class ClaimService:
             ).get(id=receipt_id)
         except Receipt.DoesNotExist:
             raise ValueError(f"Receipt {receipt_id} not found")
-        
+
         if not receipt.is_finalized:
             raise ReceiptNotFinalizedError("Receipt must be finalized before claiming items")
-        
-        # Check annotation instead of separate query!
+
         if receipt.user_has_finalized:
             raise ValueError("Claims have already been finalized and cannot be changed")
-        
-        # Build lookup dictionaries from prefetched data (no additional queries!)
+
         line_items_dict = {str(item.id): item for item in receipt.items.all()}
-        
-        # Calculate availability from ALREADY PREFETCHED claims (zero queries!)
+
         availability_data = {}
         for item in receipt.items.all():
             item_id = str(item.id)
-            # Sum claims from others using prefetched data
             claimed_by_others = sum(
-                claim.quantity_claimed 
-                for claim in item.claims.all()  # Already prefetched!
+                Fraction(claim.quantity_numerator, claim.quantity_denominator)
+                for claim in item.claims.all()
                 if claim.session_id != session_id
             )
             availability_data[item_id] = claimed_by_others
-        
-        # Validate all claims using cached data (no queries in this loop!)
+
         validation_errors = []
         for claim_data in claims_data:
-            line_item_id = str(claim_data['line_item_id'])  # Ensure string for dict lookup
-            desired_quantity = claim_data['quantity']
+            line_item_id = str(claim_data['line_item_id'])
+            numerator = claim_data.get('quantity_numerator', 0)
+            denominator = claim_data.get('quantity_denominator', 1)
             
-            # Get line item from prefetched dict
+            if denominator == 0:
+                validation_errors.append(f"Item {line_item_id}: Denominator cannot be zero.")
+                continue
+
+            desired_quantity = Fraction(numerator, denominator)
+
             line_item = line_items_dict.get(line_item_id)
             if not line_item:
                 validation_errors.append(f"Item {line_item_id} not found")
                 continue
-            
-            # Validate quantity is non-negative
+
             if desired_quantity < 0:
                 validation_errors.append(
                     f"{line_item.name}: Quantity cannot be negative ({desired_quantity})"
                 )
                 continue
-            
-            # Check availability using pre-calculated data
-            claimed_by_others = availability_data.get(line_item_id, 0)
-            available = line_item.quantity - claimed_by_others
-            
+
+            claimed_by_others = availability_data.get(line_item_id, Fraction(0))
+            available = Fraction(line_item.quantity_numerator, line_item.quantity_denominator) - claimed_by_others
+
             if desired_quantity > available:
                 validation_errors.append(
                     f"{line_item.name}: Cannot claim {desired_quantity}, only {available} available"
                 )
-        
+
         if validation_errors:
             raise ValidationError("; ".join(validation_errors))
-        
-        # Delete any existing unfinalied claims for this session
+
         Claim.objects.filter(
             line_item__receipt_id=receipt_id,
             session_id=session_id,
             is_finalized=False
         ).delete()
-        
-        # Bulk create new finalized claims
+
         claims_to_create = []
         for claim_data in claims_data:
-            if claim_data['quantity'] > 0:  # Only create claims for positive quantities
+            numerator = claim_data.get('quantity_numerator', 0)
+            denominator = claim_data.get('quantity_denominator', 1)
+            if numerator > 0:
                 claims_to_create.append(Claim(
-                    line_item_id=claim_data['line_item_id'],  # Use original format
+                    line_item_id=claim_data['line_item_id'],
                     claimer_name=claimer_name,
-                    quantity_claimed=claim_data['quantity'],
+                    quantity_numerator=numerator,
+                    quantity_denominator=denominator,
+                    quantity_claimed=numerator, # for compatibility
                     session_id=session_id,
                     is_finalized=True,
                     finalized_at=timezone.now()
                 ))
-        
-        
-        # Single bulk insert for all claims
+
         created_claims = Claim.objects.bulk_create(claims_to_create)
-        
-        # Invalidate cache since new claims were added
+
         cache.delete(f"participant_totals:{receipt_id}")
         cache.delete(f"receipt_view:{receipt_id}")
-        
-        # Calculate my_total directly from created claims (no additional query!)
+
         my_total = Decimal('0')
         for claim in created_claims:
-            # Get the line item from our prefetched dict
             line_item = line_items_dict.get(str(claim.line_item_id))
             if line_item:
-                # Calculate share amount without fetching from DB
-                unit_price = line_item.total_price / line_item.quantity if line_item.quantity else Decimal('0')
-                prorated_tax = line_item.prorated_tax / line_item.quantity if line_item.quantity else Decimal('0')
-                prorated_tip = line_item.prorated_tip / line_item.quantity if line_item.quantity else Decimal('0')
-                my_total += claim.quantity_claimed * (unit_price + prorated_tax + prorated_tip)
-        
-        # Get participant totals (this is already optimized with single query)
+                item_fraction = Fraction(claim.quantity_numerator, claim.quantity_denominator)
+                item_total_quantity = Fraction(line_item.quantity_numerator, line_item.quantity_denominator)
+
+                if item_total_quantity > 0:
+                    per_item_share = (line_item.total_price + line_item.prorated_tax + line_item.prorated_tip) / Decimal(str(item_total_quantity))
+                    my_total += Decimal(str(item_fraction)) * per_item_share
+
+
         participant_totals = self.get_participant_totals(receipt_id)
-        
+
         return {
             'success': True,
             'finalized': True,
             'claims_count': len(created_claims),
             'my_total': float(my_total),
             'participant_totals': {
-                name: float(amount) 
+                name: float(amount)
                 for name, amount in participant_totals.items()
             }
         }
     
-    def claim_items(self, receipt_id: str, line_item_id: str, 
+    def claim_items(self, receipt_id: str, line_item_id: str,
                    claimer_name: str, quantity: int, session_id: str) -> Claim:
         """
         LEGACY: Process individual incremental claims (deprecated)
@@ -192,39 +189,37 @@ class ClaimService:
             receipt = None
         if not receipt:
             raise ValueError(f"Receipt {receipt_id} not found")
-        
+
         if not receipt.is_finalized:
             raise ReceiptNotFinalizedError("Receipt must be finalized before claiming items")
-        
+
         # Check if user has already finalized their claims
         if self.is_user_finalized(receipt_id, session_id):
             raise ValueError("Claims have already been finalized and cannot be changed")
-        
+
         # Get line item
         try:
             line_item = LineItem.objects.get(id=line_item_id, receipt=receipt)
         except LineItem.DoesNotExist:
             raise ValueError(f"Line item {line_item_id} not found")
-        
+
         # Check availability
         available_quantity = self.get_available_quantity(line_item_id)
-        is_valid, error_msg = self.validator.validate_claim_request(
-            line_item_id, quantity, available_quantity
-        )
-        
-        if not is_valid:
-            raise InsufficientQuantityError(error_msg)
-        
+        desired_quantity = Fraction(quantity, 1)
+
+        if desired_quantity > available_quantity:
+            raise InsufficientQuantityError(f"Cannot claim {desired_quantity}, only {available_quantity} available")
+
         # Check for existing claim
         existing_claim = self._get_existing_claim(line_item_id, session_id)
-        
+
         if existing_claim:
             # Update existing claim
-            return self._update_claim(existing_claim, claimer_name, quantity)
+            return self._update_claim(existing_claim, claimer_name, quantity, 1)
         else:
             # Create new claim
             return self._create_claim(
-                line_item_id, claimer_name, quantity, session_id
+                line_item_id, claimer_name, quantity, 1, session_id
             )
     
     def undo_claim(self, claim_id: str, session_id: str) -> bool:
@@ -313,16 +308,16 @@ class ClaimService:
         
         return total
     
-    def get_available_quantity(self, line_item_id: str) -> int:
+    def get_available_quantity(self, line_item_id: str) -> Fraction:
         """
         Get the available quantity for a line item
         """
         try:
             line_item = LineItem.objects.get(id=line_item_id)
             claimed = self._count_claimed_quantity(line_item_id)
-            return line_item.quantity - claimed
+            return Fraction(line_item.quantity_numerator, line_item.quantity_denominator) - claimed
         except LineItem.DoesNotExist:
-            return 0
+            return Fraction(0)
     
     def is_user_finalized(self, receipt_id: str, session_id: str) -> bool:
         """
@@ -375,22 +370,36 @@ class ClaimService:
         Get all items with availability calculations in single query
         Optimized to avoid N+1 queries when checking claim availability
         """
-        # Single query with all availability calculations
         items = LineItem.objects.filter(
             receipt_id=receipt_id
         ).annotate(
-            total_claimed=Coalesce(Sum('claims__quantity_claimed'), Value(0)),
-            claimed_by_others=Coalesce(
-                Sum('claims__quantity_claimed', 
+            total_claimed_num=Coalesce(Sum('claims__quantity_numerator'), Value(0)),
+            total_claimed_den=Coalesce(Sum('claims__quantity_denominator'), Value(1)),
+            claimed_by_others_num=Coalesce(
+                Sum('claims__quantity_numerator',
                     filter=~Q(claims__session_id=session_id)), Value(0)
             ),
-            available_for_session=F('quantity') - F('claimed_by_others'),
-            current_user_claimed=Coalesce(
-                Sum('claims__quantity_claimed',
+            claimed_by_others_den=Coalesce(
+                Sum('claims__quantity_denominator',
+                    filter=~Q(claims__session_id=session_id)), Value(1)
+            ),
+            current_user_claimed_num=Coalesce(
+                Sum('claims__quantity_numerator',
                     filter=Q(claims__session_id=session_id)), Value(0)
-            )
+            ),
+            current_user_claimed_den=Coalesce(
+                Sum('claims__quantity_denominator',
+                    filter=Q(claims__session_id=session_id)), Value(1)
+            ),
         ).select_related('receipt')
-        
+
+        # It's easier to calculate the final fractions in Python
+        for item in items:
+            item.total_claimed = Fraction(item.total_claimed_num, item.total_claimed_den)
+            item.claimed_by_others = Fraction(item.claimed_by_others_num, item.claimed_by_others_den)
+            item.current_user_claimed = Fraction(item.current_user_claimed_num, item.current_user_claimed_den)
+            item.available_for_session = Fraction(item.quantity_numerator, item.quantity_denominator) - item.claimed_by_others
+
         return list(items)
     
     # Private methods (formerly in ClaimRepository)
@@ -418,40 +427,34 @@ class ClaimService:
     
     def _get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
         """Calculate totals per participant efficiently using single database query"""
-        # Verify receipt exists
         if not Receipt.objects.filter(id=receipt_id).exists():
             return {}
-        
-        # Single aggregation query to calculate all participant totals
-        # This replaces the N+1 query pattern where get_share_amount() was called for each claim
+
         results = Claim.objects.filter(
             line_item__receipt_id=receipt_id
         ).values('claimer_name').annotate(
             total=Sum(
-                F('quantity_claimed') * (
-                    F('line_item__total_price') / F('line_item__quantity') +
-                    F('line_item__prorated_tax') / F('line_item__quantity') +
-                    F('line_item__prorated_tip') / F('line_item__quantity')
+                (Cast(F('quantity_numerator'), DecimalField(max_digits=12, decimal_places=6)) / Cast(F('quantity_denominator'), DecimalField(max_digits=12, decimal_places=6))) *
+                (
+                    (F('line_item__total_price') + F('line_item__prorated_tax') + F('line_item__prorated_tip')) /
+                     (Cast(F('line_item__quantity_numerator'), DecimalField(max_digits=12, decimal_places=6)) / Cast(F('line_item__quantity_denominator'), DecimalField(max_digits=12, decimal_places=6)))
                 ),
                 output_field=DecimalField(max_digits=12, decimal_places=6)
             )
         ).order_by('claimer_name')
-        
-        # Convert to dictionary
+
         participant_totals = {
             result['claimer_name']: result['total'] or Decimal('0')
             for result in results
         }
-        
+
         return participant_totals
     
-    def _count_claimed_quantity(self, line_item_id: str) -> int:
+    def _count_claimed_quantity(self, line_item_id: str) -> Fraction:
         """Get total claimed quantity for a line item"""
-        result = Claim.objects.filter(
-            line_item_id=line_item_id
-        ).aggregate(total=Sum('quantity_claimed'))
-        
-        return result['total'] or 0
+        claims = Claim.objects.filter(line_item_id=line_item_id)
+        total_claimed = sum(Fraction(c.quantity_numerator, c.quantity_denominator) for c in claims)
+        return total_claimed
     
     def _get_available_quantity_excluding_session(self, line_item_id: str, session_id: str) -> int:
         """Get available quantity excluding current session's claims"""
@@ -479,36 +482,42 @@ class ClaimService:
         except Claim.DoesNotExist:
             return None
     
-    def _create_claim(self, line_item_id: str, claimer_name: str, 
-                     quantity_claimed: int, session_id: str) -> Claim:
+    def _create_claim(self, line_item_id: str, claimer_name: str,
+                     quantity_numerator: int, quantity_denominator: int, session_id: str) -> Claim:
         """Create a new claim (legacy method)"""
         grace_period_ends = timezone.now() + timedelta(seconds=30)
-        
+
         return Claim.objects.create(
             line_item_id=line_item_id,
             claimer_name=claimer_name,
-            quantity_claimed=quantity_claimed,
+            quantity_numerator=quantity_numerator,
+            quantity_denominator=quantity_denominator,
+            quantity_claimed=quantity_numerator, # for compatibility
             session_id=session_id,
             grace_period_ends=grace_period_ends
         )
-    
-    def _create_finalized_claim(self, line_item_id: str, claimer_name: str, 
-                               quantity_claimed: int, session_id: str) -> Claim:
+
+    def _create_finalized_claim(self, line_item_id: str, claimer_name: str,
+                               quantity_numerator: int, quantity_denominator: int, session_id: str) -> Claim:
         """Create a new finalized claim (new total claims protocol)"""
         return Claim.objects.create(
             line_item_id=line_item_id,
             claimer_name=claimer_name,
-            quantity_claimed=quantity_claimed,
+            quantity_numerator=quantity_numerator,
+            quantity_denominator=quantity_denominator,
+            quantity_claimed=quantity_numerator, # for compatibility
             session_id=session_id,
             is_finalized=True,
             finalized_at=timezone.now()
         )
-    
-    def _update_claim(self, claim: Claim, claimer_name: str, 
-                     quantity_claimed: int) -> Claim:
+
+    def _update_claim(self, claim: Claim, claimer_name: str,
+                     quantity_numerator: int, quantity_denominator: int) -> Claim:
         """Update an existing claim"""
         claim.claimer_name = claimer_name
-        claim.quantity_claimed = quantity_claimed
+        claim.quantity_numerator = quantity_numerator
+        claim.quantity_denominator = quantity_denominator
+        claim.quantity_claimed = quantity_numerator # for compatibility
         claim.grace_period_ends = timezone.now() + timedelta(seconds=30)
         claim.save()
         return claim

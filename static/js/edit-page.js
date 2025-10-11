@@ -59,7 +59,9 @@ function updateSubtotal() {
  * @param {HTMLElement} row - The item row element
  */
 function updateItemTotal(row) {
-    const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+    const numerator = parseInt(row.querySelector('.item-quantity-numerator').value) || 1;
+    const denominator = parseInt(row.querySelector('.item-quantity-denominator').value) || 1;
+    const quantity = numerator / denominator;
     const price = parseFloat(row.querySelector('.item-price').value) || 0;
     const total = quantity * price;
     const totalField = row.querySelector('.item-total');
@@ -253,26 +255,17 @@ function removeItem(button) {
  * @param {HTMLElement} row - The item row element
  */
 function attachItemListeners(row) {
-    const quantityInput = row.querySelector('.item-quantity');
-    quantityInput.addEventListener('input', (e) => {
-        // Enforce max 2 digits (99)
-        if (e.target.value.length > 2) {
-            e.target.value = e.target.value.slice(0, 2);
-        }
-        // Ensure value is between 1 and 99
-        if (parseInt(e.target.value) > 99) {
-            e.target.value = 99;
-        }
-        if (parseInt(e.target.value) < 1 && e.target.value !== '') {
-            e.target.value = 1;
-        }
-        updateItemTotal(row);
-        updateProrations();
-    });
     row.querySelector('.item-price').addEventListener('input', () => {
         updateItemTotal(row);
         updateProrations();
     });
+
+    const subdivideBtn = row.querySelector('[data-action="subdivide-item"]');
+    if (subdivideBtn) {
+        subdivideBtn.addEventListener('click', () => {
+            initializeSubdivideModal(row);
+        });
+    }
 }
 
 /**
@@ -285,12 +278,14 @@ function getReceiptData() {
         const nameEl = row.querySelector('.item-name');
         const name = nameEl ? nameEl.value : '';
         if (name) {
-            const quantityEl = row.querySelector('.item-quantity');
+            const numeratorEl = row.querySelector('.item-quantity-numerator');
+            const denominatorEl = row.querySelector('.item-quantity-denominator');
             const priceEl = row.querySelector('.item-price');
             const itemTotalElement = row.querySelector('.item-total');
             items.push({
                 name: name,
-                quantity: quantityEl ? (parseInt(quantityEl.value) || 1) : 1,
+                quantity_numerator: numeratorEl ? (parseInt(numeratorEl.value) || 1) : 1,
+                quantity_denominator: denominatorEl ? (parseInt(denominatorEl.value) || 1) : 1,
                 unit_price: priceEl ? (parseFloat(priceEl.value) || 0) : 0,
                 total_price: itemTotalElement ? (parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0) : 0
             });
@@ -689,9 +684,50 @@ function initializeTipModal() {
 }
 
 
+function initializeSubdivideModal(row) {
+    const template = document.getElementById('subdivide-modal-template');
+    if (!template) return;
+
+    const modal = template.content.cloneNode(true).firstElementChild;
+    document.body.appendChild(modal);
+
+    const subdivideInput = modal.querySelector('.subdivide-input');
+    subdivideInput.focus();
+
+    modal.querySelector('[data-action="cancel-subdivide"]').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    modal.querySelector('[data-action="apply-subdivide"]').addEventListener('click', () => {
+        const numPeople = parseInt(subdivideInput.value);
+        if (numPeople > 0) {
+            const quantityInput = row.querySelector('.item-quantity');
+            const numeratorInput = row.querySelector('.item-quantity-numerator');
+            const denominatorInput = row.querySelector('.item-quantity-denominator');
+
+            const originalNumerator = parseInt(numeratorInput.value) || 1;
+            const originalDenominator = parseInt(denominatorInput.value) || 1;
+
+            const newDenominator = originalDenominator * numPeople;
+
+            numeratorInput.value = originalNumerator;
+            denominatorInput.value = newDenominator;
+
+            if (newDenominator === 1) {
+                quantityInput.value = originalNumerator;
+            } else {
+                quantityInput.value = `${originalNumerator}/${newDenominator}`;
+            }
+
+            updateItemTotal(row);
+        }
+        modal.remove();
+    });
+}
+
 // ============================================================================
 // PAGE INITIALIZATION
-// ============================================================================
+// =================================S===========================================
 
 /**
  * Initialize edit page on DOM ready
