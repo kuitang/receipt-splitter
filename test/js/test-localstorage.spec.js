@@ -37,9 +37,9 @@ describe('LocalStorage Persistence', () => {
                 <div id="view-page-data" data-receipt-slug="test123" data-receipt-id="abc-def"></div>
                 <div id="my-total">$0.00</div>
                 <button id="claim-button">Finalize Claims</button>
-                <div id="claiming-warning" class="hidden">
+                <div id="claiming-validation-warning" class="hidden">
                     <h3></h3>
-                    <div id="claiming-error-details"></div>
+                    <div id="claiming-validation-details"></div>
                 </div>
 
                 <!-- Mock items with claim inputs -->

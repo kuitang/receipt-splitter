@@ -17,9 +17,9 @@ describe('Race Condition Handling', () => {
                 <div id="view-page-data" data-receipt-slug="test123" data-receipt-id="abc-def"></div>
                 <div id="my-total">$0.00</div>
                 <button id="claim-button">Finalize Claims</button>
-                <div id="claiming-warning" class="hidden">
+                <div id="claiming-validation-warning" class="hidden">
                     <h3></h3>
-                    <div id="claiming-error-details"></div>
+                    <div id="claiming-validation-details"></div>
                 </div>
 
                 <!-- Mock items with claim inputs -->
@@ -131,8 +131,8 @@ describe('Race Condition Handling', () => {
             }
 
             function showAdjustmentBanner(adjustments) {
-                const banner = document.getElementById('claiming-warning');
-                const details = document.getElementById('claiming-error-details');
+                const banner = document.getElementById('claiming-validation-warning');
+                const details = document.getElementById('claiming-validation-details');
 
                 if (banner && details) {
                     banner.classList.remove('hidden');
@@ -157,7 +157,7 @@ describe('Race Condition Handling', () => {
             expect(document.querySelector('[data-item-id="salad-id"]').value).toBe('1');
 
             // Verify banner was shown
-            const banner = document.getElementById('claiming-warning');
+            const banner = document.getElementById('claiming-validation-warning');
             expect(banner.classList.contains('hidden')).toBe(false);
             expect(banner.querySelector('h3').textContent).toBe('Items automatically adjusted');
         });
