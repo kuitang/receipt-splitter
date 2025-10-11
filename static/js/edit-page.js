@@ -345,11 +345,11 @@ async function saveReceipt(skipReload = false) {
             checkAndDisplayBalance();
         } else {
             // Keep error alerts as they require user attention
-            alert('Error saving receipt: ' + (result.error || 'Unknown error'));
+            alert('Error saving receipt: ' + (result.error || 'Unknown error') + '\n\nIf the error persists, refresh the page.');
         }
     } catch (error) {
         // Keep error alerts as they require user attention
-        alert('Error saving receipt: ' + error.message);
+        alert('Error saving receipt: ' + error.message + '\n\nIf the error persists, refresh the page.');
     } finally {
         isProcessing = false;
     }
@@ -396,11 +396,11 @@ async function finalizeReceipt() {
                 console.error('Validation errors:', error.validation_errors);
             }
             // Keep error alerts as they require user attention
-            alert('Error finalizing receipt: ' + errorMessage);
+            alert('Error finalizing receipt: ' + errorMessage + '\n\nIf the error persists, refresh the page.');
         }
     } catch (error) {
         // Keep error alerts as they require user attention
-        alert('Error finalizing receipt: ' + error.message);
+        alert('Error finalizing receipt: ' + error.message + '\n\nIf the error persists, refresh the page.');
     }
 }
 

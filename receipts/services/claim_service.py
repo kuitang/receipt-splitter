@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from datetime import timedelta
+from django.db import transaction
 
 from receipts.models import Claim, LineItem, Receipt
 from django.db.models import QuerySet, Sum, F, DecimalField, Prefetch, Q, Value
@@ -40,10 +41,12 @@ class ClaimService:
         self.validator = ValidationPipeline()
     
     @log_query_performance
+    @transaction.atomic
     def finalize_claims(self, receipt_id: str, claimer_name: str,
                        claims_data: List[Dict], session_id: str) -> Dict:
         """
         Finalize all claims for a user at once (new total claims protocol)
+        Uses atomic transaction with row-level locking to prevent race conditions.
 
         Args:
             receipt_id: Receipt ID
@@ -53,83 +56,111 @@ class ClaimService:
 
         Returns:
             Dict with success status and updated totals
+
+        Raises:
+            ValidationError: With detailed availability information on conflicts
         """
-        from django.db.models import Exists, OuterRef
-
-        user_finalized_subquery = Claim.objects.filter(
-            line_item__receipt_id=OuterRef('id'),
-            session_id=session_id,
-            is_finalized=True
-        )
-
+        # First, get the receipt to check basic conditions
         try:
-            receipt = Receipt.objects.prefetch_related(
-                'items',
-                'items__claims'
-            ).annotate(
-                user_has_finalized=Exists(user_finalized_subquery)
-            ).get(id=receipt_id)
+            receipt = Receipt.objects.get(id=receipt_id)
         except Receipt.DoesNotExist:
             raise ValueError(f"Receipt {receipt_id} not found")
 
         if not receipt.is_finalized:
             raise ReceiptNotFinalizedError("Receipt must be finalized before claiming items")
 
-        if receipt.user_has_finalized:
+        # Check if user has already finalized
+        if Claim.objects.filter(
+            line_item__receipt_id=receipt_id,
+            session_id=session_id,
+            is_finalized=True
+        ).exists():
             raise ValueError("Claims have already been finalized and cannot be changed")
 
-        line_items_dict = {str(item.id): item for item in receipt.items.all()}
+        # Extract line item IDs we're trying to claim
+        line_item_ids = [str(claim_data['line_item_id']) for claim_data in claims_data]
 
-        availability_data = {}
-        for item in receipt.items.all():
-            item_id = str(item.id)
-            claimed_by_others = sum(
-                Fraction(claim.quantity_numerator, claim.quantity_denominator)
-                for claim in item.claims.all()
-                if claim.session_id != session_id
-            )
-            availability_data[item_id] = claimed_by_others
+        # CRITICAL: Lock the line items we're trying to claim using select_for_update
+        # This prevents other transactions from modifying these items until we're done
+        locked_items = LineItem.objects.select_for_update().filter(
+            id__in=line_item_ids,
+            receipt_id=receipt_id
+        ).prefetch_related('claims')
 
+        # Convert to dict for easier lookup
+        locked_items_dict = {str(item.id): item for item in locked_items}
+
+        # Now validate with locked rows - no race condition possible!
         validation_errors = []
+        availability_info = []
+
         for claim_data in claims_data:
             line_item_id = str(claim_data['line_item_id'])
             numerator = claim_data.get('quantity_numerator', 0)
             denominator = claim_data.get('quantity_denominator', 1)
-            
+
             if denominator == 0:
                 validation_errors.append(f"Item {line_item_id}: Denominator cannot be zero.")
                 continue
 
             desired_quantity = Fraction(numerator, denominator)
 
-            line_item = line_items_dict.get(line_item_id)
+            # Get the locked line item
+            line_item = locked_items_dict.get(line_item_id)
             if not line_item:
                 validation_errors.append(f"Item {line_item_id} not found")
                 continue
 
+            # Validate quantity is non-negative
             if desired_quantity < 0:
                 validation_errors.append(
                     f"{line_item.name}: Quantity cannot be negative ({desired_quantity})"
                 )
                 continue
 
-            claimed_by_others = availability_data.get(line_item_id, Fraction(0))
+            # Calculate current availability with locked data using fractions
+            claimed_by_others = sum(
+                Fraction(claim.quantity_numerator, claim.quantity_denominator)
+                for claim in line_item.claims.all()
+                if claim.session_id != session_id
+            )
             available = Fraction(line_item.quantity_numerator, line_item.quantity_denominator) - claimed_by_others
+
+            # Track availability for error response
+            item_total_quantity = Fraction(line_item.quantity_numerator, line_item.quantity_denominator)
+            unit_price = (line_item.total_price / Decimal(str(item_total_quantity))) if item_total_quantity > 0 else Decimal('0')
+            availability_info.append({
+                'item_id': line_item_id,
+                'name': line_item.name,
+                'requested': float(desired_quantity),
+                'available': float(available),
+                'unit_price': float(unit_price)
+            })
 
             if desired_quantity > available:
                 validation_errors.append(
                     f"{line_item.name}: Cannot claim {desired_quantity}, only {available} available"
                 )
 
+        # If validation failed, return detailed error with availability info
         if validation_errors:
-            raise ValidationError("; ".join(validation_errors))
+            error_response = {
+                'error': "; ".join(validation_errors),
+                'availability': availability_info,
+                'preserve_input': True
+            }
+            # Convert to JSON-serializable format for ValidationError
+            import json
+            raise ValidationError(json.dumps(error_response))
 
+        # Delete any existing unfinalized claims for this session (within transaction)
         Claim.objects.filter(
             line_item__receipt_id=receipt_id,
             session_id=session_id,
             is_finalized=False
         ).delete()
 
+        # Bulk create new finalized claims
         claims_to_create = []
         for claim_data in claims_data:
             numerator = claim_data.get('quantity_numerator', 0)
@@ -146,14 +177,18 @@ class ClaimService:
                     finalized_at=timezone.now()
                 ))
 
+        # Single bulk insert for all claims (within transaction)
         created_claims = Claim.objects.bulk_create(claims_to_create)
 
+        # Invalidate cache since new claims were added
         cache.delete(f"participant_totals:{receipt_id}")
         cache.delete(f"receipt_view:{receipt_id}")
 
+        # Calculate my_total using fractional quantities
         my_total = Decimal('0')
         for claim in created_claims:
-            line_item = line_items_dict.get(str(claim.line_item_id))
+            # Get the line item from our locked dict
+            line_item = locked_items_dict.get(str(claim.line_item_id))
             if line_item:
                 item_fraction = Fraction(claim.quantity_numerator, claim.quantity_denominator)
                 item_total_quantity = Fraction(line_item.quantity_numerator, line_item.quantity_denominator)
@@ -162,7 +197,7 @@ class ClaimService:
                     per_item_share = (line_item.total_price + line_item.prorated_tax + line_item.prorated_tip) / Decimal(str(item_total_quantity))
                     my_total += Decimal(str(item_fraction)) * per_item_share
 
-
+        # Get participant totals
         participant_totals = self.get_participant_totals(receipt_id)
 
         return {

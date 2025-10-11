@@ -67,7 +67,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
         
         <p class="text-sm text-gray-600 mb-1">Your Total (kuizy)</p>
         <p id="my-total">$8.75</p>
-        <div id="claiming-warning" class="hidden"></div>
+        <div id="claiming-validation-warning" class="hidden"></div>
       `);
       
       
@@ -342,7 +342,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
           <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="142">
         </div>
         <p id="my-total">$8.75</p>
-        <div id="claiming-warning" class="hidden"></div>
+        <div id="claiming-validation-warning" class="hidden"></div>
       `);
       
       

@@ -54,8 +54,8 @@ describe('View Page Essential Unit Tests', () => {
                data-item-id="1" min="0" max="2" value="0">
       </div>
       
-      <div id="claiming-warning" class="hidden">
-        <div id="claiming-error-details"></div>
+      <div id="claiming-validation-warning" class="hidden">
+        <div id="claiming-validation-details"></div>
       </div>
       
       <p id="my-total">$0.00</p>
@@ -153,7 +153,7 @@ describe('View Page Essential Unit Tests', () => {
 
     it('should show validation banner for errors', () => {
       const input = document.querySelector('.claim-quantity');
-      const warningBanner = document.getElementById('claiming-warning');
+      const warningBanner = document.getElementById('claiming-validation-warning');
       
       // Set invalid value
       input.value = '5'; // max is 2
@@ -161,7 +161,7 @@ describe('View Page Essential Unit Tests', () => {
       
       // Banner should be visible with specific error
       expect(warningBanner.classList.contains('hidden')).toBe(false);
-      const errorDetails = document.getElementById('claiming-error-details');
+      const errorDetails = document.getElementById('claiming-validation-details');
       expect(errorDetails.innerHTML).toContain('Burger: trying to claim 5 but only 2 available');
     });
   });

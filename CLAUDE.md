@@ -74,15 +74,97 @@ npm run test:legacy
 
 ### Request Flow
 1. **Upload** → OCR processing → Receipt creation
-2. **Edit** → Validation pipeline → Receipt updates  
+2. **Edit** → Validation pipeline → Receipt updates
 3. **Finalize** → Generate shareable URL with 6-char slug
 4. **Claim** → Session-based item claiming by participants
 
+### Frontend Architecture
+
+#### Template-Based JavaScript Pattern
+The frontend uses a **server-rendered template abstraction** to avoid HTML duplication and improve testability:
+
+1. **Django Templates as Source of Truth** (`templates/receipts/partials/js_templates.html`)
+   - Reusable HTML components wrapped in `<template>` tags
+   - Single source for both server-side rendering and client-side cloning
+   - Components: item rows, claim inputs, participant entries, error banners
+
+2. **Template Utilities** (`static/js/template-utils.js`)
+   - `window.TemplateUtils` provides factory methods for creating DOM elements
+   - Available methods: `createItemRow()`, `createClaimInput()`, `createParticipantEntry()`, etc.
+   - Handles template cloning and data binding
+
+3. **Test Template Generation**
+   - Command: `npm run generate-templates` (or `python3 manage.py generate_test_templates`)
+   - Renders Django templates to `test/js/generated-templates.js`
+   - Enables JSDOM testing with real HTML structures
+
+#### When to Use Templates vs. Manual DOM
+- ✅ **Use `TemplateUtils` for**: Reusable components, complex HTML structures, user-visible content
+- ✅ **Create new templates when**: Adding new UI patterns, repeating HTML across files
+- ❌ **Avoid**: String concatenation with `innerHTML`, duplicating HTML in templates and JS
+- ✅ **Manual DOM is OK for**: Simple wrappers, one-off elements, test fixtures
+
+#### Template Workflow
+```javascript
+// 1. Add template to templates/receipts/partials/js_templates.html
+<template id="my-widget-template">
+  <div class="widget" data-widget-id="">
+    <span data-widget-name></span>
+  </div>
+</template>
+
+// 2. Add factory method to static/js/template-utils.js
+createMyWidget(id, name) {
+    const clone = this.cloneTemplate('my-widget-template');
+    if (!clone) return null;
+
+    clone.querySelector('[data-widget-id]').dataset.widgetId = id;
+    clone.querySelector('[data-widget-name]').textContent = name;
+    return clone;
+}
+
+// 3. Regenerate test templates
+// npm run generate-templates
+
+// 4. Use in application code
+const widget = window.TemplateUtils.createMyWidget('123', 'My Widget');
+container.appendChild(widget);
+```
+
 ### Testing Strategy
+
+#### Backend Testing
 - **Django unit tests**: Core business logic and models
 - **Integration tests**: Full HTTP workflow with mock/real OCR
-- **JavaScript tests**: Frontend components and interactions
 - Runtime logs stored in `run/` directory (excluded from git)
+
+#### JavaScript Testing
+- **Vitest test suite**: Frontend components and interactions in JSDOM environment
+- **Template-based testing**: Tests use real Django-rendered HTML structures
+
+**Test Setup Pattern:**
+```javascript
+import { setupTestEnvironment, setupTemplateUtils, setBodyHTML } from './test-setup.js';
+
+// Initialize JSDOM and global mocks
+setupTestEnvironment();
+
+// Load template utilities
+await setupTemplateUtils();
+
+// In tests: setBodyHTML() auto-includes templates
+beforeEach(() => {
+    setBodyHTML('<div id="container"></div>');
+    // Templates are automatically available via setupTestTemplates()
+});
+```
+
+**Important:** After modifying Django templates, regenerate test templates:
+```bash
+npm run generate-templates
+```
+
+This ensures tests use the same HTML as production.
 
 ### Security Features
 - Rate limiting (10/min upload, 30/min update, 15/min claim)
@@ -111,6 +193,137 @@ npm run test:legacy
 - Static files served by Django in development
 
 ### Environment Variables
-- `OPENAI_API_KEY` - Optional, uses mock data without it  
+- `OPENAI_API_KEY` - Optional, uses mock data without it
 - `INTEGRATION_TEST_REAL_OPENAI_OCR=true` - Use real API in tests
 - `DEBUG=true` - Enable debug mode for testing
+
+## JavaScript Best Practices
+
+### Template Usage Guidelines
+
+#### ✅ DO: Use TemplateUtils for Reusable Components
+```javascript
+// Good: Use template factory methods
+const entry = window.TemplateUtils.createParticipantEntry(name, amount);
+container.appendChild(entry);
+
+const claimInput = window.TemplateUtils.createClaimInput(itemId, maxQty, currentVal);
+section.appendChild(claimInput);
+```
+
+#### ❌ DON'T: String Concatenation for HTML
+```javascript
+// Bad: Inline HTML strings
+div.innerHTML = `<span>${name}</span><span>$${amount}</span>`;
+
+// Bad: Manual element creation for complex structures
+const wrapper = document.createElement('div');
+const nameSpan = document.createElement('span');
+nameSpan.textContent = name;
+wrapper.appendChild(nameSpan);
+// ... (5+ lines for what a template does in 1)
+```
+
+#### When to Create a New Template
+
+Create a new template in `js_templates.html` when:
+- The HTML structure is reused in multiple places
+- The component has 3+ elements or nested structure
+- The component contains user data that needs XSS protection
+- You find yourself copy-pasting HTML strings
+
+**Don't create templates for:**
+- Simple wrappers (`<div>`, `<span>`) with no children
+- One-off UI elements used in a single function
+- Test fixtures (use `setBodyHTML()` instead)
+
+#### Security: Avoid XSS
+```javascript
+// ✅ Safe: Use textContent or templates with data attributes
+element.textContent = userInput;
+clone.querySelector('[data-name]').textContent = userInput;
+
+// ❌ Dangerous: Direct innerHTML with user data
+element.innerHTML = userInput; // XSS risk!
+element.innerHTML = `<div>${userInput}</div>`; // Still dangerous!
+```
+
+### Module Organization
+
+#### File Structure
+- **Page-specific logic**: `edit-page.js`, `view-page.js`
+- **Shared utilities**: `utils.js` (fetch, cookies, escaping)
+- **Template management**: `template-utils.js`
+- **Common UI patterns**: Use `common.js` if needed (currently unused)
+
+#### Module Exports (for testing)
+```javascript
+// At end of file - export functions for unit tests
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        functionName,
+        anotherFunction,
+        _getState: () => ({ /* internal state */ }),
+        _setState: (state) => { /* for test setup */ }
+    };
+}
+```
+
+### DOM Manipulation Patterns
+
+#### Event Listeners
+```javascript
+// ✅ Good: Delegated events for dynamic content
+container.addEventListener('click', (e) => {
+    if (e.target.matches('[data-action="remove"]')) {
+        handleRemove(e.target);
+    }
+});
+
+// ✅ Good: Direct listeners for static elements
+document.getElementById('save-button').addEventListener('click', save);
+
+// ❌ Avoid: Inline event handlers
+// Don't use: <button onclick="save()">
+```
+
+#### Data Attributes
+```javascript
+// ✅ Good: Use data attributes for IDs and metadata
+const itemId = element.dataset.itemId;
+const amount = parseFloat(element.dataset.amount);
+
+// ✅ Good: Use data attributes for actions
+button.dataset.action = 'confirm-claims';
+
+// ❌ Avoid: Storing complex objects in data attributes
+// Don't: element.dataset.config = JSON.stringify(obj);
+```
+
+### Performance Considerations
+
+#### Minimize Reflows
+```javascript
+// ✅ Good: Batch DOM updates
+const fragment = document.createDocumentFragment();
+items.forEach(item => {
+    const el = createItemElement(item);
+    fragment.appendChild(el);
+});
+container.appendChild(fragment);
+
+// ❌ Avoid: Multiple individual appends
+items.forEach(item => {
+    container.appendChild(createItemElement(item));
+});
+```
+
+#### Debounce Input Events
+```javascript
+// ✅ Good: Use debouncing for expensive operations
+let debounceTimer;
+input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(expensiveCalculation, 300);
+});
+```
