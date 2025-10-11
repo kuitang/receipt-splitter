@@ -362,6 +362,18 @@ def claim_item(request, receipt_slug):
     except ReceiptNotFinalizedError:
         return JsonResponse({'error': 'Receipt must be finalized first'}, status=400)
     except ValidationError as e:
+        # Try to parse enhanced error response
+        try:
+            import json as json_module
+            # Get the actual message from ValidationError
+            error_msg = e.message if hasattr(e, 'message') else (e.messages[0] if e.messages else str(e))
+            error_data = json_module.loads(error_msg)
+            if isinstance(error_data, dict) and 'availability' in error_data:
+                # Return the enhanced error response with availability info
+                return JsonResponse(error_data, status=400)
+        except (json_module.JSONDecodeError, TypeError, IndexError):
+            # Fall back to simple error message
+            pass
         return JsonResponse({'error': str(e)}, status=400)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid request data'}, status=400)

@@ -8,6 +8,7 @@ let receiptSlug = null;
 let receiptId = null;
 let currentClaims = {};
 let viewerName = null; // Current user's name
+let hasUnsavedChanges = false;
 
 // Polling state
 let pollingInterval = null;
@@ -29,6 +30,140 @@ const CLAIM_INPUT_CLASSES = {
 function getClaimInputClasses(disabled) {
     return `${CLAIM_INPUT_CLASSES.base} ${disabled ? CLAIM_INPUT_CLASSES.disabled : CLAIM_INPUT_CLASSES.enabled}`;
 }
+
+/**
+ * Update +/- button states to match input value constraints
+ * @param {string} itemId - The item ID
+ */
+function updatePlusMinusButtonStates(itemId) {
+    const input = document.querySelector(`.claim-quantity[data-item-id="${itemId}"]`);
+    if (!input) return;
+
+    const value = parseInt(input.value) || 0;
+    const min = parseInt(input.getAttribute('min')) || 0;
+    const max = parseInt(input.getAttribute('max')) || 0;
+    const isInputDisabled = input.disabled || input.readOnly;
+
+    const minusBtn = document.querySelector(`.claim-minus[data-item-id="${itemId}"]`);
+    const plusBtn = document.querySelector(`.claim-plus[data-item-id="${itemId}"]`);
+
+    // Update minus button
+    if (minusBtn) {
+        // Disable if: input disabled OR value <= min
+        const shouldDisable = isInputDisabled || value <= min;
+        minusBtn.disabled = shouldDisable;
+
+        // Update styling
+        if (shouldDisable) {
+            minusBtn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+            minusBtn.classList.add('bg-gray-300', 'cursor-not-allowed');
+        } else {
+            minusBtn.classList.remove('bg-gray-300', 'cursor-not-allowed');
+            minusBtn.classList.add('bg-orange-600', 'hover:bg-orange-700');
+        }
+    }
+
+    // Update plus button
+    if (plusBtn) {
+        // Disable if: input disabled OR value >= max
+        const shouldDisable = isInputDisabled || value >= max;
+        plusBtn.disabled = shouldDisable;
+
+        // Update styling
+        if (shouldDisable) {
+            plusBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+            plusBtn.classList.add('bg-gray-300', 'cursor-not-allowed');
+        } else {
+            plusBtn.classList.remove('bg-gray-300', 'cursor-not-allowed');
+            plusBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+        }
+    }
+}
+
+// ==========================================================================
+// LocalStorage Functions
+// ==========================================================================
+
+/**
+ * Get localStorage key for this receipt
+ */
+function getStorageKey() {
+    return `claims_${receiptSlug || 'unknown'}`;
+}
+
+/**
+ * Save current claims to localStorage
+ */
+function saveClaimsToLocalStorage() {
+    if (!receiptSlug) return;
+
+    const claims = {};
+    document.querySelectorAll('.claim-quantity').forEach(input => {
+        const quantity = parseInt(input.value) || 0;
+        if (quantity > 0) {
+            claims[input.dataset.itemId] = quantity;
+        }
+    });
+
+    try {
+        localStorage.setItem(getStorageKey(), JSON.stringify(claims));
+        hasUnsavedChanges = Object.keys(claims).length > 0;
+    } catch (e) {
+        console.warn('Failed to save to localStorage:', e);
+    }
+}
+
+/**
+ * Restore claims from localStorage
+ */
+function restoreClaimsFromLocalStorage() {
+    if (!receiptSlug) return false;
+
+    try {
+        const saved = localStorage.getItem(getStorageKey());
+        if (saved) {
+            const claims = JSON.parse(saved);
+            let restoredAny = false;
+
+            Object.entries(claims).forEach(([itemId, quantity]) => {
+                const input = document.querySelector(`.claim-quantity[data-item-id="${itemId}"]`);
+                if (input && parseInt(input.max) >= quantity) {
+                    input.value = quantity;
+                    restoredAny = true;
+                }
+            });
+
+            if (restoredAny) {
+                // Trigger update to recalculate totals
+                updateTotal();
+                hasUnsavedChanges = true;
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to restore from localStorage:', e);
+    }
+
+    return false;
+}
+
+/**
+ * Clear saved claims from localStorage
+ */
+function clearSavedClaims() {
+    if (!receiptSlug) return;
+
+    try {
+        localStorage.removeItem(getStorageKey());
+        hasUnsavedChanges = false;
+    } catch (e) {
+        console.warn('Failed to clear localStorage:', e);
+    }
+}
+
+// ==========================================================================
+// Initialization Functions
+// ==========================================================================
 
 /**
  * Initialize view page with data from DOM
@@ -424,6 +559,7 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                                 if (currentValue > minValue) {
                                     input.value = currentValue - 1;
                                     updateTotal();
+                                    updatePlusMinusButtonStates(itemData.item_id);
                                 }
                             }
                         });
@@ -438,10 +574,14 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                                 if (currentValue < maxValue) {
                                     input.value = currentValue + 1;
                                     updateTotal();
+                                    updatePlusMinusButtonStates(itemData.item_id);
                                 }
                             }
                         });
                     }
+
+                    // Initialize button states for newly created input
+                    updatePlusMinusButtonStates(itemData.item_id);
                 }
             } else {
                 // Update existing input's disabled state
@@ -450,6 +590,9 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                     existingInput.readOnly = shouldDisable;
                     existingInput.disabled = shouldDisable;
                     existingInput.className = getClaimInputClasses(shouldDisable);
+
+                    // Update button states to match
+                    updatePlusMinusButtonStates(itemData.item_id);
                 }
             }
         }
@@ -557,8 +700,8 @@ function validateClaims() {
     });
     
     // Show/hide validation banner
-    const warningBanner = document.getElementById('claiming-warning');
-    const errorDetails = document.getElementById('claiming-error-details');
+    const warningBanner = document.getElementById('claiming-validation-warning');
+    const errorDetails = document.getElementById('claiming-validation-details');
     
     if (errors.length > 0 && warningBanner && errorDetails) {
         // Clear and rebuild error list using DOM methods
@@ -638,10 +781,155 @@ function updateTotal() {
     
     // Display the calculated total (no existingTotal confusion)
     myTotalElement.textContent = `$${totalAmount.toFixed(2)}`;
-    
+
     // Validate claims and update button state
     validateClaims();
     updateButtonState();
+
+    // Save to localStorage
+    saveClaimsToLocalStorage();
+}
+
+/**
+ * Show adjustment banner when items are auto-adjusted
+ */
+function showAdjustmentBanner(adjustments) {
+    const banner = document.getElementById('claiming-adjustment-warning');
+    const details = document.getElementById('claiming-adjustment-details');
+
+    if (banner && details) {
+        // Find and update the title element
+        const titleElement = banner.querySelector('h3');
+        if (titleElement) {
+            titleElement.textContent = 'Items automatically adjusted';
+        }
+
+        // Clear previous content and show adjustments
+        details.innerHTML = '';
+
+        if (adjustments.length > 0) {
+            const container = document.createElement('div');
+            container.className = 'space-y-1';
+
+            adjustments.forEach(adjustment => {
+                if (adjustment === '') {
+                    // Empty string means add a line break
+                    container.appendChild(document.createElement('br'));
+                } else if (adjustment.includes('Please review')) {
+                    // Special formatting for the action message
+                    const div = document.createElement('div');
+                    div.className = 'mt-2 font-semibold';
+                    div.textContent = adjustment;
+                    container.appendChild(div);
+                } else {
+                    // Regular adjustment item
+                    const div = document.createElement('div');
+                    div.textContent = `• ${adjustment}`;
+                    container.appendChild(div);
+                }
+            });
+
+            details.appendChild(container);
+        }
+
+        // Show banner
+        banner.classList.remove('hidden');
+
+        // Don't auto-hide for conflict adjustments - user needs to see and act
+    }
+}
+
+/**
+ * Update claim input fields with adjusted values
+ */
+function updateClaimInputs(adjustedClaims) {
+    adjustedClaims.forEach(claim => {
+        const input = document.querySelector(`.claim-quantity[data-item-id="${claim.line_item_id}"]`);
+        if (input && input.value !== claim.quantity.toString()) {
+            const originalValue = input.value;
+            input.value = claim.quantity;
+
+            // Visual feedback - flash yellow to show it changed
+            input.classList.add('bg-yellow-100', 'transition-colors');
+            setTimeout(() => {
+                input.classList.remove('bg-yellow-100');
+            }, 1000);
+
+            // Trigger input event to update totals
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            // Update button states to match new value
+            updatePlusMinusButtonStates(claim.line_item_id);
+        }
+    });
+}
+
+/**
+ * Submit claims with conflict resolution (no auto-retry)
+ */
+async function submitClaims(claims) {
+    try {
+        const response = await authenticatedJsonFetch(`/claim/${receiptSlug}/`, {
+            method: 'POST',
+            body: JSON.stringify({ claims: claims })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+
+            // Check if we got availability information (race condition occurred)
+            if (error.availability && error.preserve_input) {
+                // Adjust quantities in UI to available amounts
+                const adjustments = [];
+                const adjustedClaims = claims.map(claim => {
+                    const avail = error.availability.find(a => a.item_id === claim.line_item_id);
+                    if (avail && claim.quantity > avail.available) {
+                        if (avail.available > 0) {
+                            adjustments.push(`${avail.name}: reduced from ${claim.quantity} to ${avail.available}`);
+                            return { ...claim, quantity: avail.available };
+                        } else {
+                            adjustments.push(`${avail.name}: removed (none available)`);
+                            return { ...claim, quantity: 0 };
+                        }
+                    }
+                    return claim;
+                });
+
+                // Update the input fields to show adjusted values
+                updateClaimInputs(adjustedClaims);
+
+                // Show adjustment banner with resubmit message
+                if (adjustments.length > 0) {
+                    const messages = [...adjustments];
+                    messages.push('');
+                    messages.push('Please review the adjusted quantities and click "Finalize Claims" again to submit.');
+                    showAdjustmentBanner(messages);
+                }
+                return;
+            }
+
+            // Other errors - show simple alert
+            alert('Error finalizing claims: ' + (error.error || 'Unknown error') + '\n\nIf the error persists, refresh the page.');
+            return;
+        }
+
+        const result = await response.json();
+
+        // Success - clear localStorage and redirect
+        clearSavedClaims();
+
+        if (typeof window !== 'undefined' && window.location) {
+            try {
+                window.location.href = `/r/${receiptSlug}/`;
+            } catch (e) {
+                console.log('Navigation attempted but not supported in test environment');
+            }
+        }
+
+    } catch (error) {
+        // Network error
+        alert(`Network error: ${error.message}\n\nYour selections have been saved. If the error persists, refresh the page.`);
+    }
 }
 
 /**
@@ -653,7 +941,7 @@ async function confirmClaims() {
         alert('Please fix the highlighted items - you cannot claim more than available.');
         return;
     }
-    
+
     // Collect ALL claims (including zero quantities for items user doesn't want)
     const claims = [];
     document.querySelectorAll('.claim-quantity').forEach(input => {
@@ -663,51 +951,21 @@ async function confirmClaims() {
             quantity: quantity  // Total desired quantity (may be 0)
         });
     });
-    
+
     // Filter to only positive claims for user feedback
     const positiveClaimsCount = claims.filter(c => c.quantity > 0).length;
     if (positiveClaimsCount === 0) {
         alert('Please select items to claim');
         return;
     }
-    
+
     const total = document.getElementById('my-total').textContent;
     if (!confirm(`You're finalizing claims for ${total}. This cannot be changed later. Continue?`)) {
         return;
     }
-    
-    try {
-        // Submit all claims at once using new protocol
-        const response = await authenticatedJsonFetch(`/claim/${receiptSlug}/`, {
-            method: 'POST',
-            body: JSON.stringify({ claims: claims })
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            alert('Error finalizing claims: ' + error.error);
-            return;
-        }
-        
-        const result = await response.json();
-        
-        // Success - no need for additional alert, page reload will show finalized state
-        
-    } catch (error) {
-        alert('Error finalizing claims: ' + error.message);
-        return;
-    }
-    
-    // Redirect to the view page to show finalized state
-    // Using explicit redirect instead of reload to avoid any session/state issues
-    if (typeof window !== 'undefined' && window.location) {
-        try {
-            window.location.href = `/r/${receiptSlug}/`;
-        } catch (e) {
-            // Navigation not supported in test environments (JSDOM) - this is expected
-            console.log('Navigation attempted but not supported in test environment');
-        }
-    }
+
+    // Submit with retry logic
+    await submitClaims(claims);
 }
 
 /**
@@ -723,7 +981,7 @@ function initializeEventListeners() {
     document.querySelectorAll('.claim-minus').forEach(btn => {
         btn.addEventListener('click', () => {
             if (btn.disabled) return;
-            
+
             const itemId = btn.dataset.itemId;
             const input = document.querySelector(`.claim-quantity[data-item-id="${itemId}"]`);
             if (input) {
@@ -732,6 +990,7 @@ function initializeEventListeners() {
                 if (currentValue > minValue) {
                     input.value = currentValue - 1;
                     updateTotal();
+                    updatePlusMinusButtonStates(itemId);
                 }
             }
         });
@@ -740,7 +999,7 @@ function initializeEventListeners() {
     document.querySelectorAll('.claim-plus').forEach(btn => {
         btn.addEventListener('click', () => {
             if (btn.disabled) return;
-            
+
             const itemId = btn.dataset.itemId;
             const input = document.querySelector(`.claim-quantity[data-item-id="${itemId}"]`);
             if (input) {
@@ -749,6 +1008,7 @@ function initializeEventListeners() {
                 if (currentValue < maxValue) {
                     input.value = currentValue + 1;
                     updateTotal();
+                    updatePlusMinusButtonStates(itemId);
                 }
             }
         });
@@ -794,6 +1054,17 @@ function initializeEventListeners() {
             }
         });
     });
+
+    // Add dismiss handler for adjustment banner
+    document.querySelectorAll('[data-dismiss-banner]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const bannerId = this.dataset.dismissBanner;
+            const banner = document.getElementById(bannerId);
+            if (banner) {
+                banner.classList.add('hidden');
+            }
+        });
+    });
 }
 
 
@@ -801,17 +1072,42 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeViewPage();
     initializeEventListeners();
 
+    // Restore saved claims from localStorage
+    const restored = restoreClaimsFromLocalStorage();
+    if (restored) {
+        console.log('Restored saved claim selections from localStorage');
+    }
+
     // Initialize button state
     updateButtonState();
-    
+
+    // Initialize all button states on page load
+    document.querySelectorAll('.claim-quantity').forEach(input => {
+        updatePlusMinusButtonStates(input.dataset.itemId);
+    });
+
     // Start real-time polling for claim updates
     if (receiptSlug) {
         startPolling();
     }
-    
-    // Clean up polling when page unloads
-    window.addEventListener('beforeunload', () => {
+
+    // Warn about unsaved changes when leaving
+    window.addEventListener('beforeunload', (e) => {
         stopPolling();
+
+        // Check if user has unsaved changes
+        const hasQuantities = Array.from(document.querySelectorAll('.claim-quantity'))
+            .some(input => parseInt(input.value) > 0);
+
+        // Check if already finalized (look for finalized indicator)
+        const isFinalized = document.querySelector('.text-blue-600.font-medium') ||
+                          document.querySelector('#claim-button')?.style.display === 'none';
+
+        if (hasQuantities && !isFinalized) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved claim selections. Are you sure you want to leave?';
+            return e.returnValue;
+        }
     });
 });
 
@@ -841,7 +1137,8 @@ if (typeof module !== 'undefined' && module.exports) {
         validateClaims,
         hasActiveClaims,
         updateButtonState,
-        
+        updatePlusMinusButtonStates,
+
         // Calculations
         updateTotal,
         
@@ -864,6 +1161,8 @@ if (typeof module !== 'undefined' && module.exports) {
         
         // Helper functions
         getClaimInputClasses,
+        updateClaimInputs,
+        showAdjustmentBanner,
         
         // State variables (for testing)
         _getState: () => ({ 

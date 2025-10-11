@@ -3,8 +3,11 @@
 {% block title %}{{ receipt.restaurant_name }} - Receipt{% endblock %}
 
 {% block content %}
-<!-- Claiming Validation Warning Banner (Sticky) -->
-{% include 'receipts/partials/warning_banner.html' with banner_id='claiming-warning' title='Invalid claims' type='error' details_id='claiming-error-details' %}
+<!-- Validation Error Banner (Auto-Hide) -->
+{% include 'receipts/partials/warning_banner.html' with banner_id='claiming-validation-warning' title='Invalid claims' type='error' details_id='claiming-validation-details' %}
+
+<!-- Adjustment Notification Banner (Manual Dismiss) -->
+{% include 'receipts/partials/adjustment_banner.html' %}
 
 <div class="max-w-4xl mx-auto py-8">
     {% if show_name_form %}

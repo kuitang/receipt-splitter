@@ -109,8 +109,8 @@ describe('View Page Claiming Functionality', () => {
       </div>
       
       <!-- Validation banner -->
-      <div id="claiming-warning" class="hidden">
-        <div id="claiming-error-details"></div>
+      <div id="claiming-validation-warning" class="hidden">
+        <div id="claiming-validation-details"></div>
       </div>
       
       <!-- Total display and button -->
@@ -163,8 +163,8 @@ describe('View Page Claiming Functionality', () => {
     it('should show validation banner with specific error messages', () => {
       const input1 = document.querySelector('.claim-quantity[data-item-id="1"]');
       const input2 = document.querySelector('.claim-quantity[data-item-id="2"]');
-      const warningBanner = document.getElementById('claiming-warning');
-      const errorDetails = document.getElementById('claiming-error-details');
+      const warningBanner = document.getElementById('claiming-validation-warning');
+      const errorDetails = document.getElementById('claiming-validation-details');
       
       // Initially hidden
       expect(warningBanner.classList.contains('hidden')).toBe(true);
@@ -340,7 +340,7 @@ describe('View Page Claiming Functionality', () => {
       await confirmClaims();
       
       // Check that error shows finalization context
-      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item not available');
+      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item not available\n\nIf the error persists, refresh the page.');
     });
 
     it('should finalize claims without success dialog', async () => {
@@ -367,7 +367,7 @@ describe('View Page Claiming Functionality', () => {
     it('should work end-to-end with realistic user interaction', () => {
       // User starts with no claims (new total claims protocol)
       const totalElement = document.getElementById('my-total');
-      const warningBanner = document.getElementById('claiming-warning');
+      const warningBanner = document.getElementById('claiming-validation-warning');
       
       // Initial state - button should be disabled when no claims
       updateButtonState();

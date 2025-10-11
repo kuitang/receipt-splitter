@@ -49,7 +49,7 @@ describe('Invalid Claims Security Tests', () => {
           <input type="number" class="claim-quantity" value="-5" min="0" data-item-id="1">
         </div>
         <p id="my-total">$0.00</p>
-        <div id="claiming-warning" class="hidden"></div>
+        <div id="claiming-validation-warning" class="hidden"></div>
       `);
       
       initializeViewPage();
@@ -71,8 +71,8 @@ describe('Invalid Claims Security Tests', () => {
           <h3>Burger</h3>
           <input type="number" class="claim-quantity" value="-1" min="0" max="2" data-item-id="1">
         </div>
-        <div id="claiming-warning" class="hidden">
-          <div id="claiming-error-details"></div>
+        <div id="claiming-validation-warning" class="hidden">
+          <div id="claiming-validation-details"></div>
         </div>
         <p id="my-total">$15.00</p>
       `);
@@ -98,8 +98,8 @@ describe('Invalid Claims Security Tests', () => {
           <input type="number" class="claim-quantity" value="999999999" max="1" data-item-id="1">
         </div>
         <p id="my-total">$0.00</p>
-        <div id="claiming-warning" class="hidden">
-          <div id="claiming-error-details"></div>
+        <div id="claiming-validation-warning" class="hidden">
+          <div id="claiming-validation-details"></div>
         </div>
       `);
       
@@ -108,7 +108,7 @@ describe('Invalid Claims Security Tests', () => {
       expect(isValid).toBe(false);
       
       // Should show validation banner
-      const warningBanner = document.getElementById('claiming-warning');
+      const warningBanner = document.getElementById('claiming-validation-warning');
       expect(warningBanner.classList.contains('hidden')).toBe(false);
     });
 
@@ -118,8 +118,8 @@ describe('Invalid Claims Security Tests', () => {
           <h3>Burger</h3>
           <input type="number" class="claim-quantity" value="5" max="2" data-item-id="1">
         </div>
-        <div id="claiming-warning" class="hidden">
-          <div id="claiming-error-details"></div>
+        <div id="claiming-validation-warning" class="hidden">
+          <div id="claiming-validation-details"></div>
         </div>
       `);
       
@@ -127,7 +127,7 @@ describe('Invalid Claims Security Tests', () => {
       expect(isValid).toBe(false);
       
       // Should show specific error message
-      const errorDetails = document.getElementById('claiming-error-details');
+      const errorDetails = document.getElementById('claiming-validation-details');
       expect(errorDetails.innerHTML).toContain('Burger: trying to claim 5 but only 2 available');
     });
   });
@@ -174,7 +174,7 @@ describe('Invalid Claims Security Tests', () => {
           <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="1">
         </div>
         <p id="my-total">$10.00</p>
-        <div id="claiming-warning" class="hidden"></div>
+        <div id="claiming-validation-warning" class="hidden"></div>
       `);
       
       initializeViewPage();
@@ -192,7 +192,7 @@ describe('Invalid Claims Security Tests', () => {
       
       // Should show clear error message
       expect(global.alert).toHaveBeenCalledWith(
-        'Error finalizing claims: Claims have already been finalized and cannot be changed'
+        'Error finalizing claims: Claims have already been finalized and cannot be changed\n\nIf the error persists, refresh the page.'
       );
     });
   });
@@ -207,7 +207,7 @@ describe('Invalid Claims Security Tests', () => {
           <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="999">
         </div>
         <p id="my-total">$10.00</p>
-        <div id="claiming-warning" class="hidden"></div>
+        <div id="claiming-validation-warning" class="hidden"></div>
       `);
       
       initializeViewPage();
@@ -220,8 +220,8 @@ describe('Invalid Claims Security Tests', () => {
       });
       
       await confirmClaims();
-      
-      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item 999 not found');
+
+      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item 999 not found\n\nIf the error persists, refresh the page.');
     });
 
     it('should handle zero quantities correctly (valid case)', async () => {
@@ -238,7 +238,7 @@ describe('Invalid Claims Security Tests', () => {
           <input type="number" class="claim-quantity" value="1" min="0" max="2" data-item-id="2">
         </div>
         <p id="my-total">$5.00</p>
-        <div id="claiming-warning" class="hidden"></div>
+        <div id="claiming-validation-warning" class="hidden"></div>
       `);
       
       initializeViewPage();
