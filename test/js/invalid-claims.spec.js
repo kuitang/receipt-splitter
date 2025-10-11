@@ -192,7 +192,7 @@ describe('Invalid Claims Security Tests', () => {
       
       // Should show clear error message
       expect(global.alert).toHaveBeenCalledWith(
-        'Error finalizing claims: Claims have already been finalized and cannot be changed'
+        'Error finalizing claims: Claims have already been finalized and cannot be changed\n\nIf the error persists, refresh the page.'
       );
     });
   });
@@ -220,8 +220,8 @@ describe('Invalid Claims Security Tests', () => {
       });
       
       await confirmClaims();
-      
-      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item 999 not found');
+
+      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item 999 not found\n\nIf the error persists, refresh the page.');
     });
 
     it('should handle zero quantities correctly (valid case)', async () => {

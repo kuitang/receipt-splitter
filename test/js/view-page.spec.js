@@ -340,7 +340,7 @@ describe('View Page Claiming Functionality', () => {
       await confirmClaims();
       
       // Check that error shows finalization context
-      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item not available');
+      expect(global.alert).toHaveBeenCalledWith('Error finalizing claims: Item not available\n\nIf the error persists, refresh the page.');
     });
 
     it('should finalize claims without success dialog', async () => {

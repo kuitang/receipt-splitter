@@ -178,6 +178,16 @@ DATABASES = {
     )
 }
 
+# Configure SQLite-specific options for better concurrency
+if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+    if 'OPTIONS' not in DATABASES['default']:
+        DATABASES['default']['OPTIONS'] = {}
+    DATABASES['default']['OPTIONS'].update({
+        'timeout': 20,  # Increase from default 5 seconds
+        # Note: WAL mode must be set via PRAGMA on the database file itself
+        # See management command or run: PRAGMA journal_mode=WAL;
+    })
+
 # Cache configuration
 # https://docs.djangoproject.com/en/5.2/topics/cache/
 CACHES = {
