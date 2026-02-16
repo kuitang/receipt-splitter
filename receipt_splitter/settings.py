@@ -52,6 +52,9 @@ else:
     # Fallback for any .fly.dev domain
     allowed_hosts.append('.fly.dev')
 
+# Custom domain
+allowed_hosts.append('youowe.app')
+
 # Add Fly.io internal network ranges for health checks and internal routing
 fly_internal_ranges = [
     '172.16.0.0/12',  # Fly.io private network range
@@ -82,6 +85,7 @@ ALLOWED_HOSTS = allowed_hosts
 CSRF_TRUSTED_ORIGINS = [
     'https://*.fly.dev',
     'http://*.fly.dev',  # Fly.io internal routing
+    'https://youowe.app',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
