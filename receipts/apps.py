@@ -10,4 +10,4 @@ class ReceiptsConfig(AppConfig):
         """Called when Django is ready - log startup information"""
         from django.conf import settings
         logger = logging.getLogger('receipts')
-        logger.info(f"🚀 Receipt Splitter started - DEBUG={settings.DEBUG}")
+        logger.info(f"🚀 You Owe started - DEBUG={settings.DEBUG}")

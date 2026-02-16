@@ -1,6 +1,6 @@
 # fly.toml app configuration file generated for receipt-splitter on 2025-08-16
 
-app = "receipt-splitter-demo"
+app = "youowe"
 primary_region = "ord"
 
 [build]
