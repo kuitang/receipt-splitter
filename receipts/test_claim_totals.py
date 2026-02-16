@@ -7,7 +7,6 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 from decimal import Decimal
-from datetime import timedelta
 import json
 
 from receipts.models import Receipt, LineItem, Claim
@@ -36,7 +35,7 @@ class ClaimTotalsByNameRepositoryTests(TestCase):
         self.item1 = LineItem.objects.create(
             receipt=self.receipt,
             name="Pizza",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal("25.00"),
             total_price=Decimal("50.00"),
             prorated_tax=Decimal("5.00"),
@@ -46,7 +45,7 @@ class ClaimTotalsByNameRepositoryTests(TestCase):
         self.item2 = LineItem.objects.create(
             receipt=self.receipt,
             name="Salad",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("15.00"),
             total_price=Decimal("15.00"),
             prorated_tax=Decimal("1.50"),
@@ -60,27 +59,24 @@ class ClaimTotalsByNameRepositoryTests(TestCase):
         self.claim1 = Claim.objects.create(
             line_item=self.item1,
             claimer_name="Kui",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=self.session_id,
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
         )
-        
+
         # Claims as "Kui 5" (same session, different name)
         self.claim2 = Claim.objects.create(
             line_item=self.item2,
             claimer_name="Kui 5",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=self.session_id,
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
         )
-        
+
         # Claims from different session with same name
         self.claim3 = Claim.objects.create(
             line_item=self.item1,
             claimer_name="Kui",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id="different-session-456",
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
         )
     
     def test_get_claims_by_name_filters_correctly(self):
@@ -140,7 +136,7 @@ class ClaimTotalsByNameServiceTests(TestCase):
         self.item1 = LineItem.objects.create(
             receipt=self.receipt,
             name="Burger",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("20.00"),
             total_price=Decimal("20.00"),
             prorated_tax=Decimal("2.00"),
@@ -150,7 +146,7 @@ class ClaimTotalsByNameServiceTests(TestCase):
         self.item2 = LineItem.objects.create(
             receipt=self.receipt,
             name="Fries",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("10.00"),
             total_price=Decimal("10.00"),
             prorated_tax=Decimal("1.00"),
@@ -160,7 +156,7 @@ class ClaimTotalsByNameServiceTests(TestCase):
         self.item3 = LineItem.objects.create(
             receipt=self.receipt,
             name="Drink",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("5.00"),
             total_price=Decimal("5.00"),
             prorated_tax=Decimal("0.50"),
@@ -173,25 +169,22 @@ class ClaimTotalsByNameServiceTests(TestCase):
         Claim.objects.create(
             line_item=self.item1,
             claimer_name="Alice",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=self.session_id,
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
         )
-        
+
         Claim.objects.create(
             line_item=self.item2,
             claimer_name="Alice 2",  # Different name, same session
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=self.session_id,
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
         )
         
         Claim.objects.create(
             line_item=self.item3,
             claimer_name="Alice",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=self.session_id,
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
         )
     
     def test_calculate_name_total_single_name(self):
@@ -267,7 +260,7 @@ class ClaimTotalsIntegrationTests(TestCase):
         self.item1 = LineItem.objects.create(
             receipt=self.receipt,
             name="PALOMA",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("17.68"),
             total_price=Decimal("17.68"),
             prorated_tax=Decimal("0.00"),
@@ -277,7 +270,7 @@ class ClaimTotalsIntegrationTests(TestCase):
         self.item2 = LineItem.objects.create(
             receipt=self.receipt,
             name="HAPPY HOUR BEER",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("5.20"),
             total_price=Decimal("5.20"),
             prorated_tax=Decimal("0.00"),
@@ -287,7 +280,7 @@ class ClaimTotalsIntegrationTests(TestCase):
         self.item3 = LineItem.objects.create(
             receipt=self.receipt,
             name="WELL TEQUILA",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("5.20"),
             total_price=Decimal("5.20"),
             prorated_tax=Decimal("0.00"),
@@ -304,28 +297,25 @@ class ClaimTotalsIntegrationTests(TestCase):
         Claim.objects.create(
             line_item=self.item1,
             claimer_name="Kui",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
-        
+
         # Later, same session but forced to use "Kui 5"
         Claim.objects.create(
             line_item=self.item2,
             claimer_name="Kui 5",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
-        
+
         Claim.objects.create(
             line_item=self.item3,
             claimer_name="Kui 5",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
-        
+
         # Test name-based calculations
         service = ClaimService()
         
@@ -352,25 +342,22 @@ class ClaimTotalsIntegrationTests(TestCase):
         Claim.objects.create(
             line_item=self.item1,
             claimer_name="John",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
-        
+
         Claim.objects.create(
             line_item=self.item2,
             claimer_name="John",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id="different-session",
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
         
         Claim.objects.create(
             line_item=self.item3,
             claimer_name="Jane",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
         
         service = ClaimService()

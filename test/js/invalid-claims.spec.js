@@ -258,8 +258,8 @@ describe('Invalid Claims Security Tests', () => {
       const fetchCall = global.authenticatedJsonFetch.mock.calls[0];
       const requestData = JSON.parse(fetchCall[1].body);
       expect(requestData.claims).toEqual([
-        { line_item_id: '1', quantity: 0 },
-        { line_item_id: '2', quantity: 1 }
+        { line_item_id: '1', quantity_numerator: 0, quantity: 0 },
+        { line_item_id: '2', quantity_numerator: 1, quantity: 1 }
       ]);
     });
   });

@@ -59,15 +59,31 @@ function updateSubtotal() {
  * @param {HTMLElement} row - The item row element
  */
 function updateItemTotal(row) {
-    const numerator = parseInt(row.querySelector('.item-quantity-numerator').value) || 1;
-    const denominator = parseInt(row.querySelector('.item-quantity-denominator').value) || 1;
-    const quantity = numerator / denominator;
+    // Support both old single quantity field and new fractional fields
+    const numeratorEl = row.querySelector('.item-quantity-numerator');
+    const denominatorEl = row.querySelector('.item-quantity-denominator');
+    const legacyQuantityEl = row.querySelector('.item-quantity');
+
+    let quantity;
+    if (numeratorEl && denominatorEl) {
+        // New fractional quantity format
+        const numerator = parseInt(numeratorEl.value) || 1;
+        const denominator = parseInt(denominatorEl.value) || 1;
+        quantity = numerator / denominator;
+    } else if (legacyQuantityEl) {
+        // Legacy single quantity field (for backward compatibility and tests)
+        quantity = parseFloat(legacyQuantityEl.value) || 0;
+    } else {
+        // Default to 1 if no quantity field found
+        quantity = 1;
+    }
+
     const price = parseFloat(row.querySelector('.item-price').value) || 0;
     const total = quantity * price;
     const totalField = row.querySelector('.item-total');
     totalField.value = total.toFixed(2);  // Display with 2 decimals
     totalField.dataset.fullValue = total;  // Store full precision
-    
+
     // Update subtotal after item changes
     updateSubtotal();
     updateProrations();
@@ -125,14 +141,16 @@ function updateProrations() {
 function validateReceipt() {
     const data = getReceiptData();
     const errors = [];
-    
+
     // Calculate items sum
     let itemsSum = 0;
     data.items.forEach((item, index) => {
         if (item.name) {
-            const expected = item.quantity * item.unit_price;
+            // Calculate quantity from fractional fields
+            const quantity = item.quantity_numerator / item.quantity_denominator;
+            const expected = quantity * item.unit_price;
             if (Math.abs(expected - item.total_price) > 0.01) {
-                errors.push(`Item "${item.name}": Total $${item.total_price.toFixed(2)} doesn't match quantity (${item.quantity}) × price ($${item.unit_price.toFixed(2)}) = $${expected.toFixed(2)}`);
+                errors.push(`Item "${item.name}": Total $${item.total_price.toFixed(2)} doesn't match quantity (${quantity}) × price ($${item.unit_price.toFixed(2)}) = $${expected.toFixed(2)}`);
             }
             itemsSum += item.total_price;
         }
@@ -280,12 +298,31 @@ function getReceiptData() {
         if (name) {
             const numeratorEl = row.querySelector('.item-quantity-numerator');
             const denominatorEl = row.querySelector('.item-quantity-denominator');
+            const legacyQuantityEl = row.querySelector('.item-quantity');
             const priceEl = row.querySelector('.item-price');
             const itemTotalElement = row.querySelector('.item-total');
+
+            // Determine quantity format
+            let quantity_numerator, quantity_denominator;
+            if (numeratorEl && denominatorEl) {
+                // Use fractional fields
+                quantity_numerator = parseInt(numeratorEl.value) || 1;
+                quantity_denominator = parseInt(denominatorEl.value) || 1;
+            } else if (legacyQuantityEl) {
+                // Convert legacy quantity to fractional format
+                const legacyQty = parseInt(legacyQuantityEl.value) || 1;
+                quantity_numerator = legacyQty;
+                quantity_denominator = 1;
+            } else {
+                // Default
+                quantity_numerator = 1;
+                quantity_denominator = 1;
+            }
+
             items.push({
                 name: name,
-                quantity_numerator: numeratorEl ? (parseInt(numeratorEl.value) || 1) : 1,
-                quantity_denominator: denominatorEl ? (parseInt(denominatorEl.value) || 1) : 1,
+                quantity_numerator: quantity_numerator,
+                quantity_denominator: quantity_denominator,
                 unit_price: priceEl ? (parseFloat(priceEl.value) || 0) : 0,
                 total_price: itemTotalElement ? (parseFloat(itemTotalElement.dataset.fullValue || itemTotalElement.value) || 0) : 0
             });
@@ -708,15 +745,18 @@ function initializeSubdivideModal(row) {
             const originalNumerator = parseInt(numeratorInput.value) || 1;
             const originalDenominator = parseInt(denominatorInput.value) || 1;
 
-            const newDenominator = originalDenominator * numPeople;
+            // Compute base quantity (undo any previous split), then re-split
+            const effectiveQty = originalNumerator / originalDenominator;
+            const newNumerator = Math.round(effectiveQty * numPeople);
+            const newDenominator = numPeople;
 
-            numeratorInput.value = originalNumerator;
+            numeratorInput.value = newNumerator;
             denominatorInput.value = newDenominator;
 
             if (newDenominator === 1) {
-                quantityInput.value = originalNumerator;
+                quantityInput.value = newNumerator;
             } else {
-                quantityInput.value = `${originalNumerator}/${newDenominator}`;
+                quantityInput.value = `${newNumerator}/${newDenominator}`;
             }
 
             updateItemTotal(row);

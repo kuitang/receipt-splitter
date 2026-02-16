@@ -12,6 +12,7 @@ from django.core.signing import Signer, BadSignature
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField
+from django.db.models.functions import Cast
 
 from receipts.models import Receipt, LineItem, ActiveViewer, Claim
 from receipts.services.validation_pipeline import ValidationPipeline
@@ -42,16 +43,16 @@ class ReceiptService:
         self.validator = ValidationPipeline()
         self.signer = Signer()
     
-    def create_receipt(self, uploader_name: str, image_file) -> Receipt:
+    def create_receipt(self, uploader_name: str, image_file, venmo_username: str = '') -> Receipt:
         """
         Create a new receipt with async OCR processing
         """
         # Validate inputs
         validated_name = self.validator.validate_name(uploader_name, "Your name")
         validated_image = self.validator.validate_image_file(image_file)
-        
+
         # Create placeholder receipt
-        receipt = create_placeholder_receipt(validated_name, validated_image)
+        receipt = create_placeholder_receipt(validated_name, validated_image, venmo_username=venmo_username)
         
         # Start OCR processing according to configuration
         if getattr(settings, "USE_ASYNC_PROCESSING", True):
@@ -104,7 +105,8 @@ class ReceiptService:
             update_data['items'] = [
                 {
                     'name': item['name'],
-                    'quantity': item['quantity'],
+                    'quantity_numerator': item.get('quantity_numerator', item.get('quantity', 1)),
+                    'quantity_denominator': item.get('quantity_denominator', 1),
                     'unit_price': Decimal(str(item['unit_price'])),
                     'total_price': Decimal(str(item['total_price']))
                 }
@@ -231,9 +233,9 @@ class ReceiptService:
         items_with_claims = []
         for item in receipt.items.all():
             claims = item.claims.all()  # Already prefetched, no query!
-            # Calculate available quantity from prefetched data
-            total_claimed = sum(claim.quantity_claimed for claim in claims)
-            available_quantity = item.quantity - total_claimed
+            # Calculate available quantity from prefetched data (shared denominator)
+            total_claimed_num = sum(claim.quantity_numerator for claim in claims)
+            available_quantity = item.quantity_numerator - total_claimed_num
             
             items_with_claims.append({
                 'item': item,
@@ -248,9 +250,17 @@ class ReceiptService:
         total_claimed = sum(participant_totals.values())
         total_unclaimed = receipt.total - total_claimed
         
-        # Sort participants by name
+        # Build name→venmo map from prefetched viewers
+        viewer_venmo_map = {
+            v.viewer_name: v.venmo_username
+            for v in receipt.viewers.all()
+            if v.venmo_username
+        }
+
+        # Sort participants by name, include venmo if available
         participant_list = sorted([
-            {'name': name, 'amount': amount}
+            {'name': name, 'amount': amount,
+             'venmo_username': viewer_venmo_map.get(name, '')}
             for name, amount in participant_totals.items()
         ], key=lambda x: x['name'])
         
@@ -269,18 +279,19 @@ class ReceiptService:
         
         return result
     
-    def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str) -> ActiveViewer:
+    def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str,
+                        venmo_username: str = '') -> ActiveViewer:
         """Register a viewer for the receipt"""
         receipt = self._get_by_id(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
-        
+
         viewer, created = ActiveViewer.objects.update_or_create(
             receipt=receipt,
             session_id=session_id,
-            defaults={'viewer_name': viewer_name}
+            defaults={'viewer_name': viewer_name, 'venmo_username': venmo_username}
         )
-        
+
         return viewer
     
     def get_existing_names(self, receipt_id: str, receipt_data: Optional[Dict] = None) -> list:
@@ -440,7 +451,8 @@ class ReceiptService:
             'items': [
                 {
                     'name': item.name,
-                    'quantity': item.quantity,
+                    'quantity_numerator': item.quantity_numerator,
+                    'quantity_denominator': item.quantity_denominator,
                     'unit_price': str(item.unit_price),
                     'total_price': str(item.total_price)
                 }
@@ -449,33 +461,29 @@ class ReceiptService:
         }
     
     def _get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
-        """Calculate totals per participant efficiently using single database query"""
-        # Verify receipt exists
+        """Calculate totals per participant efficiently using single database query.
+
+        Share = (claim.numerator / item.numerator) * (item.total + item.tax + item.tip)
+        """
         if not Receipt.objects.filter(id=receipt_id).exists():
             return {}
-        
-        # Single aggregation query to calculate all participant totals
-        # This replaces the N+1 query pattern where get_share_amount() was called for each claim
+
+        # claim.numerator / item.numerator * (total + tax + tip)
         results = Claim.objects.filter(
             line_item__receipt_id=receipt_id
         ).values('claimer_name').annotate(
             total=Sum(
-                F('quantity_claimed') * (
-                    F('line_item__total_price') / F('line_item__quantity') +
-                    F('line_item__prorated_tax') / F('line_item__quantity') +
-                    F('line_item__prorated_tip') / F('line_item__quantity')
-                ),
+                (Cast(F('quantity_numerator'), DecimalField(max_digits=12, decimal_places=6))
+                 / Cast(F('line_item__quantity_numerator'), DecimalField(max_digits=12, decimal_places=6)))
+                * (F('line_item__total_price') + F('line_item__prorated_tax') + F('line_item__prorated_tip')),
                 output_field=DecimalField(max_digits=12, decimal_places=6)
             )
         ).order_by('claimer_name')
-        
-        # Convert to dictionary
-        participant_totals = {
+
+        return {
             result['claimer_name']: result['total'] or Decimal('0')
             for result in results
         }
-        
-        return participant_totals
     
     def _get_all_claimer_names(self, receipt_id: str) -> List[str]:
         """Get all unique claimer names for a receipt"""

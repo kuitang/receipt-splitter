@@ -81,7 +81,7 @@ def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
             line_item = LineItem.objects.create(
                 receipt=receipt,
                 name=item_data['name'],
-                quantity=item_data['quantity'],
+                quantity_numerator=item_data['quantity'],
                 unit_price=Decimal(str(item_data['unit_price'])),
                 total_price=Decimal(str(item_data['total_price']))
             )
@@ -104,21 +104,14 @@ def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
             logger.error(f"Failed to update receipt status for {receipt_id}: {update_e}")
 
 
-def create_placeholder_receipt(uploader_name, image):
+def create_placeholder_receipt(uploader_name, image, venmo_username=''):
     """
     Create a placeholder receipt that will be processed async
     Stores image in memory for browser display
-    
-    Args:
-        uploader_name: Name of the uploader
-        image: The uploaded image file (may be HEIC)
-        
-    Returns:
-        Receipt object
     """
     # Convert HEIC to JPEG if needed (for browser display)
     converted_image = convert_to_jpeg_if_needed(image)
-    
+
     receipt = Receipt.objects.create(
         uploader_name=uploader_name,
         restaurant_name="Processing...",
@@ -127,20 +120,19 @@ def create_placeholder_receipt(uploader_name, image):
         tax=Decimal('0'),
         tip=Decimal('0'),
         total=Decimal('0'),
-        # Don't save image to disk
+        venmo_username=venmo_username,
         processing_status='pending'
     )
-    
+
     # Store the converted image in memory
     store_receipt_image_in_memory(receipt.id, converted_image)
-    
+
     # Create a single placeholder item
     LineItem.objects.create(
         receipt=receipt,
         name="Analyzing your receipt...",
-        quantity=1,
         unit_price=Decimal('0'),
         total_price=Decimal('0')
     )
-    
+
     return receipt

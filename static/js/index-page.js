@@ -119,11 +119,88 @@ function initializeFileUpload() {
 }
 
 /**
+ * Validate Venmo username input.
+ * @ prefix is optional; the username portion must be 5-30 chars of [a-zA-Z0-9_-].
+ * Returns true if valid or empty (optional field), false otherwise.
+ */
+function validateVenmo(input, errorEl) {
+    const raw = input.value.trim();
+
+    // Empty or just "@" means the user skipped it — that's fine
+    if (!raw || raw === '@') {
+        errorEl.classList.add('hidden');
+        input.classList.remove('border-red-500', 'bg-red-50');
+        return true;
+    }
+
+    const username = raw.replace(/^@/, '');
+    const valid = /^[a-zA-Z0-9_\-]{5,30}$/.test(username);
+
+    if (!valid) {
+        let msg;
+        if (username.length < 5) {
+            msg = 'Venmo username must be at least 5 characters';
+        } else if (username.length > 30) {
+            msg = 'Venmo username must be 30 characters or less';
+        } else {
+            msg = 'Venmo username can only contain letters, numbers, hyphens, and underscores';
+        }
+        errorEl.textContent = msg;
+        errorEl.classList.remove('hidden');
+        input.classList.add('border-red-500', 'bg-red-50');
+        return false;
+    }
+
+    errorEl.classList.add('hidden');
+    input.classList.remove('border-red-500', 'bg-red-50');
+    return true;
+}
+
+/**
+ * Initialize Venmo username input: validate on blur and block invalid submit.
+ */
+function initializeVenmoInput() {
+    const input = document.getElementById('venmo_username');
+    if (!input) return;
+
+    const errorEl = document.getElementById('venmo-error');
+
+    // Validate on blur
+    input.addEventListener('blur', () => {
+        validateVenmo(input, errorEl);
+    });
+
+    // Validate and normalize on submit
+    const form = input.closest('form');
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            const raw = input.value.trim();
+            // Normalize: strip @ prefix so backend stores clean username
+            if (raw === '@') {
+                input.value = '';
+            } else if (raw.startsWith('@')) {
+                input.value = raw.slice(1);
+            }
+            if (!validateVenmo(input, errorEl)) {
+                e.preventDefault();
+            }
+        });
+    }
+}
+
+/**
  * Initialize index page on DOM ready
  */
-document.addEventListener('DOMContentLoaded', () => {
+function initializePage() {
     initializeFileUpload();
-});
+    initializeVenmoInput();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePage);
+} else {
+    initializePage();
+}
 
 // ==========================================================================
 // Module Exports for Testing
@@ -133,6 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         resizeImage,
-        initializeFileUpload
+        initializeFileUpload,
+        validateVenmo,
+        initializeVenmoInput
     };
 }

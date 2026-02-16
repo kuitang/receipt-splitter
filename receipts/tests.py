@@ -28,7 +28,7 @@ class ReceiptServiceTests(TestCase):
         LineItem.objects.create(
             receipt=self.receipt,
             name="Test Item",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("85.00"),
             total_price=Decimal("85.00")
         )
@@ -90,14 +90,14 @@ class LineItemModelTests(TestCase):
         self.item = LineItem.objects.create(
             receipt=self.receipt,
             name="Burger",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal("10.00"),
             total_price=Decimal("20.00")
         )
-    
+
     def test_line_item_creation(self):
         self.assertEqual(self.item.name, "Burger")
-        self.assertEqual(self.item.quantity, 2)
+        self.assertEqual(self.item.quantity_numerator, 2)
         self.assertEqual(self.item.unit_price, Decimal("10.00"))
         self.assertEqual(self.item.total_price, Decimal("20.00"))
     
@@ -126,9 +126,8 @@ class LineItemModelTests(TestCase):
         Claim.objects.create(
             line_item=self.item,
             claimer_name="Claimer 1",
-            quantity_claimed=1,
-            session_id="session1",
-            grace_period_ends=timezone.now() + timedelta(seconds=30)
+            quantity_numerator=1,
+            session_id="session1"
         )
         
         self.assertEqual(self.item.get_available_quantity(), 1)
@@ -149,37 +148,28 @@ class ClaimModelTests(TestCase):
         self.item = LineItem.objects.create(
             receipt=self.receipt,
             name="Burger",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal("10.00"),
             total_price=Decimal("20.00")
         )
         self.item.calculate_prorations()
         self.item.save()
-        
+
         self.claim = Claim.objects.create(
             line_item=self.item,
             claimer_name="Test Claimer",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id="test_session"
         )
-    
+
     def test_claim_creation(self):
         self.assertEqual(self.claim.claimer_name, "Test Claimer")
-        self.assertEqual(self.claim.quantity_claimed, 1)
-        self.assertIsNotNone(self.claim.grace_period_ends)
-    
-    def test_grace_period(self):
-        self.assertTrue(self.claim.is_within_grace_period())
-        
-        self.claim.grace_period_ends = timezone.now() - timedelta(seconds=1)
-        self.claim.save()
-        
-        self.assertFalse(self.claim.is_within_grace_period())
-    
+        self.assertEqual(self.claim.quantity_numerator, 1)
+
     def test_get_share_amount(self):
-        unit_share = self.item.get_total_share() / self.item.quantity
-        expected_share = unit_share * self.claim.quantity_claimed
-        
+        unit_share = self.item.get_total_share() / self.item.quantity_numerator
+        expected_share = unit_share * self.claim.quantity_numerator
+
         self.assertEqual(self.claim.get_share_amount(), expected_share)
 
 
@@ -205,13 +195,13 @@ class ViewTests(TestCase):
         self.item = LineItem.objects.create(
             receipt=self.receipt,
             name="Burger",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal("10.00"),
             total_price=Decimal("20.00")
         )
         self.item.calculate_prorations()
         self.item.save()
-    
+
     def test_index_view(self):
         response = self.client.get(reverse('index'))
         self.assertEqual(response.status_code, 200)
@@ -250,13 +240,13 @@ class ViewTests(TestCase):
         item2 = LineItem.objects.create(
             receipt=self.receipt,
             name="Fries",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("5.00"),
             total_price=Decimal("5.00")
         )
         item2.calculate_prorations()
         item2.save()
-        
+
         # Submit a name to view the receipt
         url = reverse('view_receipt', kwargs={'receipt_slug': self.receipt.slug})
         response = self.client.post(url, {'viewer_name': 'Test Viewer'})
@@ -360,7 +350,7 @@ class ViewTests(TestCase):
         item1 = LineItem.objects.create(
             receipt=receipt,
             name="Main Dish",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal("10.00"),
             total_price=Decimal("20.00")
         )
@@ -371,7 +361,7 @@ class ViewTests(TestCase):
         item2 = LineItem.objects.create(
             receipt=receipt,
             name="Appetizer",
-            quantity=3,
+            quantity_numerator=3,
             unit_price=Decimal("10.00"),
             total_price=Decimal("30.00")
         )
@@ -398,25 +388,25 @@ class ViewTests(TestCase):
         claim1 = Claim.objects.create(
             line_item=self.item,
             claimer_name="Alice",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id="session_alice"
         )
-        
+
         # Add another item
         item2 = LineItem.objects.create(
             receipt=self.receipt,
             name="Salad",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal("15.00"),
             total_price=Decimal("15.00")
         )
         item2.calculate_prorations()
         item2.save()
-        
+
         claim2 = Claim.objects.create(
             line_item=item2,
             claimer_name="Bob",
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id="session_bob"
         )
         
@@ -575,20 +565,20 @@ class ItemDisplayTemplateTests(TestCase):
         
         # Test quantity = 0 (edge case)
         item = LineItem.objects.create(
-            receipt=self.receipt, name="Zero Item", quantity=0,
+            receipt=self.receipt, name="Zero Item", quantity_numerator=0,
             unit_price=Decimal("10.00"), total_price=Decimal("0.00"))
         rendered = template.render(Context({'item': item}))
         self.assertEqual(rendered, "$0.00")
-        
+
         # Test quantity = 1 (single item)
-        item.quantity = 1
+        item.quantity_numerator = 1
         item.total_price = Decimal("15.50")
         rendered = template.render(Context({'item': item}))
         self.assertEqual(rendered, "$15.50")
         self.assertNotIn("×", rendered)
-        
+
         # Test quantity = 2 (multiple items)
-        item.quantity = 2
+        item.quantity_numerator = 2
         item.unit_price = Decimal("8.75")
         item.total_price = Decimal("17.50")
         rendered = template.render(Context({'item': item}))

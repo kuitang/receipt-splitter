@@ -3,21 +3,32 @@ Display item row for view page.
 Context: item (LineItem), show_calculations, show_claims, claims, viewer_name, receipt, is_user_finalized, available_quantity, my_existing_claim, container_class
 {% endcomment %}
 
-<div class="{{ container_class|default:'' }}">
+<div class="{{ container_class|default:'' }}"
+     data-item-numerator="{{ item.quantity_numerator }}"
+     data-item-denominator="{{ item.quantity_denominator }}">
     <div class="flex justify-between items-start">
-        <div>
+        <div class="flex-1">
             <h3 class="font-semibold text-lg text-gray-900">{{ item.name|escape }}</h3>
             <p class="text-gray-600 text-sm">
-                {% if item.quantity > 1 %}
-                ${{ item.unit_price|floatformat:2 }} × {{ item.quantity }} = ${{ item.total_price|floatformat:2 }}
+                {% if item.quantity_denominator > 1 %}
+                ${{ item.unit_price|floatformat:2 }} × {{ item.quantity_numerator }}/{{ item.quantity_denominator }} = ${{ item.total_price|floatformat:2 }}
+                {% elif item.quantity_numerator > 1 %}
+                ${{ item.unit_price|floatformat:2 }} × {{ item.quantity_numerator }} = ${{ item.total_price|floatformat:2 }}
                 {% else %}
                 ${{ item.total_price|floatformat:2 }}
                 {% endif %}
             </p>
         </div>
-        
+
         {% if show_claims and viewer_name and receipt.is_finalized %}
-        <div class="ml-4 flex-shrink-0">
+        <div class="ml-4 flex-shrink-0 flex items-center space-x-2">
+            {% if not is_user_finalized %}
+            <button type="button"
+                    class="h-8 w-8 rounded-lg flex items-center justify-center text-white font-medium bg-purple-600 hover:bg-purple-700 text-sm"
+                    data-action="subdivide-claim-item"
+                    data-item-id="{{ item.id }}"
+                    title="Split into parts">÷</button>
+            {% endif %}
             {% include 'receipts/partials/claim_controls.html' with item_id=item.id current_value=my_existing_claim|default:0 max_value=my_existing_claim|add:available_quantity disabled=is_user_finalized|default:False %}
         </div>
         {% endif %}
@@ -25,7 +36,7 @@ Context: item (LineItem), show_calculations, show_claims, claims, viewer_name, r
     
     {% if show_calculations %}
     <div class="mt-1">
-        <p class="text-gray-500 text-xs">+ Tax: ${{ item.prorated_tax|floatformat:2 }} + Tip: ${{ item.prorated_tip|floatformat:2 }} = <span class="font-semibold item-share-amount" data-amount="{{ item.get_per_item_share|floatformat:2 }}">${{ item.get_per_item_share|floatformat:2 }}</span> per item</p>
+        <p class="text-gray-500 text-xs">+ Tax: ${{ item.prorated_tax|floatformat:2 }} + Tip: ${{ item.prorated_tip|floatformat:2 }} = <span class="font-semibold item-share-amount" data-amount="{{ item.get_per_portion_share|floatformat:2 }}">${{ item.get_per_portion_share|floatformat:2 }}</span> per {% if item.quantity_denominator > 1 %}part{% else %}item{% endif %}</p>
     </div>
     {% endif %}
 

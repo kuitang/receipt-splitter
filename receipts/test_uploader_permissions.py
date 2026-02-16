@@ -55,15 +55,15 @@ class UploaderPermissionUnitTests(TestCase):
         self.item1 = LineItem.objects.create(
             receipt=self.finalized_receipt,
             name="Pizza",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal('10.00'),
             total_price=Decimal('20.00')
         )
-        
+
         self.item2 = LineItem.objects.create(
             receipt=self.unfinalized_receipt,
             name="Burger",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal('15.00'),
             total_price=Decimal('15.00')
         )
@@ -364,15 +364,15 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         item1 = LineItem.objects.create(
             receipt=receipt,
             name="Steak",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal('50.00'),
             total_price=Decimal('50.00')
         )
-        
+
         item2 = LineItem.objects.create(
             receipt=receipt,
             name="Wine",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal('25.00'),
             total_price=Decimal('50.00')
         )
@@ -479,7 +479,7 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         item = LineItem.objects.create(
             receipt=receipt,
             name="Shared Platter",
-            quantity=3,
+            quantity_numerator=3,
             unit_price=Decimal('30.00'),
             total_price=Decimal('90.00')
         )
@@ -510,17 +510,15 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         Claim.objects.create(
             line_item=item,
             claimer_name=self.viewer1_name,
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session1.session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
-        
+
         Claim.objects.create(
             line_item=item,
             claimer_name=self.viewer2_name,
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session2.session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
         
         # Verify both claims exist independently
@@ -678,14 +676,13 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
             line_item=LineItem.objects.create(
                 receipt=receipt,
                 name="Item 1",
-                quantity=1,
+                quantity_numerator=1,
                 unit_price=Decimal('20.00'),
                 total_price=Decimal('20.00')
             ),
             claimer_name='John',
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session1.session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
         
         # Second viewer also wants to use "John" but gets assigned "John 2"
@@ -705,14 +702,13 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
             line_item=LineItem.objects.create(
                 receipt=receipt,
                 name="Item 2",
-                quantity=1,
+                quantity_numerator=1,
                 unit_price=Decimal('20.00'),
                 total_price=Decimal('20.00')
             ),
             claimer_name='John 2',
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session2.session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=1)
         )
         
         # Client 1 cannot undo Client 2's claim
@@ -810,17 +806,17 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         item1 = LineItem.objects.create(
             receipt=receipt,
             name="Pizza",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal('50.00'),
             total_price=Decimal('50.00'),
             prorated_tax=Decimal('5.00'),
             prorated_tip=Decimal('10.00')
         )
-        
+
         item2 = LineItem.objects.create(
             receipt=receipt,
             name="Salad",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal('30.00'),
             total_price=Decimal('30.00'),
             prorated_tax=Decimal('3.00'),
@@ -841,9 +837,8 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         Claim.objects.create(
             line_item=item1,
             claimer_name='Original Name',
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session.session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=5)
         )
         
         # Simulate being forced to use a different name
@@ -854,9 +849,8 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         Claim.objects.create(
             line_item=item2,
             claimer_name='Original Name 2',
-            quantity_claimed=1,
+            quantity_numerator=1,
             session_id=session.session_key,
-            grace_period_ends=timezone.now() + timedelta(minutes=5)
         )
         
         # Test that totals are calculated correctly by name
@@ -907,11 +901,11 @@ class NameCollisionRegressionTests(TestCase):
         LineItem.objects.create(
             receipt=receipt,
             name="Test Item",
-            quantity=5,
+            quantity_numerator=5,
             unit_price=Decimal('20.00'),
             total_price=Decimal('100.00')
         )
-        
+
         # First: Verify uploader name is in existing names
         from receipts.services import ReceiptService
         receipt_service = ReceiptService()
@@ -954,16 +948,16 @@ class NameCollisionRegressionTests(TestCase):
         item = LineItem.objects.create(
             receipt=receipt,
             name="Test Item",
-            quantity=5,
+            quantity_numerator=5,
             unit_price=Decimal('20.00'),
             total_price=Decimal('100.00')
         )
-        
+
         # Create an existing claim with name "Alice"
         Claim.objects.create(
             line_item=item,
             claimer_name="Alice",
-            quantity_claimed=2,
+            quantity_numerator=2,
             session_id="existing_session",
             is_finalized=True
         )

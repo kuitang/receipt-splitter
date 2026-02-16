@@ -227,5 +227,6 @@ class ReceiptData(BaseModel):
             'tip': float(self.tip),
             'total': float(self.total),
             'confidence_score': self.confidence_score,
+            'notes': self.notes,
             'raw_text': self.raw_text or ""
         }

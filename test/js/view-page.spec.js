@@ -69,6 +69,8 @@ const {
   updateItemClaimsDisplay,
   showPollingError,
   hidePollingError,
+  mathGcd,
+  computeSubdivideOptions,
   _getState,
   _setState
 } = viewPageModule;
@@ -320,11 +322,11 @@ describe('View Page Claiming Functionality', () => {
       
       // Check the new protocol format
       const requestData = JSON.parse(fetchCalls[0].options.body);
-      expect(requestData).toEqual({ 
+      expect(requestData).toEqual({
         claims: [
-          { line_item_id: '1', quantity: 2 },
-          { line_item_id: '2', quantity: 1 },
-          { line_item_id: '3', quantity: 0 }  // All items included, even zero quantities
+          { line_item_id: '1', quantity_numerator: 2, quantity: 2 },
+          { line_item_id: '2', quantity_numerator: 1, quantity: 1 },
+          { line_item_id: '3', quantity_numerator: 0, quantity: 0 }  // All items included, even zero quantities
         ]
       });
     });
@@ -988,6 +990,114 @@ describe('View Page Claiming Functionality', () => {
         const claimsSection = item1Container.querySelector('.border-t');
         expect(claimsSection.textContent).toContain('Bob (1)');
       });
+    });
+  });
+
+  describe('computeSubdivideOptions', () => {
+    function makeItemContainer({ itemNum, itemDen, claims = [] }) {
+      // Build a minimal item container with data attributes and claim badges
+      const container = document.createElement('div');
+      container.className = 'item-container';
+      container.dataset.itemId = '99';
+      container.dataset.itemNumerator = String(itemNum);
+      container.dataset.itemDenominator = String(itemDen);
+
+      claims.forEach(({ name, numerator }) => {
+        const badge = document.createElement('span');
+        badge.dataset.claimerName = name;
+        const numSpan = document.createElement('span');
+        numSpan.dataset.quantityNumerator = '';
+        numSpan.textContent = String(numerator);
+        const wrapper = document.createElement('div');
+        wrapper.appendChild(badge);
+        wrapper.appendChild(numSpan);
+        container.appendChild(wrapper);
+      });
+
+      return container;
+    }
+
+    it('with 0 claims, all small integers should be valid options', () => {
+      // Item: 2/1 (2 whole items), no claims.
+      // Backend accepts ANY target with 0 claims, so 2,3,4,5 etc. should all appear.
+      const container = makeItemContainer({ itemNum: 2, itemDen: 1 });
+      const { options, minParts } = computeSubdivideOptions(container);
+
+      // minParts should be 1 (any target valid)
+      expect(minParts).toBe(1);
+
+      // Options should include consecutive integers (not just even numbers)
+      expect(options).toContain(3);
+      expect(options).toContain(4);
+      expect(options).toContain(5);
+    });
+
+    it('with 0 claims on 1/1 item, options should be 2,3,4,5', () => {
+      const container = makeItemContainer({ itemNum: 1, itemDen: 1 });
+      const { options, minParts } = computeSubdivideOptions(container);
+
+      expect(minParts).toBe(1);
+      // Current is 1, so 1 is skipped
+      expect(options[0]).toBe(2);
+      expect(options[1]).toBe(3);
+      expect(options[2]).toBe(4);
+      expect(options[3]).toBe(5);
+    });
+
+    it('with 0 claims on already-split 4/4 item, options include 2,3,5,6', () => {
+      const container = makeItemContainer({ itemNum: 4, itemDen: 4 });
+      const { options, minParts } = computeSubdivideOptions(container);
+
+      expect(minParts).toBe(1);
+      // 4 is skipped (current), should include non-multiples like 3, 5
+      expect(options).toContain(2);
+      expect(options).toContain(3);
+      expect(options).toContain(5);
+    });
+
+    it('with claims, only multiples of minParts are valid', () => {
+      // Item: 4/1, Alice claimed 2. GCD(4,1,2,2)=1, minParts=4.
+      // Wait — let's compute: nums=[4,1,2,unclaimed=2]. GCD(4,1,2,2)=1. minParts=4/1=4.
+      // Actually that means options are 4(skip current),8,12,16,20.
+      // But that seems too restrictive. Let me recalculate:
+      // Backend _compute_min_parts: nums=[item.num=4, item.den=1, claim_num=2, unclaimed=2]
+      // GCD(4,1,2,2) = 1. min_parts = 4//1 = 4. Target must be multiple of 4.
+      // So options: 8, 12, 16, 20.
+      const container = makeItemContainer({
+        itemNum: 4, itemDen: 1,
+        claims: [{ name: 'Alice', numerator: 2 }]
+      });
+      const { options, minParts } = computeSubdivideOptions(container);
+
+      expect(minParts).toBe(4);
+      // All options must be multiples of 4, and not equal to current (4)
+      options.forEach(opt => {
+        expect(opt % 4).toBe(0);
+        expect(opt).not.toBe(4);
+      });
+      expect(options[0]).toBe(8);
+    });
+
+    it('with claims where GCD reduces nicely, options are multiples of minParts', () => {
+      // Item: 6/2, Alice claimed 2, Bob claimed 2. unclaimed=2.
+      // nums=[6, 2, 2, 2, 2]. GCD=2. minParts=6/2=3.
+      // Options: multiples of 3 excluding 6: 3, 9, 12, 15, 18.
+      const container = makeItemContainer({
+        itemNum: 6, itemDen: 2,
+        claims: [
+          { name: 'Alice', numerator: 2 },
+          { name: 'Bob', numerator: 2 }
+        ]
+      });
+      const { options, minParts } = computeSubdivideOptions(container);
+
+      expect(minParts).toBe(3);
+      options.forEach(opt => {
+        expect(opt % 3).toBe(0);
+        expect(opt).not.toBe(6); // skip current
+      });
+      expect(options).toContain(3);
+      expect(options).toContain(9);
     });
   });
 });
