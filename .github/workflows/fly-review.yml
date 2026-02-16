@@ -23,6 +23,15 @@ jobs:
         with:
           config: fly.review.toml
 
+      - name: Set secrets on review app
+        if: github.event.action != 'closed'
+        run: |
+          APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
+          echo "Setting secrets for app: $APP_NAME"
+          fly secrets set GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" -a "$APP_NAME" --stage
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Allocate shared IPv4 for preview app
         if: github.event.action != 'closed'
         run: |
