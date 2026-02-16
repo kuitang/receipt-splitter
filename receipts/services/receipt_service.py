@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.signing import Signer, BadSignature
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField
+from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField, FloatField
 from django.db.models.functions import Cast
 
 from receipts.models import Receipt, LineItem, ActiveViewer, Claim
@@ -468,13 +468,13 @@ class ReceiptService:
         if not Receipt.objects.filter(id=receipt_id).exists():
             return {}
 
-        # claim.numerator / item.numerator * (total + tax + tip)
+        # Cast to FloatField to force float division in SQLite (avoids integer truncation)
         results = Claim.objects.filter(
             line_item__receipt_id=receipt_id
         ).values('claimer_name').annotate(
             total=Sum(
-                (Cast(F('quantity_numerator'), DecimalField(max_digits=12, decimal_places=6))
-                 / Cast(F('line_item__quantity_numerator'), DecimalField(max_digits=12, decimal_places=6)))
+                (Cast(F('quantity_numerator'), FloatField())
+                 / Cast(F('line_item__quantity_numerator'), FloatField()))
                 * (F('line_item__total_price') + F('line_item__prorated_tax') + F('line_item__prorated_tip')),
                 output_field=DecimalField(max_digits=12, decimal_places=6)
             )
