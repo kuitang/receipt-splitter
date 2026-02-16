@@ -862,7 +862,7 @@ function updateVenmoLink(amount) {
     const restaurantName = container.dataset.restaurantName;
     if (!venmoUsername) return;
 
-    const note = encodeURIComponent(`Split receipt - ${restaurantName} ${window.location.href}`);
+    const note = `Split receipt - ${encodeURIComponent(restaurantName)} ${window.location.href}`;
     link.href = `https://venmo.com/${venmoUsername}?txn=pay&amount=${amount.toFixed(2)}&note=${note}`;
 }
 

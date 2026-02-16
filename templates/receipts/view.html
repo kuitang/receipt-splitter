@@ -98,7 +98,7 @@
                             <div class="flex items-center gap-2">
                                 <span class="font-medium tabular-nums">${{ participant.amount|floatformat:2 }}</span>
                                 {% if is_uploader and participant.venmo_username and participant.name != receipt.uploader_name %}
-                                <a href="https://venmo.com/{{ participant.venmo_username }}?txn=charge&amount={{ participant.amount|floatformat:2 }}&note=Split%20receipt%20-%20{{ receipt.restaurant_name|urlencode }}%20{{ share_url|urlencode }}"
+                                <a href="https://venmo.com/{{ participant.venmo_username }}?txn=charge&amount={{ participant.amount|floatformat:2 }}&note=Split%20receipt%20-%20{{ receipt.restaurant_name|urlencode }}%20{{ share_url }}"
                                    target="_blank"
                                    rel="noopener noreferrer"
                                    class="text-xs px-2 py-0.5 bg-[#008CFF] text-white rounded font-medium hover:bg-[#0070CC] transition-colors"
@@ -164,7 +164,7 @@
             <div class="text-center">
                 {% if receipt.venmo_username %}
                 <a id="venmo-pay-link"
-                   href="https://venmo.com/{{ receipt.venmo_username }}?txn=pay&amount={{ my_total|floatformat:2 }}&note=Split%20receipt%20-%20{{ receipt.restaurant_name|urlencode }}%20{{ share_url|urlencode }}"
+                   href="https://venmo.com/{{ receipt.venmo_username }}?txn=pay&amount={{ my_total|floatformat:2 }}&note=Split%20receipt%20-%20{{ receipt.restaurant_name|urlencode }}%20{{ share_url }}"
                    target="_blank"
                    rel="noopener noreferrer"
                    class="inline-flex items-center px-4 py-2 bg-[#008CFF] text-white rounded-lg text-sm font-medium hover:bg-[#0070CC] transition-colors">
