@@ -94,22 +94,16 @@ beforeEach(() => setBodyHTML('<div id="container"></div>'));
 
 ### Deployment (Fly.io)
 
+**IMPORTANT: Do NOT run `fly deploy` manually. Deployments happen via GitHub CI only (merge to main).**
+
 ```bash
-# Deploy to staging (with real Gemini OCR)
-fly deploy
-fly secrets set GEMINI_API_KEY=<key> SECRET_KEY=<key>
-
-# Restart after config/secret changes
-fly apps restart
-
-# Check logs
-fly logs
-
-# SSH into running machine
-fly ssh console
+# Debugging only — never deploy from these
+fly logs -a youowe
+fly status -a youowe
+fly ssh console -a youowe
 ```
 
-- App name: `receipt-splitter-demo`, region: `ord`
+- App name: `youowe`, custom domain: `youowe.app`, region: `ord`
 - Gunicorn WSGI (not Daphne) in production
 - `fly.toml` sets `DEBUG=False`; secrets set via `fly secrets set`
 - Release command runs migrations automatically on deploy
