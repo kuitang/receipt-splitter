@@ -23,6 +23,14 @@ jobs:
         with:
           config: fly.review.toml
 
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Set secrets on review app
+        if: github.event.action != 'closed'
+        run: |
+          APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
+          flyctl secrets set GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" -a "$APP_NAME" --stage
+
       - name: Allocate shared IPv4 for preview app
         if: github.event.action != 'closed'
         run: |

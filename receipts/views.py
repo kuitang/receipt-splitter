@@ -44,10 +44,19 @@ def upload_receipt(request):
     """Handle receipt upload with OCR processing"""
     uploader_name = request.POST.get('uploader_name', '').strip()
     receipt_image = request.FILES.get('receipt_image')
-    
+
+    # Validate and clean venmo username
+    import re
+    venmo_raw = request.POST.get('venmo_username', '').strip()
+    venmo_username = ''
+    if venmo_raw:
+        venmo_clean = venmo_raw.lstrip('@')
+        if re.match(r'^[a-zA-Z0-9_-]{5,30}$', venmo_clean):
+            venmo_username = venmo_clean
+
     try:
         # Create receipt through service
-        receipt = receipt_service.create_receipt(uploader_name, receipt_image)
+        receipt = receipt_service.create_receipt(uploader_name, receipt_image, venmo_username=venmo_username)
         
         # Use new session management system
         user_context = request.user_context(receipt.id)
@@ -203,7 +212,16 @@ def view_receipt(request, receipt_slug):
         # Handle name submission
         if request.method == 'POST' and not viewer_name and not is_uploader:
             name = request.POST.get('viewer_name', '').strip()
-            
+
+            # Validate and clean venmo username (same logic as upload)
+            import re
+            viewer_venmo_raw = request.POST.get('viewer_venmo', '').strip()
+            viewer_venmo = ''
+            if viewer_venmo_raw:
+                venmo_clean = viewer_venmo_raw.lstrip('@')
+                if venmo_clean and re.match(r'^[a-zA-Z0-9_-]{5,30}$', venmo_clean):
+                    viewer_venmo = venmo_clean
+
             try:
                 validated_name = validator.validate_name(name, "Your name")
             except ValidationError as e:
@@ -223,32 +241,33 @@ def view_receipt(request, receipt_slug):
                     'share_url': request.build_absolute_uri(receipt.get_absolute_url())
                 }
                 return render(request, 'receipts/view.html', context)
-            
+
             # Check for name collision using already-fetched data (no extra queries!)
             existing_names = receipt_service.get_existing_names(receipt_id, receipt_data)
-            
+
             if validated_name in existing_names:
                 suggestions = [
                     f"{validated_name} 2",
                     f"{validated_name}_{user_context.session_id[:4]}",
                     f"{validated_name} (Guest)"
                 ]
-                
+
                 return render(request, 'receipts/name_collision.html', {
                     'receipt': receipt,
                     'original_name': validated_name,
                     'suggestions': suggestions
                 })
-            
+
             # Store viewer name using new system
             user_context.authenticate_as(validated_name)
             viewer_name = validated_name
-            
-            # Register viewer
+
+            # Register viewer with optional venmo
             receipt_service.register_viewer(
-                receipt_id, 
-                validated_name, 
-                user_context.session_id
+                receipt_id,
+                validated_name,
+                user_context.session_id,
+                venmo_username=viewer_venmo
             )
         
         # Extract user's claims from already-fetched data (no additional queries!)
@@ -262,16 +281,14 @@ def view_receipt(request, receipt_slug):
             for item_data in receipt_data['items_with_claims']:
                 item = item_data['item']
                 for claim in item_data['claims']:
-                    # Check if this claim belongs to the current viewer
                     if claim.claimer_name == viewer_name:
                         my_claims.append(claim)
-                        my_claims_by_item[str(item.id)] = claim.quantity_claimed
-                        # Calculate share amount inline (avoid another query)
-                        unit_price = item.total_price / item.quantity if item.quantity else Decimal('0')
-                        prorated_tax = item.prorated_tax / item.quantity if item.quantity else Decimal('0')
-                        prorated_tip = item.prorated_tip / item.quantity if item.quantity else Decimal('0')
-                        my_total += claim.quantity_claimed * (unit_price + prorated_tax + prorated_tip)
-                        # Check if claim is finalized
+                        my_claims_by_item[str(item.id)] = claim.quantity_numerator
+                        # Share = (claim_num / item_num) * total_share
+                        if item.quantity_numerator > 0:
+                            from fractions import Fraction
+                            share_fraction = Fraction(claim.quantity_numerator, item.quantity_numerator)
+                            my_total += (Decimal(share_fraction.numerator) / Decimal(share_fraction.denominator)) * item.get_total_share()
                         if claim.is_finalized:
                             is_user_finalized = True
         
@@ -346,8 +363,17 @@ def claim_item(request, receipt_slug):
                 'line_item_id': data.get('line_item_id'),
                 'quantity': int(data.get('quantity', 1))
             }]
-        
-        
+
+        # Convert quantity to fractional format if needed
+        for claim in claims_data:
+            if 'quantity' in claim and 'quantity_numerator' not in claim:
+                # Convert integer/decimal quantity to fractional format
+                quantity = claim['quantity']
+                if isinstance(quantity, (int, float)):
+                    claim['quantity_numerator'] = int(quantity)
+                    claim['quantity_denominator'] = 1
+                # Keep original quantity for backward compatibility
+
         # Finalize all claims at once
         result = claim_service.finalize_claims(
             receipt_id=receipt_id,
@@ -380,6 +406,43 @@ def claim_item(request, receipt_slug):
     except Exception as e:
         logger.exception(f"Exception in claim_item for slug '{receipt_slug}'")
         return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)
+
+
+@rate_limit_claim
+@require_http_methods(["POST"])
+def subdivide_item(request, receipt_slug):
+    """Subdivide (re-split) a line item on the claim page."""
+    receipt = receipt_service.get_receipt_by_slug(receipt_slug)
+
+    if not receipt:
+        return JsonResponse({'error': 'Receipt not found'}, status=404)
+
+    if not receipt.is_finalized:
+        return JsonResponse({'error': 'Receipt must be finalized first'}, status=400)
+
+    user_context = request.user_context(str(receipt.id))
+    viewer_name = user_context.name
+    if not viewer_name and user_context.is_uploader:
+        viewer_name = receipt.uploader_name
+    if not viewer_name:
+        return JsonResponse({'error': 'Please enter your name first'}, status=400)
+
+    try:
+        data = json.loads(request.body)
+        line_item_id = data.get('line_item_id')
+        target_parts = int(data.get('target_parts', 0))
+
+        if target_parts < 1:
+            return JsonResponse({'error': 'target_parts must be >= 1'}, status=400)
+
+        result = claim_service.subdivide_item(line_item_id, target_parts)
+        return JsonResponse(result)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.exception(f"Exception in subdivide_item for slug '{receipt_slug}'")
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -419,17 +482,14 @@ def get_claim_status(request, receipt_slug):
         my_total = Decimal('0')
         is_user_finalized = False
         if viewer_name:
-            # Extract from already-fetched receipt_data instead of making 2 queries
+            from fractions import Fraction
             for item_data in receipt_data['items_with_claims']:
                 item = item_data['item']
                 for claim in item_data['claims']:
                     if claim.claimer_name == viewer_name:
-                        # Calculate share amount inline
-                        unit_price = item.total_price / item.quantity if item.quantity else Decimal('0')
-                        prorated_tax = item.prorated_tax / item.quantity if item.quantity else Decimal('0')
-                        prorated_tip = item.prorated_tip / item.quantity if item.quantity else Decimal('0')
-                        my_total += claim.quantity_claimed * (unit_price + prorated_tax + prorated_tip)
-                        # Check finalization status
+                        if item.quantity_numerator > 0:
+                            share_fraction = Fraction(claim.quantity_numerator, item.quantity_numerator)
+                            my_total += (Decimal(share_fraction.numerator) / Decimal(share_fraction.denominator)) * item.get_total_share()
                         if claim.is_finalized and claim.session_id == user_context.session_id:
                             is_user_finalized = True
         
@@ -439,7 +499,8 @@ def get_claim_status(request, receipt_slug):
             'viewer_name': viewer_name,
             'is_finalized': is_user_finalized,
             'participant_totals': [
-                {'name': participant['name'], 'amount': float(participant['amount'])}
+                {'name': participant['name'], 'amount': float(participant['amount']),
+                 'venmo_username': participant.get('venmo_username', '')}
                 for participant in receipt_data['participant_totals']
             ],
             'total_claimed': float(receipt_data['total_claimed']),
@@ -450,13 +511,20 @@ def get_claim_status(request, receipt_slug):
         
         # Add item-level claim data
         for item_data in receipt_data['items_with_claims']:
+            item = item_data['item']
             item_info = {
-                'item_id': str(item_data['item'].id),
+                'item_id': str(item.id),
                 'available_quantity': item_data['available_quantity'],
+                'quantity_numerator': item.quantity_numerator,
+                'quantity_denominator': item.quantity_denominator,
+                'unit_price': float(item.unit_price),
+                'total_price': float(item.total_price),
+                'per_portion_share': float(item.get_per_portion_share()),
                 'claims': [
                     {
                         'claimer_name': claim.claimer_name,
-                        'quantity_claimed': claim.quantity_claimed
+                        'quantity_claimed': claim.quantity_numerator,
+                        'quantity_numerator': claim.quantity_numerator,
                     }
                     for claim in item_data['claims']
                 ]

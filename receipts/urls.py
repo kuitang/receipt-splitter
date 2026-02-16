@@ -10,6 +10,7 @@ urlpatterns = [
     path('r/<str:receipt_slug>/', views.view_receipt, name='view_receipt'),
     path('claim/<str:receipt_slug>/', views.claim_item, name='claim_item'),
     path('claim/<str:receipt_slug>/status/', views.get_claim_status, name='get_claim_status'),
+    path('claim/<str:receipt_slug>/subdivide/', views.subdivide_item, name='subdivide_item'),
     # path('unclaim/<str:receipt_slug>/<int:claim_id>/', views.unclaim_item, name='unclaim_item'),  # REMOVED: Violates total claims protocol
     path('status/<str:receipt_slug>/', views.check_processing_status, name='check_processing_status'),
     path('content/<str:receipt_slug>/', views.get_receipt_content, name='get_receipt_content'),

@@ -1,18 +1,17 @@
 """
-OCR Library for Receipt Processing using OpenAI Vision API with Pydantic validation
+OCR Library for Receipt Processing using Google Gemini API with Pydantic validation
 """
 
-import base64
-import hashlib
 import json
 import logging
-from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Union, BinaryIO, Optional
+from typing import Union, BinaryIO
+
 from PIL import Image, ImageOps
 import pillow_heif
-from openai import OpenAI
+from google import genai
+from google.genai import types
 
 from .models import ReceiptData, LineItem
 
@@ -21,255 +20,316 @@ pillow_heif.register_heif_opener()
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Receipt JSON Schema (single source of truth for Gemini structured output)
+# ---------------------------------------------------------------------------
 
-def _calculate_openai_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """
-    Calculate the cost of an OpenAI API call based on current pricing.
-    Source: https://www.helicone.ai/llm-cost/provider/openai/model/gpt-4o
-    
-    Args:
-        model: The model used (e.g., "gpt-4o")
-        prompt_tokens: Number of input tokens
-        completion_tokens: Number of output tokens
-        
-    Returns:
-        Total cost in USD
-    """
-    # Current GPT-4o pricing (as of 2024-2025)
-    pricing = {
-        "gpt-4o": {
-            "input_per_1k": 0.005,   # $0.005 per 1K input tokens
-            "output_per_1k": 0.015   # $0.015 per 1K output tokens
+RECEIPT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "restaurant_name": {"type": "string"},
+        "date": {"type": "string"},
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "quantity": {"type": "integer"},
+                    "unit_price": {"type": "number"},
+                    "total_price": {"type": "number"},
+                },
+                "required": ["name", "quantity", "unit_price", "total_price"],
+                "additionalProperties": False,
+            },
         },
-        "gpt-4o-mini": {
-            "input_per_1k": 0.00015,  # $0.00015 per 1K input tokens
-            "output_per_1k": 0.0006   # $0.0006 per 1K output tokens
-        }
+        "subtotal": {"type": "number"},
+        "tax": {"type": "number"},
+        "tip": {"type": "number"},
+        "total": {"type": "number"},
+        "confidence_score": {"type": "number"},
+        "notes": {"type": ["string", "null"]},
+    },
+    "required": [
+        "restaurant_name", "date", "items",
+        "subtotal", "tax", "tip", "total",
+        "confidence_score", "notes",
+    ],
+    "additionalProperties": False,
+}
+
+
+def _gemini_schema(schema: dict) -> dict:
+    """Convert JSON Schema to Gemini-compatible schema.
+
+    Gemini doesn't support union types like ["string", "null"] or
+    additionalProperties. Convert to single types and strip unsupported keys.
+    """
+    import copy
+    s = copy.deepcopy(schema)
+
+    def _fix(node):
+        if not isinstance(node, dict):
+            return
+        # Convert union types to single type (drop null)
+        if "type" in node and isinstance(node["type"], list):
+            non_null = [t for t in node["type"] if t != "null"]
+            node["type"] = non_null[0] if non_null else "string"
+            node["nullable"] = True
+        # Remove additionalProperties (unsupported by Gemini)
+        node.pop("additionalProperties", None)
+        # Recurse into properties
+        for prop in node.get("properties", {}).values():
+            _fix(prop)
+        # Recurse into array items
+        if "items" in node and isinstance(node["items"], dict):
+            _fix(node["items"])
+
+    _fix(s)
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Mime type detection
+# ---------------------------------------------------------------------------
+
+_MIME_MAP = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+    ".webp": "image/webp",
+}
+
+# Map PIL format names to save kwargs
+_PIL_FORMAT_MAP = {
+    "JPEG": {"format": "JPEG", "quality": 85},
+    "PNG": {"format": "PNG"},
+    "WEBP": {"format": "WEBP"},
+    "HEIF": {"format": "HEIF"},
+}
+
+
+def _detect_mime(path: Path) -> str:
+    """Detect MIME type from file extension."""
+    return _MIME_MAP.get(path.suffix.lower(), "image/jpeg")
+
+
+def _mime_to_pil_format(mime: str) -> str:
+    """Convert MIME type to PIL format string."""
+    return {
+        "image/jpeg": "JPEG",
+        "image/png": "PNG",
+        "image/webp": "WEBP",
+        "image/heic": "HEIF",
+        "image/heif": "HEIF",
+    }.get(mime, "JPEG")
+
+
+# ---------------------------------------------------------------------------
+# Cost calculation
+# ---------------------------------------------------------------------------
+
+def _calculate_gemini_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Calculate Gemini API cost based on current pricing.
+
+    Gemini 3 Flash pricing:
+        Input: $0.50 per 1M tokens
+        Output: $3.00 per 1M tokens (non-thinking)
+    """
+    pricing = {
+        "gemini-3-flash-preview": {
+            "input_per_1m": 0.50,
+            "output_per_1m": 3.00,
+        },
+        "gemini-3-pro-preview": {
+            "input_per_1m": 2.50,
+            "output_per_1m": 15.00,
+        },
     }
-    
-    # Default to gpt-4o pricing if model not found
-    model_pricing = pricing.get(model, pricing["gpt-4o"])
-    
-    input_cost = (prompt_tokens / 1000) * model_pricing["input_per_1k"]
-    output_cost = (completion_tokens / 1000) * model_pricing["output_per_1k"]
-    
+
+    # Default to flash pricing
+    model_pricing = pricing.get(model, pricing["gemini-3-flash-preview"])
+
+    input_cost = (input_tokens / 1_000_000) * model_pricing["input_per_1m"]
+    output_cost = (output_tokens / 1_000_000) * model_pricing["output_per_1m"]
+
     return input_cost + output_cost
 
 
 class ReceiptOCR:
-    """Main OCR class for processing receipt images with structured output"""
-    
-    def __init__(self, api_key: str, model: str = "gpt-4o", cache_size: int = 128, seed_test_cache: bool = True):
+    """Main OCR class for processing receipt images with Gemini structured output"""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gemini-3-flash-preview",
+        thinking_level: str = "low",
+    ):
         """
-        Initialize the OCR processor with optional caching
-        
+        Initialize the OCR processor.
+
         Args:
-            api_key: OpenAI API key
-            model: OpenAI model to use (default: gpt-4o for vision)
-            cache_size: Number of cached OCR results (default: 128, set to 0 to disable)
-            seed_test_cache: Whether to compute IMG_6839 hash for test environments
+            api_key: Google Gemini API key
+            model: Gemini model to use (default: gemini-3-flash-preview)
+            thinking_level: Gemini thinking level (default: low)
         """
-        self.client = OpenAI(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
         self.model = model
-        self.max_image_size = 2048  # Max dimension in pixels
-        self.jpeg_quality = 85
-        self.cache_size = cache_size
-        self._img_6839_hash: Optional[str] = None
-        
-        # Initialize the cached OCR function
-        if cache_size > 0:
-            self._cached_ocr_call = lru_cache(maxsize=cache_size)(self._ocr_api_call)
-            
-            # Compute IMG_6839.HEIC hash for test environments
-            if seed_test_cache:
-                self._compute_img_6839_hash()
-        else:
-            self._cached_ocr_call = self._ocr_api_call  # No caching
-    
-    def _compute_img_6839_hash(self):
-        """Compute and store the hash for IMG_6839.HEIC test image"""
+        self.thinking_level = thinking_level
+
+    def _prepare_image(self, raw_bytes: bytes, mime_type: str) -> tuple:
+        """Prepare image bytes: EXIF rotate only, preserve original format.
+
+        Args:
+            raw_bytes: Raw image bytes
+            mime_type: MIME type of the image
+
+        Returns:
+            Tuple of (processed_bytes, mime_type)
+        """
+        image = Image.open(BytesIO(raw_bytes))
+
+        # Apply EXIF rotation
         try:
-            test_data_dir = Path(__file__).parent / "test_data"
-            image_file = test_data_dir / "IMG_6839.HEIC"
-            
-            if not image_file.exists():
-                logger.debug(f"IMG_6839.HEIC not found at: {image_file}")
-                return
-            
-            logger.info("Computing hash for IMG_6839.HEIC test image")
-            
-            image = Image.open(image_file)
-            image = self._preprocess_image(image)
-            base64_image = self._image_to_base64(image)
-            self._img_6839_hash = self._compute_image_hash(base64_image)
-            
-            logger.info(f"IMG_6839.HEIC hash computed: {self._img_6839_hash[:8]}...")
-            
-        except Exception as e:
-            logger.warning(f"Failed to compute IMG_6839 hash: {e}")
-    
-    def _get_img_6839_results(self) -> str:
-        """Get the hardcoded results for IMG_6839.HEIC test image"""
-        try:
-            test_data_dir = Path(__file__).parent / "test_data"
-            results_file = test_data_dir / "IMG_6839_results.json"
-            
-            if not results_file.exists():
-                raise ValueError("IMG_6839_results.json not found")
-            
-            with open(results_file, 'r') as f:
-                results_data = json.load(f)
-            
-            logger.info("Returning hardcoded IMG_6839.HEIC results - NO API CALL MADE")
-            return json.dumps(results_data)
-            
-        except Exception as e:
-            logger.error(f"Failed to get IMG_6839 results: {e}")
-            raise
-    
-    def _preprocess_image(self, image: Image.Image) -> Image.Image:
-        """Preprocess image for OCR"""
-        # Convert to RGB if necessary
-        if image.mode not in ('RGB', 'L'):
-            image = image.convert('RGB')
-        
-        # Auto-rotate based on EXIF
-        try:
-            image = ImageOps.exif_transpose(image)
+            rotated = ImageOps.exif_transpose(image)
+            if rotated is not image:
+                image = rotated
         except Exception as e:
             logger.debug(f"Could not auto-rotate image: {e}")
-        
-        # Resize if too large
-        if max(image.size) > self.max_image_size:
-            image.thumbnail((self.max_image_size, self.max_image_size), Image.Resampling.LANCZOS)
-            logger.info(f"Resized image to {image.size}")
-        
-        return image
-    
-    def _image_to_base64(self, image: Image.Image) -> str:
-        """Convert PIL Image to base64 string"""
+
+        # Save back in original format
+        pil_format = _mime_to_pil_format(mime_type)
+        save_kwargs = _PIL_FORMAT_MAP.get(pil_format, {"format": "JPEG"})
+
         buffer = BytesIO()
         try:
-            image.save(buffer, format='JPEG', quality=self.jpeg_quality)
-            return base64.b64encode(buffer.getvalue()).decode('utf-8')
-        finally:
-            buffer.close()
-    
-    def _compute_image_hash(self, base64_image: str) -> str:
-        """Compute SHA256 hash of the image for caching"""
-        return hashlib.sha256(base64_image.encode()).hexdigest()
-    
-    
-    def _create_prompt(self) -> str:
-        """Create the prompt for OpenAI Vision API"""
-        return """Analyze this receipt image and extract ALL information. Follow these rules:
+            image.save(buffer, **save_kwargs)
+            return buffer.getvalue(), mime_type
+        except Exception:
+            # Fallback: if saving in original format fails (e.g., HEIF write not supported),
+            # convert to JPEG
+            logger.debug(f"Could not save as {pil_format}, falling back to JPEG")
+            buffer = BytesIO()
+            if image.mode not in ('RGB', 'L'):
+                image = image.convert('RGB')
+            image.save(buffer, format='JPEG', quality=85)
+            return buffer.getvalue(), "image/jpeg"
 
-1. Extract EVERY line item you can see, even if partially visible
-2. If quantity is not shown, use 1
-3. Ensure all monetary values are positive numbers (except tip which can be negative for discounts)
-4. If you see service charge, include it in the tip field
-5. If subtotal is not explicitly shown, calculate it from items
-6. The sum of items should equal subtotal (or be very close)
-7. Subtotal + tax + tip should equal total (or be very close)
-8. If multiple lines containing "Total" appear, use the one with the LARGEST value
-9. Use 0 for missing tax or tip rather than null
-10. Set confidence_score based on image quality and extraction certainty (0-1)
-11. Add any issues or ambiguities in the notes field"""
-    
-    def _ocr_api_call(self, image_hash: str, base64_image: str) -> str:
-        """
-        Make the actual OCR API call (cached based on image hash)
-        """
-        # Check if this is the IMG_6839.HEIC test image
-        if self._img_6839_hash and image_hash == self._img_6839_hash:
-            logger.info(f"IMG_6839.HEIC detected (hash: {image_hash[:8]}...) - Using hardcoded results, NO API CALL")
-            return self._get_img_6839_results()
-        
-        logger.info(f"Making OpenAI API call for image hash: {image_hash[:8]}...")
-        
+    def _create_prompt(self) -> str:
+        """Create the prompt for Gemini Vision API (v5_aligned, hardcoded)"""
+        return """Extract receipt data from this image into structured JSON.
+
+ITEM RULES:
+1. Extract line items that have a non-zero price. Each item needs: name, quantity, unit_price, total_price.
+2. Modifier add-ons WITH a price (e.g., "+AMERICAN CHS 0.75") ARE separate items.
+3. Modifier lines WITHOUT a price ("medium", "W/R", "NEAT", "no onions") are NOT items — skip them.
+4. Zero-price items ($0.00) are NOT items — skip them (e.g., free toppings like "Lettuce $0.00").
+5. Quantity patterns:
+   - "2 Lunch 45.90" → qty=2, total_price=45.90, unit_price=22.95
+   - "(2 @14.00) 28.00" → qty=2, unit_price=14.00, total_price=28.00
+   - "3 ASADA TACO 8.10" → qty=3, total_price=8.10, unit_price=2.70
+   - No quantity shown → qty=1
+6. total_price MUST equal quantity × unit_price.
+
+TOTALS:
+7. subtotal: Sum before tax/tip. Should match sum of item total_prices.
+8. tax: Tax amount. Use 0 if not shown.
+9. tip: ONLY if actually charged (not suggested tips). Include service charges/fees. Use 0 if not charged.
+10. total: Final amount due. If multiple "Total" lines exist, use the LARGEST value.
+11. Verify: subtotal + tax + tip ≈ total.
+
+OUTPUT:
+12. confidence_score: 0-1 based on extraction certainty.
+13. notes: Any ambiguities or issues."""
+
+    def _ocr_api_call(self, image_bytes: bytes, mime_type: str) -> str:
+        """Make the Gemini API call for receipt OCR."""
+        logger.info(f"Making Gemini API call ({len(image_bytes)} bytes, {mime_type})")
+
         try:
-            # Use the parse method with Pydantic model for automatic schema handling
-            response = self.client.chat.completions.parse(
+            config_kwargs = {
+                "response_mime_type": "application/json",
+                "response_schema": _gemini_schema(RECEIPT_SCHEMA),
+            }
+            if self.thinking_level:
+                config_kwargs["thinking_config"] = types.ThinkingConfig(
+                    thinking_level=self.thinking_level
+                )
+
+            response = self.client.models.generate_content(
                 model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": self._create_prompt()},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
-                                }
-                            }
+                contents=[
+                    types.Content(
+                        parts=[
+                            types.Part.from_text(text=self._create_prompt()),
+                            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                         ]
-                    }
+                    )
                 ],
-                response_format=ReceiptData,
-                max_tokens=2000,
-                temperature=0.1
+                config=types.GenerateContentConfig(**config_kwargs),
             )
-            
+
             # Log usage information with cost
-            if response.usage:
-                usage = response.usage
-                cost = _calculate_openai_cost(self.model, usage.prompt_tokens, usage.completion_tokens)
+            usage_meta = response.usage_metadata
+            if usage_meta:
+                input_tokens = getattr(usage_meta, "prompt_token_count", 0) or 0
+                output_tokens = getattr(usage_meta, "candidates_token_count", 0) or 0
+                cost = _calculate_gemini_cost(self.model, input_tokens, output_tokens)
                 logger.info(
-                    f"💵 OpenAI API Call Complete - Model: {self.model}, "
-                    f"Image Hash: {image_hash}, "
-                    f"Prompt tokens: {usage.prompt_tokens}, "
-                    f"Completion tokens: {usage.completion_tokens}, "
-                    f"Total tokens: {usage.total_tokens}, "
+                    f"Gemini API Call Complete - Model: {self.model}, "
+                    f"Input tokens: {input_tokens}, "
+                    f"Output tokens: {output_tokens}, "
                     f"Cost: ${cost:.4f}"
                 )
-            
-            # The parse method returns a ParsedChatCompletion with the parsed object in the message
-            parsed_data = response.choices[0].message.parsed
-            if parsed_data:
-                return parsed_data.model_dump_json()
-            else:
-                # Fallback to raw content if parsed is not available
-                return response.choices[0].message.content
-            
+
+            return response.text
+
         except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise ValueError(f"Failed to process image with OpenAI: {e}")
-    
+            logger.error(f"Gemini API error: {e}")
+            raise ValueError(f"Failed to process image with Gemini: {e}")
+
     def process_image(self, image_input: Union[str, Path, bytes, BinaryIO]) -> ReceiptData:
         """
         Process a receipt image from any input type
-        
+
         Args:
             image_input: Can be a file path, Path object, bytes, or file-like object
-            
+
         Returns:
             ReceiptData object with extracted and validated information
         """
-        # Load image based on input type
+        # Load raw bytes and determine mime type
         if isinstance(image_input, (str, Path)):
             image_path = Path(image_input)
             if not image_path.exists():
                 raise FileNotFoundError(f"Image file not found: {image_path}")
             logger.info(f"Processing image file: {image_path}")
-            image = Image.open(image_path)
+            raw_bytes = image_path.read_bytes()
+            mime_type = _detect_mime(image_path)
         elif isinstance(image_input, bytes):
             logger.info(f"Processing image from bytes ({len(image_input)} bytes)")
-            image = Image.open(BytesIO(image_input))
+            raw_bytes = image_input
+            # Default to JPEG for raw bytes; Gemini handles format detection
+            mime_type = "image/jpeg"
         else:
             # File-like object
             logger.info("Processing image from file-like object")
-            image = Image.open(image_input)
-        
-        # Preprocess image
-        image = self._preprocess_image(image)
-        
-        # Convert to base64 and compute hash
-        base64_image = self._image_to_base64(image)
-        image_hash = self._compute_image_hash(base64_image)
-        
-        # Make the (potentially cached) API call
-        response_text = self._cached_ocr_call(image_hash, base64_image)
-        
+            image_input.seek(0)
+            raw_bytes = image_input.read()
+            filename = getattr(image_input, 'name', '')
+            if filename:
+                mime_type = _detect_mime(Path(filename))
+            else:
+                mime_type = "image/jpeg"
+
+        # EXIF rotate, preserve original format
+        processed_bytes, processed_mime = self._prepare_image(raw_bytes, mime_type)
+
+        # Make the API call
+        response_text = self._ocr_api_call(processed_bytes, processed_mime)
+
         # Parse response with Pydantic
         try:
             receipt_data = ReceiptData.model_validate_json(response_text)
@@ -277,10 +337,7 @@ class ReceiptOCR:
             logger.error(f"Failed to parse OCR response: {e}")
             logger.debug(f"Response text: {response_text[:500]}...")
             raise ValueError(f"Failed to parse OCR results: {e}")
-        
-        # Store raw response for debugging
-        receipt_data.raw_text = response_text
-        
+
         # Validate and correct if needed
         is_valid, errors = receipt_data.validate_totals()
         if not is_valid:
@@ -288,53 +345,22 @@ class ReceiptOCR:
             corrections = receipt_data.correct_totals()
             if corrections['applied']:
                 logger.info(f"Applied corrections: {corrections['reason']}")
-                
+
                 # Re-validate after corrections
                 is_valid_after, errors_after = receipt_data.validate_totals()
                 if is_valid_after:
                     logger.info("Receipt validation successful after corrections")
                 else:
                     logger.warning(f"Receipt still has issues after corrections: {errors_after}")
-        
+
         return receipt_data
-    
+
     # Backwards compatibility alias
     def process_image_bytes(self, image_bytes: bytes, format: str = "JPEG") -> ReceiptData:
         """Process receipt image from bytes - redirects to unified process_image method"""
-        # The format parameter is ignored now since PIL auto-detects
         try:
             return self.process_image(image_bytes)
         except Exception as e:
-            # If it fails, it might be invalid image data
             logger.error(f"Failed to process image bytes: {e}")
             raise
-    
-    def get_cache_stats(self) -> dict:
-        """Get cache statistics from LRU cache"""
-        if hasattr(self._cached_ocr_call, 'cache_info'):
-            info = self._cached_ocr_call.cache_info()
-            total = info.hits + info.misses
-            return {
-                "cache_hits": info.hits,
-                "cache_misses": info.misses,
-                "total_calls": total,
-                "hit_rate": round(info.hits / total * 100, 2) if total > 0 else 0,
-                "cache_size": info.maxsize,
-                "current_size": info.currsize,
-                "cache_info": info  # Include full info for compatibility
-            }
-        return {
-            "cache_hits": 0,
-            "cache_misses": 0,
-            "total_calls": 0,
-            "hit_rate": 0,
-            "cache_size": self.cache_size,
-            "current_size": 0,
-            "cache_info": None
-        }
-    
-    def clear_cache(self):
-        """Clear the OCR cache"""
-        if hasattr(self._cached_ocr_call, 'cache_clear'):
-            self._cached_ocr_call.cache_clear()
-            logger.info("OCR cache cleared")
+

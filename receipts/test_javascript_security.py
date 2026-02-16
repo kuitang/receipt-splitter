@@ -58,7 +58,7 @@ class JavaScriptInjectionTests(TestCase):
         self.item = LineItem.objects.create(
             receipt=self.receipt,
             name="Safe Item",
-            quantity=1,
+            quantity_numerator=1,
             unit_price=Decimal('10.00'),
             total_price=Decimal('10.00')
         )
@@ -467,7 +467,7 @@ class ValidationErrorSecurityTests(TestCase):
         item = LineItem.objects.create(
             receipt=self.receipt,
             name="Test Item",
-            quantity=2,
+            quantity_numerator=2,
             unit_price=Decimal('10.00'),
             total_price=Decimal('20.00')
         )
@@ -516,7 +516,7 @@ class ValidationErrorSecurityTests(TestCase):
             item = LineItem.objects.create(
                 receipt=self.receipt,
                 name=safe_name,
-                quantity=1,
+                quantity_numerator=1,
                 unit_price=Decimal('10.00'),
                 total_price=Decimal('10.00')
             )

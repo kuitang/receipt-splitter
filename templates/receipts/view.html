@@ -15,15 +15,20 @@
         <h2 class="text-2xl font-semibold mb-4">Enter Your Name to View Receipt</h2>
         <form method="post">
             {% csrf_token %}
-            <div class="flex space-x-2">
-                <input type="text" 
-                       name="viewer_name" 
+            <div class="flex flex-col gap-3">
+                <input type="text"
+                       name="viewer_name"
                        required
                        minlength="2"
                        maxlength="50"
-                       class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                        placeholder="Enter your name">
-                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                <input type="text"
+                       name="viewer_venmo"
+                       maxlength="31"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                       placeholder="Venmo username (optional)">
+                <button type="submit" class="w-full bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium">
                     Continue
                 </button>
             </div>
@@ -75,6 +80,9 @@
             <div class="text-right">
                 <p class="text-sm text-gray-600">Uploaded by</p>
                 <p class="font-semibold">{{ receipt.uploader_name }}</p>
+                {% if receipt.venmo_username %}
+                <p class="text-sm text-blue-600">@{{ receipt.venmo_username }}</p>
+                {% endif %}
             </div>
         </div>
 
@@ -87,7 +95,16 @@
                         {% for participant in participant_totals %}
                         <div class="flex justify-between items-center">
                             <span class="text-gray-700">{{ participant.name }}</span>
-                            <span class="font-medium tabular-nums">${{ participant.amount|floatformat:2 }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium tabular-nums">${{ participant.amount|floatformat:2 }}</span>
+                                {% if is_uploader and participant.venmo_username and participant.name != receipt.uploader_name %}
+                                <a href="https://venmo.com/{{ participant.venmo_username }}?txn=charge&amount={{ participant.amount|floatformat:2 }}&note=You%20Owe%20-%20{{ receipt.restaurant_name|urlencode }}%20{{ share_url }}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="text-xs px-2 py-0.5 bg-[#008CFF] text-white rounded font-medium hover:bg-[#0070CC] transition-colors"
+                                   title="Request ${{ participant.amount|floatformat:2 }} from {{ participant.name }}">Venmo</a>
+                                {% endif %}
+                            </div>
                         </div>
                         {% endfor %}
                         {% if total_unclaimed > 0 %}
@@ -135,9 +152,6 @@
                     {% for claim in my_claims %}{{ claim.line_item.name }} ({{ claim.quantity_claimed }}){% if not forloop.last %}, {% endif %}{% endfor %}
                 </p>
                 {% endif %}
-                {% if is_user_finalized %}
-                <p class="text-xs text-blue-600 mt-1">✓ Your claims have been finalized and cannot be changed</p>
-                {% endif %}
             </div>
             {% if not is_user_finalized %}
             <button data-action="confirm-claims" 
@@ -148,8 +162,18 @@
             </button>
             {% else %}
             <div class="text-center">
+                {% if receipt.venmo_username %}
+                <a id="venmo-pay-link"
+                   href="https://venmo.com/{{ receipt.venmo_username }}?txn=pay&amount={{ my_total|floatformat:2 }}&note=You%20Owe%20-%20{{ receipt.restaurant_name|urlencode }}%20{{ share_url }}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="inline-flex items-center px-4 py-2 bg-[#008CFF] text-white rounded-lg text-sm font-medium hover:bg-[#0070CC] transition-colors">
+                    Pay @{{ receipt.venmo_username }} ${{ my_total|floatformat:2 }}
+                </a>
+                {% else %}
                 <div class="text-blue-600 text-2xl mb-1">✓</div>
                 <p class="text-sm text-blue-600 font-medium">Claims Finalized</p>
+                {% endif %}
             </div>
             {% endif %}
         </div>
@@ -166,16 +190,17 @@
 {% block extra_scripts %}
 {% if viewer_name and receipt.is_finalized %}
 <!-- Data attributes for JavaScript -->
-<div id="view-page-data" 
+<div id="view-page-data"
      data-receipt-slug="{{ receipt.slug }}"
      data-receipt-id="{{ receipt.id }}"
+     data-venmo-username="{{ receipt.venmo_username }}"
+     data-restaurant-name="{{ receipt.restaurant_name }}"
      style="display: none;">
 </div>
 {% load static %}
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"
         integrity="sha384-HGmnkDZJy7mRkoARekrrj0VjEFSh9a0Z8qxGri/kTTAJkgR8hqD1lHsYSh3JdzRi"
         crossorigin="anonymous"></script>
-<script src="{% static 'js/utils.js' %}"></script>
 <script src="{% static 'js/template-utils.js' %}"></script>
 <script src="{% static 'js/view-page.js' %}"></script>
 {% endif %}

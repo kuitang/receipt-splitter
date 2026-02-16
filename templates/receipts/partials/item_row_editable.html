@@ -4,6 +4,8 @@ Context: item (LineItem object, optional), container_class (optional)
 {% endcomment %}
 
 <div class="item-row {{ container_class|default:'' }}" {% if item %}data-item-id="{{ item.id }}"{% endif %}>
+    <input type="hidden" class="item-quantity-numerator" value="{% if item %}{{ item.quantity_numerator }}{% else %}1{% endif %}">
+    <input type="hidden" class="item-quantity-denominator" value="{% if item %}{{ item.quantity_denominator }}{% else %}1{% endif %}">
     <div class="flex-1 border rounded-lg p-4 relative">
         <!-- Delete button: inside box (top-right) -->
         <button data-action="remove-item" class="absolute top-2 right-2 text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
@@ -22,13 +24,13 @@ Context: item (LineItem object, optional), container_class (optional)
             </div>
             <!-- Mobile: Put quantity/price on same line below name -->
             <div class="flex gap-2 items-center">
-                <div class="w-12 sm:w-16">
-                    <input type="number" 
-                           value="{% if item %}{{ item.quantity }}{% else %}1{% endif %}"
-                           min="1"
-                           max="99"
+                <div class="w-24 sm:w-32 flex items-center">
+                    <input type="text"
+                           value="{% if item %}{{ item.quantity_numerator }}{% if item.quantity_denominator != 1 %}/{{ item.quantity_denominator }}{% endif %}{% else %}1{% endif %}"
                            placeholder="Qt"
-                           class="item-quantity w-full px-1 sm:px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 text-center tabular-nums">
+                           class="item-quantity w-1/2 flex-grow px-1 sm:px-2 py-2 border border-gray-300 rounded-l-lg text-sm focus:ring-2 focus:ring-blue-500 text-center tabular-nums"
+                           readonly>
+                    <button data-action="subdivide-item" class="bg-gray-200 text-gray-700 px-2 py-2 border-t border-b border-r border-gray-300 rounded-r-lg hover:bg-gray-300 text-sm font-medium">÷</button>
                 </div>
                 <span class="text-gray-500 font-medium">×</span>
                 <div class="w-20 sm:w-24">

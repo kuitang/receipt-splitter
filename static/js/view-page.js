@@ -9,6 +9,7 @@ let receiptId = null;
 let currentClaims = {};
 let viewerName = null; // Current user's name
 let hasUnsavedChanges = false;
+let isSubmitting = false;  // suppress beforeunload during intentional navigation
 
 // Polling state
 let pollingInterval = null;
@@ -475,7 +476,61 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
     itemsWithClaims.forEach(itemData => {
         const itemContainer = document.querySelector(`[data-item-id="${itemData.item_id}"]`);
         if (!itemContainer) return;
-        
+
+        // Update fractional quantity data attributes (used by subdivide modal)
+        if (itemData.quantity_numerator != null) {
+            itemContainer.dataset.itemNumerator = itemData.quantity_numerator;
+        }
+        if (itemData.quantity_denominator != null) {
+            itemContainer.dataset.itemDenominator = itemData.quantity_denominator;
+        }
+
+        // Update item display text (quantity × price, per-portion share)
+        if (itemData.quantity_numerator != null && itemData.unit_price != null) {
+            const num = itemData.quantity_numerator;
+            const den = itemData.quantity_denominator || 1;
+            const unitPrice = itemData.unit_price.toFixed(2);
+            const totalPrice = itemData.total_price.toFixed(2);
+
+            const quantityText = itemContainer.querySelector('.text-gray-600.text-sm');
+            if (quantityText) {
+                if (den > 1) {
+                    quantityText.textContent = `$${unitPrice} × ${num}/${den} = $${totalPrice}`;
+                } else if (num > 1) {
+                    quantityText.textContent = `$${unitPrice} × ${num} = $${totalPrice}`;
+                } else {
+                    quantityText.textContent = `$${totalPrice}`;
+                }
+            }
+        }
+
+        // Update per-portion share display and data attribute
+        if (itemData.per_portion_share != null) {
+            const shareEl = itemContainer.querySelector('.item-share-amount');
+            if (shareEl) {
+                const share = itemData.per_portion_share.toFixed(2);
+                shareEl.dataset.amount = share;
+                shareEl.textContent = `$${share}`;
+            }
+            // Update the "per item/part" line
+            const calcLine = itemContainer.querySelector('.text-gray-500.text-xs');
+            if (calcLine) {
+                const den = itemData.quantity_denominator || 1;
+                const suffix = den > 1 ? 'part' : 'item';
+                const shareSpan = calcLine.querySelector('.item-share-amount');
+                if (shareSpan) {
+                    const share = itemData.per_portion_share.toFixed(2);
+                    shareSpan.dataset.amount = share;
+                    shareSpan.textContent = `$${share}`;
+                }
+                // Update suffix text (part vs item)
+                const lastText = calcLine.lastChild;
+                if (lastText && lastText.nodeType === Node.TEXT_NODE) {
+                    lastText.textContent = ` per ${suffix}`;
+                }
+            }
+        }
+
         // Calculate user's existing claims for this item
         let myExistingClaim = 0;
         if (viewerName) {
@@ -782,12 +837,33 @@ function updateTotal() {
     // Display the calculated total (no existingTotal confusion)
     myTotalElement.textContent = `$${totalAmount.toFixed(2)}`;
 
+    // Update Venmo link amount if present
+    updateVenmoLink(totalAmount);
+
     // Validate claims and update button state
     validateClaims();
     updateButtonState();
 
     // Save to localStorage
     saveClaimsToLocalStorage();
+}
+
+/**
+ * Update the Venmo payment link with the current total amount
+ */
+function updateVenmoLink(amount) {
+    const link = document.getElementById('venmo-pay-link');
+    if (!link) return;
+
+    const container = document.getElementById('view-page-data');
+    if (!container) return;
+
+    const venmoUsername = container.dataset.venmoUsername;
+    const restaurantName = container.dataset.restaurantName;
+    if (!venmoUsername) return;
+
+    const note = `You Owe - ${encodeURIComponent(restaurantName)} ${window.location.href}`;
+    link.href = `https://venmo.com/${venmoUsername}?txn=pay&amount=${amount.toFixed(2)}&note=${note}`;
 }
 
 /**
@@ -883,13 +959,14 @@ async function submitClaims(claims) {
                 const adjustments = [];
                 const adjustedClaims = claims.map(claim => {
                     const avail = error.availability.find(a => a.item_id === claim.line_item_id);
-                    if (avail && claim.quantity > avail.available) {
+                    const claimQty = claim.quantity_numerator || claim.quantity;
+                    if (avail && claimQty > avail.available) {
                         if (avail.available > 0) {
-                            adjustments.push(`${avail.name}: reduced from ${claim.quantity} to ${avail.available}`);
-                            return { ...claim, quantity: avail.available };
+                            adjustments.push(`${avail.name}: reduced from ${claimQty} to ${avail.available}`);
+                            return { ...claim, quantity: avail.available, quantity_numerator: avail.available };
                         } else {
                             adjustments.push(`${avail.name}: removed (none available)`);
-                            return { ...claim, quantity: 0 };
+                            return { ...claim, quantity: 0, quantity_numerator: 0 };
                         }
                     }
                     return claim;
@@ -917,6 +994,7 @@ async function submitClaims(claims) {
 
         // Success - clear localStorage and redirect
         clearSavedClaims();
+        isSubmitting = true;
 
         if (typeof window !== 'undefined' && window.location) {
             try {
@@ -933,6 +1011,186 @@ async function submitClaims(claims) {
 }
 
 /**
+ * Compute GCD of two numbers
+ */
+function mathGcd(a, b) {
+    a = Math.abs(a); b = Math.abs(b);
+    while (b) { [a, b] = [b, a % b]; }
+    return a;
+}
+
+/**
+ * Compute the irreducible min-parts and suggested options for an item.
+ * @param {HTMLElement} itemContainer - The item container element
+ * @returns {{ minParts: number, currentParts: number, options: number[] }}
+ */
+function computeSubdivideOptions(itemContainer) {
+    const itemNum = parseInt(itemContainer.dataset.itemNumerator) || 1;
+    const itemDen = parseInt(itemContainer.dataset.itemDenominator) || 1;
+
+    // Gather all claim numerators from the claims display
+    const claimNums = [];
+    let claimedTotal = 0;
+    itemContainer.querySelectorAll('[data-claimer-name]').forEach(badge => {
+        const numSpan = badge.parentElement.querySelector('[data-quantity-numerator]');
+        if (numSpan) {
+            const n = parseInt(numSpan.textContent) || 0;
+            if (n > 0) { claimNums.push(n); claimedTotal += n; }
+        }
+    });
+    // Also check polling-updated claims (quantity_claimed attributes)
+    if (claimNums.length === 0) {
+        itemContainer.querySelectorAll('.claim-badge, [data-claim-quantity]').forEach(el => {
+            const n = parseInt(el.dataset.claimQuantity) || 0;
+            if (n > 0) { claimNums.push(n); claimedTotal += n; }
+        });
+    }
+
+    let minParts;
+
+    if (claimNums.length === 0) {
+        // No claims: any target is valid (matches backend)
+        minParts = 1;
+    } else {
+        // With claims: GCD-based constraint to preserve claim integrity
+        const unclaimed = itemNum - claimedTotal;
+        let nums = [itemNum, itemDen, ...claimNums];
+        if (unclaimed > 0) nums.push(unclaimed);
+        let g = nums[0];
+        for (let i = 1; i < nums.length; i++) g = mathGcd(g, nums[i]);
+        minParts = itemNum / g;
+    }
+
+    // Generate options: multiples of minParts, skip current value, up to ~5 options
+    const options = [];
+    for (let k = 1; options.length < 5; k++) {
+        const val = minParts * k;
+        if (val !== itemNum) options.push(val);
+        if (val > itemNum * 4) break;
+    }
+
+    return { minParts, currentParts: itemNum, options };
+}
+
+/**
+ * Subdivide an item on the claim page.
+ * Shows smart radio options, then POSTs to /claim/<slug>/subdivide/.
+ */
+function subdivideItemOnClaimPage(lineItemId) {
+    const itemContainer = document.querySelector(`[data-item-id="${lineItemId}"]`);
+    if (!itemContainer) return;
+
+    const { minParts, currentParts, options } = computeSubdivideOptions(itemContainer);
+
+    // Build modal dynamically
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+
+    const modal = document.createElement('div');
+    modal.className = 'bg-white rounded-lg p-6 max-w-sm w-full mx-4';
+
+    const title = document.createElement('h3');
+    title.className = 'text-xl font-semibold text-gray-900 mb-2';
+    title.textContent = 'Split into parts';
+    modal.appendChild(title);
+
+    const subtitle = document.createElement('p');
+    subtitle.className = 'text-gray-600 mb-4 text-sm';
+    subtitle.textContent = `Currently ${currentParts} part${currentParts !== 1 ? 's' : ''}. Pick a new count:`;
+    modal.appendChild(subtitle);
+
+    // Radio options
+    const radiosDiv = document.createElement('div');
+    radiosDiv.className = 'space-y-2 mb-4';
+
+    let selectedValue = null;
+
+    options.forEach((val, idx) => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer';
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'subdivide-target';
+        radio.value = val;
+        radio.className = 'form-radio text-blue-600';
+
+        const text = document.createElement('span');
+        const suffix = val < currentParts ? ' (simplify)' : '';
+        text.textContent = `${val} part${val !== 1 ? 's' : ''}${suffix}`;
+        text.className = 'text-gray-800';
+
+        label.appendChild(radio);
+        label.appendChild(text);
+        radiosDiv.appendChild(label);
+
+        radio.addEventListener('change', () => { selectedValue = val; });
+
+        // Pre-select first option bigger than current, or first overall
+        if (selectedValue === null && val > currentParts) {
+            radio.checked = true;
+            selectedValue = val;
+        }
+    });
+    // If nothing selected yet, select first
+    if (selectedValue === null && options.length > 0) {
+        const firstRadio = radiosDiv.querySelector('input[type="radio"]');
+        if (firstRadio) { firstRadio.checked = true; selectedValue = options[0]; }
+    }
+
+    modal.appendChild(radiosDiv);
+
+    // Buttons
+    const btnsDiv = document.createElement('div');
+    btnsDiv.className = 'flex justify-end space-x-2';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium';
+    applyBtn.textContent = 'Apply';
+    applyBtn.addEventListener('click', async () => {
+        // Check radio selection
+        const checked = radiosDiv.querySelector('input[name="subdivide-target"]:checked');
+        const target = checked ? parseInt(checked.value) : null;
+        if (!target) return;
+
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Applying...';
+
+        try {
+            const response = await authenticatedJsonFetch(`/claim/${receiptSlug}/subdivide/`, {
+                method: 'POST',
+                body: JSON.stringify({ line_item_id: lineItemId, target_parts: target })
+            });
+            if (response.ok) {
+                overlay.remove();
+                // Refresh UI in-place via poll instead of full page reload
+                await pollClaimStatus();
+            } else {
+                const err = await response.json();
+                alert('Error: ' + (err.error || 'Unknown error'));
+                applyBtn.disabled = false;
+                applyBtn.textContent = 'Apply';
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+            applyBtn.disabled = false;
+            applyBtn.textContent = 'Apply';
+        }
+    });
+
+    btnsDiv.appendChild(cancelBtn);
+    btnsDiv.appendChild(applyBtn);
+    modal.appendChild(btnsDiv);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+}
+
+/**
  * Confirm and finalize all claims (new total claims protocol)
  */
 async function confirmClaims() {
@@ -942,13 +1200,14 @@ async function confirmClaims() {
         return;
     }
 
-    // Collect ALL claims (including zero quantities for items user doesn't want)
+    // Collect ALL claims using shared-denominator numerators
     const claims = [];
     document.querySelectorAll('.claim-quantity').forEach(input => {
         const quantity = parseInt(input.value) || 0;
         claims.push({
             line_item_id: input.dataset.itemId,
-            quantity: quantity  // Total desired quantity (may be 0)
+            quantity_numerator: quantity,
+            quantity: quantity  // backward compat
         });
     });
 
@@ -1055,6 +1314,14 @@ function initializeEventListeners() {
         });
     });
 
+    // Attach subdivide button handlers on claim page
+    document.querySelectorAll('[data-action="subdivide-claim-item"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const itemId = btn.dataset.itemId;
+            if (itemId) subdivideItemOnClaimPage(itemId);
+        });
+    });
+
     // Add dismiss handler for adjustment banner
     document.querySelectorAll('[data-dismiss-banner]').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -1094,6 +1361,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Warn about unsaved changes when leaving
     window.addEventListener('beforeunload', (e) => {
         stopPolling();
+
+        // Skip warning during intentional navigation (finalize, subdivide)
+        if (isSubmitting) return;
 
         // Check if user has unsaved changes
         const hasQuantities = Array.from(document.querySelectorAll('.claim-quantity'))
@@ -1163,6 +1433,10 @@ if (typeof module !== 'undefined' && module.exports) {
         getClaimInputClasses,
         updateClaimInputs,
         showAdjustmentBanner,
+        mathGcd,
+        computeSubdivideOptions,
+        subdivideItemOnClaimPage,
+        updateVenmoLink,
         
         // State variables (for testing)
         _getState: () => ({ 

@@ -6,6 +6,7 @@ Tax and tip can be negative to represent discounts or corrections, as per
 the TOTAL_CORRECTION implementation for handling OCR discrepancies.
 """
 from decimal import Decimal, ROUND_HALF_UP
+from fractions import Fraction
 from typing import Dict, List, Optional, Tuple
 
 
@@ -49,23 +50,28 @@ def validate_receipt_balance(receipt_data: Dict) -> Tuple[bool, Optional[Dict]]:
         for i, item in enumerate(items):
             if not item.get('name'):
                 continue  # Skip empty items
-                
-            quantity = int(item.get('quantity', 1))
+
+            # Support fractional quantities
+            num = int(item.get('quantity_numerator', item.get('quantity', 1)))
+            den = int(item.get('quantity_denominator', 1))
+            quantity = Fraction(num, den)
+
             unit_price = Decimal(str(item.get('unit_price', 0)))
             item_total = Decimal(str(item.get('total_price', 0)))
-            
-            expected_total = quantity * unit_price
-            
+
+            expected_total = (Decimal(quantity.numerator) / Decimal(quantity.denominator)) * unit_price
+
             # Allow for small rounding differences (within 1 cent)
             if abs(expected_total - item_total) > Decimal('0.01'):
                 if 'items' not in errors:
                     errors['items'] = []
+                qty_display = f"{num}/{den}" if den > 1 else str(num)
                 errors['items'].append({
                     'index': i,
                     'name': item.get('name'),
-                    'message': f"Item total ${item_total:.2f} doesn't match quantity ({quantity}) × price (${unit_price:.2f}) = ${expected_total:.2f}"
+                    'message': f"Item total ${item_total:.2f} doesn't match quantity ({qty_display}) × price (${unit_price:.2f}) = ${expected_total:.2f}"
                 })
-            
+
             items_sum += item_total
         
         # Check if items sum matches subtotal (allow 1 cent tolerance for rounding)

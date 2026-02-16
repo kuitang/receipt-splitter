@@ -99,7 +99,17 @@ window.TemplateUtils = {
         if (container) {
             // Add each claim badge
             claims.forEach(claim => {
-                const badge = this.createClaimBadge(claim.claimer_name, claim.quantity_claimed);
+                // Support both old and new claim formats
+                const numerator = claim.quantity_numerator || claim.quantity_claimed || 0;
+                const denominator = claim.quantity_denominator || 1;
+                const legacyQuantity = claim.quantity_claimed || numerator;
+
+                const badge = this.createClaimBadge(
+                    claim.claimer_name,
+                    legacyQuantity,
+                    numerator,
+                    denominator
+                );
                 if (badge) {
                     container.appendChild(badge);
                 }
@@ -115,17 +125,100 @@ window.TemplateUtils = {
      * @param {number} quantity - Quantity claimed
      * @returns {Element|null} The claim badge element
      */
-    createClaimBadge(claimerName, quantity) {
+    createClaimBadge(claimerName, quantity, quantityNumerator = null, quantityDenominator = null) {
         const clone = this.cloneTemplate('claim-badge-template');
         if (!clone) return null;
 
         const nameSpan = clone.querySelector('[data-claimer-name]');
-        const quantitySpan = clone.querySelector('[data-quantity]');
+        const numeratorSpan = clone.querySelector('[data-quantity-numerator]');
+        const denominatorSpan = clone.querySelector('[data-quantity-denominator]');
+        const legacyQuantitySpan = clone.querySelector('[data-quantity]');
 
         if (nameSpan) nameSpan.textContent = claimerName;
-        if (quantitySpan) quantitySpan.textContent = quantity;
+
+        // Handle fractional quantity fields (new format)
+        if (numeratorSpan && denominatorSpan) {
+            // Use explicit numerator/denominator if provided
+            const num = quantityNumerator !== null ? quantityNumerator : (quantity || 0);
+            const den = quantityDenominator !== null ? quantityDenominator : 1;
+
+            // Format the fraction for display (matching Python's format_fraction filter)
+            const formattedQuantity = this.formatFraction(num, den);
+
+            // The template has <span data-quantity-numerator></span>/<span data-quantity-denominator></span>
+            // But we want to show it as a single formatted string like "2" or "½" or "2 ½"
+            // So we'll put the formatted value in the numerator span and hide/remove the denominator and slash
+            numeratorSpan.textContent = formattedQuantity;
+
+            // Remove the slash and denominator span for clean display
+            if (denominatorSpan.previousSibling && denominatorSpan.previousSibling.textContent === '/') {
+                denominatorSpan.previousSibling.remove();
+            }
+            denominatorSpan.remove();
+        }
+
+        // Also support legacy single quantity field for backward compatibility
+        if (legacyQuantitySpan) {
+            legacyQuantitySpan.textContent = quantity;
+        }
 
         return clone.firstElementChild;
+    },
+
+    /**
+     * Format a fraction for display (matches Python's format_fraction filter)
+     * @param {number} numerator
+     * @param {number} denominator
+     * @returns {string} Formatted fraction
+     */
+    formatFraction(numerator, denominator) {
+        // If denominator is 1, just return the numerator
+        if (denominator === 1) {
+            return String(numerator);
+        }
+
+        // Simplify the fraction
+        const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+        const divisor = gcd(numerator, denominator);
+        const num = numerator / divisor;
+        const den = denominator / divisor;
+
+        // If simplified to whole number
+        if (den === 1) {
+            return String(num);
+        }
+
+        // Unicode fractions map
+        const unicodeFractions = {
+            '1/2': '½', '1/3': '⅓', '2/3': '⅔',
+            '1/4': '¼', '3/4': '¾', '1/5': '⅕',
+            '2/5': '⅖', '3/5': '⅗', '4/5': '⅘',
+            '1/6': '⅙', '5/6': '⅚', '1/8': '⅛',
+            '3/8': '⅜', '5/8': '⅝', '7/8': '⅞'
+        };
+
+        // Handle mixed numbers
+        const integerPart = Math.floor(num / den);
+        const fractionalPart = num % den;
+
+        let display = '';
+        if (integerPart > 0) {
+            display += String(integerPart);
+            if (fractionalPart > 0) {
+                display += ' ';
+            }
+        }
+
+        if (fractionalPart > 0) {
+            const fractionKey = `${fractionalPart}/${den}`;
+            if (unicodeFractions[fractionKey]) {
+                display += unicodeFractions[fractionKey];
+            } else {
+                display += fractionKey;
+            }
+        }
+
+        return display.trim();
     },
 
     /**

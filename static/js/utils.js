@@ -514,7 +514,7 @@ async function nativeShare(inputId, event) {
     if (navigator.share) {
         try {
             const shareData = {
-                title: `${restaurantName} - Receipt Splitter`,
+                title: `${restaurantName} - You Owe`,
                 text: `Let's split the receipt from ${restaurantName}`,
                 url: url
             };

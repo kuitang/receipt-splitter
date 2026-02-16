@@ -95,7 +95,7 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
         method: 'POST',
         body: JSON.stringify({
           claims: [
-            { line_item_id: '142', quantity: 2 }  // Total desired quantity (not incremental +1)
+            { line_item_id: '142', quantity_numerator: 2, quantity: 2 }  // Total desired quantity (not incremental +1)
           ]
         })
       });

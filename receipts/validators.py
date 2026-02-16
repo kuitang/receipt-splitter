@@ -277,10 +277,23 @@ class InputValidator:
                     else:
                         errors.append(str(e).strip("[]'\""))
                 
+                # Validate fractional quantity fields
                 try:
-                    item['quantity'] = InputValidator.validate_quantity(
-                        item.get('quantity', 1),
-                        field_name=f"Item {i+1} quantity"
+                    item['quantity_numerator'] = InputValidator.validate_quantity(
+                        item.get('quantity_numerator', item.get('quantity', 1)),
+                        field_name=f"Item {i+1} quantity numerator"
+                    )
+                except ValidationError as e:
+                    if hasattr(e, 'messages') and e.messages:
+                        errors.extend(e.messages)
+                    elif hasattr(e, 'message'):
+                        errors.append(e.message)
+                    else:
+                        errors.append(str(e).strip("[]'\""))
+                try:
+                    item['quantity_denominator'] = InputValidator.validate_quantity(
+                        item.get('quantity_denominator', 1),
+                        field_name=f"Item {i+1} quantity denominator"
                     )
                 except ValidationError as e:
                     if hasattr(e, 'messages') and e.messages:
