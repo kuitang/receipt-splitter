@@ -33,14 +33,11 @@ class ReceiptServiceTests(TestCase):
             total_price=Decimal("85.00")
         )
 
-    @patch('receipts.services.receipt_service.delete_receipt_image_from_memory')
-    def test_finalize_receipt_deletes_image(self, mock_delete_image):
-        """Test that finalizing a receipt deletes the image from memory."""
+    def test_finalize_receipt_succeeds(self):
+        """Test that finalizing a receipt succeeds (images persist in S3)."""
         session_context = {'is_uploader': True}
-
-        self.receipt_service.finalize_receipt(str(self.receipt.id), session_context)
-
-        mock_delete_image.assert_called_once_with(str(self.receipt.id))
+        result = self.receipt_service.finalize_receipt(str(self.receipt.id), session_context)
+        self.assertTrue(result['success'])
 
 
 class ReceiptModelTests(TestCase):

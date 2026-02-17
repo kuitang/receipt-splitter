@@ -171,6 +171,64 @@ class Claim(models.Model):
         ]
 
 
+class ReceiptOCRResult(models.Model):
+    """Snapshot of OCR-extracted receipt header fields at time of OCR completion."""
+    receipt = models.OneToOneField(
+        Receipt, on_delete=models.CASCADE, related_name='ocr_result'
+    )
+    # Same OCR-filled fields as Receipt:
+    restaurant_name = models.CharField(max_length=100)
+    date = models.DateTimeField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    tax = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    tip = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    total = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'receipts_receipt_ocr_result'
+
+    def is_corrected(self):
+        """True if any OCR-extracted field differs from current receipt state."""
+        r = self.receipt
+        if r.restaurant_name != self.restaurant_name:
+            return True
+        for field in ('subtotal', 'tax', 'tip', 'total'):
+            if getattr(r, field) != getattr(self, field):
+                return True
+        # Compare line items by creation order
+        ocr_items = list(self.ocr_items.order_by('id'))
+        db_items = list(r.items.order_by('id'))
+        if len(ocr_items) != len(db_items):
+            return True
+        for ocr_item, db_item in zip(ocr_items, db_items):
+            if (db_item.name != ocr_item.name
+                    or db_item.unit_price != ocr_item.unit_price
+                    or db_item.total_price != ocr_item.total_price
+                    or db_item.quantity_numerator != ocr_item.quantity_numerator
+                    or db_item.quantity_denominator != ocr_item.quantity_denominator):
+                return True
+        return False
+
+
+class ReceiptOCRLineItem(models.Model):
+    """Snapshot of OCR-extracted line items at time of OCR completion."""
+    ocr_result = models.ForeignKey(
+        ReceiptOCRResult, on_delete=models.CASCADE, related_name='ocr_items'
+    )
+    # Same fields as LineItem:
+    name = models.CharField(max_length=200)
+    quantity_numerator = models.PositiveIntegerField(default=1)
+    quantity_denominator = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=6)
+    total_price = models.DecimalField(max_digits=12, decimal_places=6)
+    prorated_tax = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    prorated_tip = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+
+    class Meta:
+        db_table = 'receipts_receipt_ocr_line_item'
+
+
 class ActiveViewer(models.Model):
     receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name='viewers')
     viewer_name = models.CharField(max_length=50)

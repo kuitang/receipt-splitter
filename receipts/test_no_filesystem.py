@@ -103,14 +103,15 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
                             f"Detected file operations: {file_operations}"
                         )
     
-    def test_image_serving_no_filesystem(self, mock_process_receipt):
-        """Test image serving without filesystem access"""
+    @mock.patch('receipts.image_storage.get_presigned_image_url')
+    def test_image_serving_no_filesystem(self, mock_presigned_url, mock_process_receipt):
+        """Test image serving redirects to presigned URL without touching the filesystem"""
         from receipts.models import Receipt
         from django.utils import timezone
         from decimal import Decimal
-        from django.core.cache import cache
-        
-        # Create receipt (unfinalized so image can be served)
+
+        mock_presigned_url.return_value = 'https://example-presigned-url/image.jpg'
+
         receipt = Receipt.objects.create(
             uploader_name='Test User',
             restaurant_name='Test Restaurant',
@@ -119,18 +120,12 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
             tax=Decimal('1.00'),
             tip=Decimal('2.00'),
             total=Decimal('13.00'),
-            is_finalized=False  # Keep unfinalized for image access
+            is_finalized=False
         )
-        
-        # Store image in cache
-        test_image = b'Test image data'
-        cache.set(f'receipt_image_{receipt.id}', test_image, timeout=3600)
-        cache.set(f'receipt_image_{receipt.id}_type', 'image/jpeg', timeout=3600)
-        
-        # Monitor filesystem
+
         file_operations = []
         original_open = open
-        
+
         def monitor_open(path, *args, **kwargs):
             path_str = str(path)
             if 'media' in path_str.lower():
@@ -140,9 +135,8 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
                 file_operations.append(path_str)
                 raise AssertionError(f"Attempted to access receipt file: {path_str}")
             return original_open(path, *args, **kwargs)
-        
+
         with mock.patch('builtins.open', side_effect=monitor_open):
-            # Set up session as uploader
             session = self.client.session
             session['receipts'] = {
                 str(receipt.id): {
@@ -151,17 +145,12 @@ class StrictNoFileSystemTestCase(TransactionTestCase):
                 }
             }
             session.save()
-            
-            # Request image
+
             response = self.client.get(
                 reverse('serve_receipt_image', args=[receipt.slug])
             )
-            
-            # Should succeed
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.content, test_image)
-            
-            # No filesystem access
+
+            self.assertEqual(response.status_code, 302)
             self.assertEqual(len(file_operations), 0)
 
 

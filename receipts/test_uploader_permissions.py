@@ -222,12 +222,11 @@ class UploaderImagePermissionTests(TransactionTestCase):
             processing_status='completed'
         )
     
-    @patch('receipts.image_storage.get_receipt_image_from_memory')
-    def test_uploader_can_view_image_during_editing(self, mock_get_image):
-        """Test that uploader can view image while receipt is unfinalized"""
-        mock_get_image.return_value = (b'fake_image_data', 'image/jpeg')
-        
-        # Set up session as uploader
+    @patch('receipts.image_storage.get_presigned_image_url')
+    def test_uploader_can_view_image_during_editing(self, mock_presigned_url):
+        """Test that uploader gets redirected to a presigned URL while receipt is unfinalized"""
+        mock_presigned_url.return_value = 'https://example-presigned-url/image.jpg'
+
         session = self.client.session
         session['receipts'] = {
             str(self.unfinalized_receipt.id): {
@@ -236,21 +235,15 @@ class UploaderImagePermissionTests(TransactionTestCase):
             }
         }
         session.save()
-        
-        # Try to get image
+
         response = self.client.get(
             reverse('serve_receipt_image', kwargs={'receipt_slug': self.unfinalized_receipt.slug})
         )
-        
-        # Uploader should be able to view image
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b'fake_image_data')
+
+        self.assertEqual(response.status_code, 302)
     
-    @patch('receipts.image_storage.get_receipt_image_from_memory')
-    def test_non_uploader_cannot_view_image_during_editing(self, mock_get_image):
+    def test_non_uploader_cannot_view_image_during_editing(self):
         """Test that non-uploader cannot view image while receipt is unfinalized"""
-        mock_get_image.return_value = (b'fake_image_data', 'image/jpeg')
-        
         # Set up session as non-uploader
         session = self.client.session
         session['receipts'] = {
@@ -260,20 +253,17 @@ class UploaderImagePermissionTests(TransactionTestCase):
             }
         }
         session.save()
-        
+
         # Try to get image
         response = self.client.get(
             reverse('serve_receipt_image', kwargs={'receipt_slug': self.unfinalized_receipt.slug})
         )
-        
+
         # Non-uploader should be denied access
         self.assertEqual(response.status_code, 403)
     
-    @patch('receipts.image_storage.get_receipt_image_from_memory')
-    def test_finalized_images_not_accessible(self, mock_get_image):
-        """Test that finalized receipt images are not accessible (images deleted on finalization)"""
-        mock_get_image.return_value = (b'fake_image_data', 'image/jpeg')
-        
+    def test_non_uploader_cannot_view_finalized_image(self):
+        """Test that non-uploaders cannot view a finalized receipt's image."""
         # Set up session as non-uploader
         session = self.client.session
         session['receipts'] = {
@@ -283,15 +273,14 @@ class UploaderImagePermissionTests(TransactionTestCase):
             }
         }
         session.save()
-        
+
         # Try to get image of finalized receipt
         response = self.client.get(
             reverse('serve_receipt_image', kwargs={'receipt_slug': self.finalized_receipt.slug})
         )
-        
-        # Should not be able to view finalized receipt image (defense in depth)
-        self.assertEqual(response.status_code, 404)
-        self.assertIn(b'Image not available for finalized receipts', response.content)
+
+        # Non-uploaders are always denied
+        self.assertEqual(response.status_code, 403)
     
     def test_edit_page_redirect_for_non_uploader(self):
         """Test that non-uploaders cannot access edit page"""
@@ -726,11 +715,11 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
         self.assertTrue(claim_service.undo_claim(str(claim1.id), session1.session_key))
         self.assertTrue(claim_service.undo_claim(str(claim2.id), session2.session_key))
     
-    @patch('receipts.image_storage.get_receipt_image_from_memory')
-    def test_image_permissions_with_name_changes(self, mock_get_image):
+    @patch('receipts.image_storage.get_presigned_image_url')
+    def test_image_permissions_with_name_changes(self, mock_presigned_url):
         """Test image viewing permissions when names change in same session"""
-        mock_get_image.return_value = (b'test_image_data', 'image/jpeg')
-        
+        mock_presigned_url.return_value = 'https://example-presigned-url/image.jpg'
+
         # Create unfinalized receipt
         receipt = Receipt.objects.create(
             uploader_name=self.uploader_name,
@@ -743,7 +732,7 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
             is_finalized=False,
             processing_status='completed'
         )
-        
+
         # Set up as uploader
         session = self.client.session
         session['receipts'] = {
@@ -754,22 +743,22 @@ class UploaderPermissionIntegrationTests(TransactionTestCase):
             }
         }
         session.save()
-        
-        # Can view image as uploader
+
+        # Can view image as uploader (302 redirect to presigned URL)
         response = self.client.get(
             reverse('serve_receipt_image', kwargs={'receipt_slug': receipt.slug})
         )
-        self.assertEqual(response.status_code, 200)
-        
+        self.assertEqual(response.status_code, 302)
+
         # Change name (simulating being forced to use different name)
         session['receipts'][str(receipt.id)]['viewer_name'] = f"{self.uploader_name} New"
         session.save()
-        
+
         # Should still be able to view image because is_uploader=True
         response = self.client.get(
             reverse('serve_receipt_image', kwargs={'receipt_slug': receipt.slug})
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
         
         # Non-uploader with any name cannot view
         client2 = Client()

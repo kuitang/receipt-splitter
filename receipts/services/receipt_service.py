@@ -21,7 +21,7 @@ from receipts.async_processor import (
     process_receipt_sync,
     create_placeholder_receipt,
 )
-from receipts.image_storage import store_receipt_image_in_memory, delete_receipt_image_from_memory
+from receipts.image_storage import store_receipt_image, delete_receipt_image
 
 
 class ReceiptNotFoundError(Exception):
@@ -161,9 +161,6 @@ class ReceiptService:
         
         # Finalize the receipt
         self._finalize_receipt(receipt_id)
-        
-        # Delete the image from memory
-        delete_receipt_image_from_memory(receipt_id)
 
         return {
             'success': True,

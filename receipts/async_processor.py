@@ -7,10 +7,10 @@ import logging
 import threading
 from decimal import Decimal
 from django.utils import timezone
-from .models import Receipt, LineItem
+from .models import Receipt, LineItem, ReceiptOCRResult, ReceiptOCRLineItem
 from .ocr_service import process_receipt_with_ocr
 from .image_utils import convert_to_jpeg_if_needed, get_image_bytes_for_ocr
-from .image_storage import store_receipt_image_in_memory
+from .image_storage import store_receipt_image
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,29 @@ def _process_receipt_worker(receipt_id, image_content, format_hint="JPEG"):
             )
             line_item.calculate_prorations()
             line_item.save()
-        
+
+        # Save OCR snapshot for correction tracking
+        ocr_result = ReceiptOCRResult.objects.create(
+            receipt=receipt,
+            restaurant_name=receipt.restaurant_name,
+            date=receipt.date,
+            subtotal=receipt.subtotal,
+            tax=receipt.tax,
+            tip=receipt.tip,
+            total=receipt.total,
+        )
+        for item in receipt.items.order_by('id'):
+            ReceiptOCRLineItem.objects.create(
+                ocr_result=ocr_result,
+                name=item.name,
+                quantity_numerator=item.quantity_numerator,
+                quantity_denominator=item.quantity_denominator,
+                unit_price=item.unit_price,
+                total_price=item.total_price,
+                prorated_tax=item.prorated_tax,
+                prorated_tip=item.prorated_tip,
+            )
+
         logger.info(f"Successfully processed receipt {receipt_id}: {receipt.restaurant_name}")
         
     except Receipt.DoesNotExist:
@@ -124,8 +146,8 @@ def create_placeholder_receipt(uploader_name, image, venmo_username=''):
         processing_status='pending'
     )
 
-    # Store the converted image in memory
-    store_receipt_image_in_memory(receipt.id, converted_image)
+    # Store the image in S3/Tigris
+    store_receipt_image(receipt.id, converted_image)
 
     # Create a single placeholder item
     LineItem.objects.create(

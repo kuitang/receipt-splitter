@@ -1,81 +1,47 @@
 """
-In-memory image storage for receipt images.
-Images are stored in Django's cache for temporary access during editing.
+S3/Tigris image storage for receipt images.
+In production: Tigris object storage via AWS S3-compatible API.
+In development (DEBUG=True): moto ThreadedMotoServer auto-started by apps.py.
 """
 
-import io
-import logging
-from django.core.cache import cache
-from django.core.files.uploadedfile import InMemoryUploadedFile
-from PIL import Image
-
-logger = logging.getLogger(__name__)
-
-# Cache timeout for images (2 hours)
-IMAGE_CACHE_TIMEOUT = 2 * 60 * 60
+import os
+import boto3
+from botocore.client import Config
 
 
-def store_receipt_image_in_memory(receipt_id, image_file):
-    """
-    Store a receipt image in memory (Django cache).
-    
-    Args:
-        receipt_id: UUID of the receipt
-        image_file: The uploaded image file
-        
-    Returns:
-        bool: True if stored successfully
-    """
-    try:
-        # Read the image file into memory
+def _s3():
+    return boto3.client(
+        's3',
+        endpoint_url=os.environ['AWS_ENDPOINT_URL_S3'],
+        config=Config(s3={'addressing_style': 'path'}),
+    )
+
+
+def _bucket():
+    return os.environ['BUCKET_NAME']
+
+
+def _key(receipt_id):
+    return f"receipts/{receipt_id}.jpg"
+
+
+def store_receipt_image(receipt_id, image_file):
+    if hasattr(image_file, 'seek'):
         image_file.seek(0)
-        image_bytes = image_file.read()
-        image_file.seek(0)
-        
-        # Store in cache with receipt ID as key
-        cache_key = f"receipt_image_{receipt_id}"
-        cache.set(cache_key, image_bytes, timeout=IMAGE_CACHE_TIMEOUT)
-        
-        # Also store the content type
-        content_type = getattr(image_file, 'content_type', 'image/jpeg')
-        cache.set(f"{cache_key}_type", content_type, timeout=IMAGE_CACHE_TIMEOUT)
-        
-        logger.info(f"Stored image for receipt {receipt_id} in memory")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to store image in memory: {str(e)}")
-        return False
+    image_bytes = image_file.read() if hasattr(image_file, 'read') else bytes(image_file)
+    content_type = getattr(image_file, 'content_type', 'image/jpeg') or 'image/jpeg'
+    _s3().put_object(Bucket=_bucket(), Key=_key(receipt_id),
+                     Body=image_bytes, ContentType=content_type)
 
 
-def get_receipt_image_from_memory(receipt_id):
-    """
-    Retrieve a receipt image from memory.
-    
-    Args:
-        receipt_id: UUID of the receipt
-        
-    Returns:
-        tuple: (image_bytes, content_type) or (None, None) if not found
-    """
-    cache_key = f"receipt_image_{receipt_id}"
-    image_bytes = cache.get(cache_key)
-    
-    if image_bytes:
-        content_type = cache.get(f"{cache_key}_type", "image/jpeg")
-        return image_bytes, content_type
-    
-    return None, None
+def get_presigned_image_url(receipt_id, expiry=3600):
+    """Returns a time-limited URL the browser fetches directly from S3/Tigris."""
+    return _s3().generate_presigned_url(
+        'get_object',
+        Params={'Bucket': _bucket(), 'Key': _key(receipt_id)},
+        ExpiresIn=expiry,
+    )
 
 
-def delete_receipt_image_from_memory(receipt_id):
-    """
-    Delete a receipt image from memory.
-    
-    Args:
-        receipt_id: UUID of the receipt
-    """
-    cache_key = f"receipt_image_{receipt_id}"
-    cache.delete(cache_key)
-    cache.delete(f"{cache_key}_type")
-    logger.info(f"Deleted image for receipt {receipt_id} from memory")
+def delete_receipt_image(receipt_id):
+    _s3().delete_object(Bucket=_bucket(), Key=_key(receipt_id))

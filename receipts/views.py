@@ -611,35 +611,25 @@ def get_receipt_content(request, receipt_slug):
 
 def serve_receipt_image(request, receipt_slug):
     """
-    Serve receipt image from memory.
-    Only accessible to the uploader during editing.
+    Redirect to a presigned S3/Tigris URL for the receipt image.
+    Only accessible to the uploader.
     """
-    from .image_storage import get_receipt_image_from_memory
-    
+    from django.http import HttpResponseRedirect
+    from .image_storage import get_presigned_image_url
+
     receipt = receipt_service.get_receipt_by_slug(receipt_slug)
-    
+
     if not receipt:
         return HttpResponse('Receipt not found', status=404)
-    
+
     receipt_id = str(receipt.id)
-    
-    # Check if user is the uploader and receipt is not finalized (for security)
+
     user_context = request.user_context(receipt_id)
-    if receipt.is_finalized:
-        # Images are deleted after finalization - defense in depth
-        return HttpResponse('Image not available for finalized receipts', status=404)
-    
     if not user_context.is_uploader:
-        # Only uploader can see image during editing
         return HttpResponse(status=403)
-    
-    # Get image from memory
-    image_bytes, content_type = get_receipt_image_from_memory(receipt_id)
-    
-    if image_bytes:
-        return HttpResponse(image_bytes, content_type=content_type)
-    else:
-        return HttpResponse('Image not found in memory', status=404)
+
+    url = get_presigned_image_url(receipt_id)
+    return HttpResponseRedirect(url)
 
 
 def ratelimit_exceeded(request, exception):
