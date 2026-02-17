@@ -99,8 +99,8 @@ def test_edit_requires_session_owner(integration_client: IntegrationTestBase) ->
     assert response["status_code"] == 403
 
 
-def test_image_removed_after_finalization(integration_client: IntegrationTestBase) -> None:
-    """Receipt images should be purged once the receipt is finalised."""
+def test_image_accessible_before_and_after_finalization(integration_client: IntegrationTestBase) -> None:
+    """Receipt images persist after finalisation (purged by future cronjob, not on finalize)."""
 
     upload = integration_client.upload_receipt("Image Cleanup Tester")
     slug = upload["receipt_slug"]
@@ -108,8 +108,9 @@ def test_image_removed_after_finalization(integration_client: IntegrationTestBas
 
     assert integration_client.wait_for_processing(slug)
 
+    # Image is served as a presigned-URL redirect (302) — never proxied directly
     before = integration_client.client.get(f"/image/{slug}/")
-    assert before.status_code == 200
+    assert before.status_code == 302
 
     payload = IntegrationTestBase.TestData.balanced_receipt()
     update = integration_client.update_receipt(slug, payload)
@@ -118,5 +119,6 @@ def test_image_removed_after_finalization(integration_client: IntegrationTestBas
     finalize = integration_client.finalize_receipt(slug)
     assert finalize["status_code"] == 200
 
+    # Image still accessible after finalization (deleted by future cronjob, not here)
     after = integration_client.client.get(f"/image/{slug}/")
-    assert after.status_code == 404
+    assert after.status_code == 302
