@@ -29,7 +29,14 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
-          flyctl secrets set GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" -a "$APP_NAME" --stage
+          flyctl secrets set \
+            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            AWS_ENDPOINT_URL_S3="${{ secrets.AWS_ENDPOINT_URL_S3 }}" \
+            AWS_REGION="${{ secrets.AWS_REGION }}" \
+            BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
+            -a "$APP_NAME" --stage
 
       - name: Allocate shared IPv4 for preview app
         if: github.event.action != 'closed'
