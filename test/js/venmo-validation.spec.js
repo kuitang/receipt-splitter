@@ -17,7 +17,7 @@ global.window = dom.window;
 global.document = window.document;
 global.navigator = window.navigator;
 global.alert = vi.fn();
-global.URL = { createObjectURL: vi.fn(() => 'blob:mock') };
+global.URL.createObjectURL = vi.fn(() => 'blob:mock');
 
 const { validateVenmo, initializeVenmoInput } = await import('../../static/js/index-page.js');
 

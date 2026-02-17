@@ -41,8 +41,11 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-# Get base allowed hosts
-allowed_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,testserver').split(',')
+# Get base allowed hosts — allow all in dev, restrict in production
+if DEBUG:
+    allowed_hosts = ['*']
+else:
+    allowed_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,testserver').split(',')
 
 # Add Fly.io app domain
 app_name = os.getenv('FLY_APP_NAME')
