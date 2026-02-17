@@ -9,8 +9,8 @@ Communist Style — smart receipt splitter. Upload a photo, OCR extracts items/p
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 DEBUG=true python3 manage.py migrate
-DEBUG=true python3 manage.py runserver
-# Visit http://localhost:8000
+DEBUG=true python3 manage.py runserver 0.0.0.0:8000
+# Visit http://0.0.0.0:8000
 ```
 
 ### Testing
@@ -21,7 +21,7 @@ DEBUG=true python3 manage.py test receipts -v 2
 # Specific test module
 DEBUG=true python3 manage.py test receipts.test_claim_totals
 
-# Integration tests (requires server on localhost:8000)
+# Integration tests (requires server on 0.0.0.0:8000)
 cd integration_test && ./run_tests.sh          # mock OCR
 cd integration_test && ./run_tests.sh --real   # real Gemini API
 
