@@ -5,32 +5,27 @@ Replaces test_image_memory.py coverage.
 
 import os
 import uuid
-import pytest
-import django
 from unittest import TestCase
 from unittest.mock import patch
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'receipt_splitter.settings')
-os.environ['AWS_ACCESS_KEY_ID'] = 'test'
-os.environ['AWS_SECRET_ACCESS_KEY'] = 'test'
-os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
-os.environ['AWS_REGION'] = 'us-east-1'
 
-
-def _setup_moto_env():
-    """Set env vars needed by image_storage._s3() and _bucket()."""
-    os.environ['AWS_ENDPOINT_URL_S3'] = 'http://localhost:5566'  # overridden by mock
-    os.environ['BUCKET_NAME'] = 'test-receipts'
-
-
-class ImageStorageTests(TestCase):
-    """Tests for store_receipt_image, get_presigned_image_url, delete_receipt_image."""
+class _MotoBase(TestCase):
+    """Base class: starts mock_aws(), clears custom endpoint so moto intercepts correctly."""
 
     def setUp(self):
         from moto import mock_aws
+
+        # Temporarily remove any real endpoint URL so moto uses the standard AWS
+        # endpoint, which its response-interception patches cover.
+        self._saved_endpoint = os.environ.pop('AWS_ENDPOINT_URL_S3', None)
+        self._saved_bucket = os.environ.get('BUCKET_NAME')
+        os.environ['BUCKET_NAME'] = 'test-receipts'
+        os.environ.setdefault('AWS_ACCESS_KEY_ID', 'test')
+        os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'test')
+        os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
+
         self.mock = mock_aws()
         self.mock.start()
-        _setup_moto_env()
 
         import boto3
         from botocore.client import Config
@@ -40,16 +35,25 @@ class ImageStorageTests(TestCase):
 
     def tearDown(self):
         self.mock.stop()
+        if self._saved_endpoint is not None:
+            os.environ['AWS_ENDPOINT_URL_S3'] = self._saved_endpoint
+        else:
+            os.environ.pop('AWS_ENDPOINT_URL_S3', None)
+        if self._saved_bucket is not None:
+            os.environ['BUCKET_NAME'] = self._saved_bucket
+
+
+class ImageStorageTests(_MotoBase):
+    """Tests for store_receipt_image, get_presigned_image_url, delete_receipt_image."""
 
     def test_store_receipt_image_puts_object(self):
         from receipts.image_storage import store_receipt_image
         import boto3
         from botocore.client import Config
+        from io import BytesIO
 
         receipt_id = uuid.uuid4()
         image_data = b'FAKEJPEG'
-
-        from io import BytesIO
         f = BytesIO(image_data)
         f.content_type = 'image/jpeg'
         store_receipt_image(receipt_id, f)
@@ -104,23 +108,8 @@ class ImageStorageTests(TestCase):
         self.assertEqual(obj['Body'].read(), b'RAWBYTES')
 
 
-class ServeReceiptImageViewTests(TestCase):
+class ServeReceiptImageViewTests(_MotoBase):
     """Test that serve_receipt_image view returns HTTP 302 to a presigned URL."""
-
-    def setUp(self):
-        from moto import mock_aws
-        self.mock = mock_aws()
-        self.mock.start()
-        _setup_moto_env()
-
-        import boto3
-        from botocore.client import Config
-        s3 = boto3.client('s3', region_name='us-east-1',
-                          config=Config(s3={'addressing_style': 'path'}))
-        s3.create_bucket(Bucket='test-receipts')
-
-    def tearDown(self):
-        self.mock.stop()
 
     def test_serve_receipt_image_redirects(self):
         """serve_receipt_image returns 302 with Location containing the S3 key."""
@@ -128,8 +117,7 @@ class ServeReceiptImageViewTests(TestCase):
         from receipts.views import serve_receipt_image
         from receipts.image_storage import store_receipt_image
         from io import BytesIO
-        import uuid
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         receipt_id = uuid.uuid4()
         f = BytesIO(b'FAKEJPEG')
@@ -158,8 +146,7 @@ class ServeReceiptImageViewTests(TestCase):
         """Non-uploaders get 403."""
         from django.test import RequestFactory
         from receipts.views import serve_receipt_image
-        from unittest.mock import MagicMock, patch
-        import uuid
+        from unittest.mock import MagicMock
 
         receipt_id = uuid.uuid4()
         mock_receipt = MagicMock()

@@ -9,6 +9,7 @@ import json
 import re
 from decimal import Decimal
 from datetime import timedelta
+from unittest import mock
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
@@ -21,9 +22,14 @@ import io
 
 class JavaScriptInjectionTests(TestCase):
     """Test JavaScript injection prevention in templates and error handling"""
-    
+
     def setUp(self):
         """Set up test data with potential XSS payloads"""
+        # Patch S3 — these tests verify XSS prevention, not image storage
+        patcher = mock.patch('receipts.async_processor.store_receipt_image')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
         self.xss_payloads = [
             "<script>alert('XSS')</script>",
             "');alert('XSS');//",
@@ -353,10 +359,14 @@ class JavaScriptFunctionSecurityTests(TestCase):
 
 class ValidationErrorSecurityTests(TestCase):
     """Test that validation errors don't contain executable JavaScript"""
-    
+
     def setUp(self):
         """Set up test receipt for validation testing"""
-        
+        # Patch S3 — these tests verify validation/XSS, not image storage
+        patcher = mock.patch('receipts.async_processor.store_receipt_image')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
         img = Image.new('RGB', (100, 100), color='white')
         buffer = io.BytesIO()
         img.save(buffer, format='JPEG')

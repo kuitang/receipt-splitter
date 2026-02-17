@@ -10,9 +10,10 @@ from botocore.client import Config
 
 
 def _s3():
+    endpoint_url = os.environ.get('AWS_ENDPOINT_URL_S3')
     return boto3.client(
         's3',
-        endpoint_url=os.environ['AWS_ENDPOINT_URL_S3'],
+        endpoint_url=endpoint_url,
         config=Config(s3={'addressing_style': 'path'}),
     )
 
