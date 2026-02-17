@@ -45,7 +45,7 @@ class SimpleStrictCSPMiddleware(MiddlewareMixin):
         csp_directives.append(f"style-src {' '.join(style_sources)}")
         
         # Images: self and data URIs (for base64 images)
-        csp_directives.append("img-src 'self' data: blob:")
+        csp_directives.append("img-src 'self' data: blob: https://fly.storage.tigris.dev")
         
         # Fonts: self and data URIs
         csp_directives.append("font-src 'self' data:")
