@@ -2,6 +2,7 @@
 Centralized validation pipeline for all receipt-related validations
 Unifies validation logic from validators.py, validation.py, and inline validations
 """
+import logging
 from typing import Dict, Tuple, Optional, Any
 from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
@@ -9,6 +10,8 @@ from django.core.files.uploadedfile import UploadedFile
 
 from receipts.validators import InputValidator, FileUploadValidator
 from receipts.validation import validate_receipt_balance
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationPipeline:
@@ -30,13 +33,18 @@ class ValidationPipeline:
         """Validate uploaded image file"""
         if not image_file:
             raise ValidationError({'image': 'Please upload a receipt image'})
-        
+
         if image_file.size == 0:
             raise ValidationError({'image': 'Image file is empty'})
-        
+
         if image_file.size > 10 * 1024 * 1024:
             raise ValidationError({'image': 'Image size must be less than 10MB'})
-        
+
+        logger.info(
+            f"Image validated: content_type={image_file.content_type}, "
+            f"file_size={image_file.size:,} bytes, name={image_file.name}"
+        )
+
         try:
             return FileUploadValidator.validate_image_file(image_file)
         except ValidationError as e:
