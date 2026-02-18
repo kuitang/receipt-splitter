@@ -12,7 +12,7 @@ primary_region = "ewr"
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "256mb"
 
 [http_service]
   internal_port = 8000

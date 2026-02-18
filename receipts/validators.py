@@ -4,20 +4,14 @@ Provides comprehensive validation for file uploads and user inputs
 """
 
 from django.core.exceptions import ValidationError
-# escape import removed - Django templates handle HTML escaping on output
 from PIL import Image
 import logging
 from decimal import Decimal, InvalidOperation
 import hashlib
 from io import BytesIO
 
-# Required security dependencies
 import bleach
-
-try:  # pragma: no cover - availability depends on system packages
-    import magic  # type: ignore
-except ImportError:  # pragma: no cover - runtime guard handles absence
-    magic = None
+import magic
 
 logger = logging.getLogger(__name__)
 
@@ -74,20 +68,24 @@ class FileUploadValidator:
             
             # No dimension restrictions - support all image sizes
             
-            # Strip EXIF data for privacy (optional but recommended)
-            # This removes GPS location and other metadata
+            # Strip EXIF data for privacy (removes GPS location, etc.)
+            # Previous approach used list(image.getdata()) which created
+            # ~12M Python tuples for a 12MP image, consuming ~2GB RAM.
+            # Instead, just remove EXIF from the info dict and re-save.
             if hasattr(image, '_getexif') and image._getexif():
-                # Create image without EXIF
-                data = list(image.getdata())
-                image_without_exif = Image.new(image.mode, image.size)
-                image_without_exif.putdata(data)
-                
-                # Save back to BytesIO
+                image.info.pop('exif', None)
                 output = BytesIO()
                 image_format = image.format or 'JPEG'
-                image_without_exif.save(output, format=image_format)
+                save_kwargs = {}
+                if image_format == 'JPEG':
+                    save_kwargs['quality'] = 95
+                # Preserve ICC color profile if present
+                icc = image.info.get('icc_profile')
+                if icc:
+                    save_kwargs['icc_profile'] = icc
+                image.save(output, format=image_format, **save_kwargs)
                 output.seek(0)
-                
+
                 # Update the uploaded file
                 uploaded_file.file = output
                 uploaded_file.size = output.getbuffer().nbytes
@@ -102,30 +100,33 @@ class FileUploadValidator:
     @classmethod
     def _detect_mime_type(cls, file_content):
         """Detect MIME type using libmagic."""
-        if magic is None:
-            logger.error("libmagic is required for MIME detection but is not available")
-            raise ValidationError('Unable to determine file type.')
-
         try:
             return magic.from_buffer(file_content, mime=True)
-        except Exception as exc:  # pragma: no cover - propagated to tests
+        except Exception as exc:
             logger.exception("libmagic failed to detect file type")
             raise ValidationError('Unable to determine file type.') from exc
     
-    @staticmethod
-    def generate_safe_filename(uploaded_file):
-        """Generate a secure filename based on file content hash"""
+    MIME_TO_EXTENSION = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/heic': 'heic',
+        'image/heif': 'heif',
+    }
+
+    @classmethod
+    def generate_safe_filename(cls, uploaded_file):
+        """Generate a secure filename based on file content hash and detected MIME type."""
         uploaded_file.seek(0)
-        file_hash = hashlib.sha256(uploaded_file.read()).hexdigest()[:16]
+        file_content = uploaded_file.read()
         uploaded_file.seek(0)
-        
-        # Get file extension safely
-        extension = 'jpg'  # default
-        if hasattr(uploaded_file, 'name'):
-            parts = uploaded_file.name.lower().split('.')
-            if len(parts) > 1 and parts[-1] in ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif']:
-                extension = parts[-1]
-        
+
+        file_hash = hashlib.sha256(file_content).hexdigest()[:16]
+
+        # Determine extension from actual content, not the user-supplied filename
+        detected_mime = magic.from_buffer(file_content, mime=True)
+        extension = cls.MIME_TO_EXTENSION.get(detected_mime, 'jpg')
+
         from django.utils import timezone
         timestamp = int(timezone.now().timestamp())
         return f"receipt_{file_hash}_{timestamp}.{extension}"
