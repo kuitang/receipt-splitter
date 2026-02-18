@@ -111,4 +111,6 @@ jobs:
           sleep 3
           curl -sf http://localhost:8000/ > /dev/null
       - name: Run Playwright perf tests
-        run: pytest -m perf -v -s
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: 'true'
+        run: pytest perf_test/ -v -s --override-ini='addopts=' -p no:django

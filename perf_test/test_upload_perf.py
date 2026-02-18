@@ -8,7 +8,7 @@ Requirements:
     pip install playwright && playwright install chromium
 
 Usage:
-    python -m pytest integration_test/test_upload_perf.py -v -s
+    python -m pytest perf_test/test_upload_perf.py -v -s --override-ini='addopts=' -p no:django
 
 These tests require a running dev server on http://localhost:8000:
     DEBUG=true python3 manage.py runserver 0.0.0.0:8000
