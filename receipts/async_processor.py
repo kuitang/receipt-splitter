@@ -131,7 +131,16 @@ def create_placeholder_receipt(uploader_name, image, venmo_username=''):
     Create a placeholder receipt that will be processed async
     Stores image in memory for browser display
     """
-    # Convert HEIC to JPEG if needed (for browser display)
+    # Log incoming upload details
+    incoming_size = image.size if hasattr(image, 'size') else 0
+    incoming_name = getattr(image, 'name', 'unknown')
+    incoming_type = getattr(image, 'content_type', 'unknown')
+    logger.info(
+        f"Upload received: name={incoming_name}, "
+        f"content_type={incoming_type}, size={incoming_size:,} bytes"
+    )
+
+    # Convert HEIC to WebP if needed (for browser display)
     converted_image = convert_to_jpeg_if_needed(image)
 
     receipt = Receipt.objects.create(

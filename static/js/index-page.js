@@ -11,11 +11,11 @@ async function resizeImage(file, maxDimension = 2048, quality = 0.85) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const img = new Image();
-        
+
         img.onload = function() {
             // Calculate new dimensions while preserving aspect ratio
             let { width, height } = img;
-            
+
             if (width > maxDimension || height > maxDimension) {
                 if (width > height) {
                     height = (height * maxDimension) / width;
@@ -25,18 +25,27 @@ async function resizeImage(file, maxDimension = 2048, quality = 0.85) {
                     height = maxDimension;
                 }
             }
-            
+
             // Set canvas dimensions
             canvas.width = width;
             canvas.height = height;
-            
-            // Draw and resize image
+
+            // Use high-quality downscaling (Lanczos in Chrome/Safari/Edge)
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            
-            // Convert to blob
-            canvas.toBlob(resolve, 'image/jpeg', quality);
+            URL.revokeObjectURL(img.src);
+
+            // Try WebP first (25-35% smaller than JPEG at equivalent quality)
+            canvas.toBlob((blob) => {
+                if (blob && blob.type === 'image/webp') {
+                    resolve(blob);
+                } else {
+                    // Safari doesn't support WebP encoding — fall back to JPEG
+                    canvas.toBlob(resolve, 'image/jpeg', quality);
+                }
+            }, 'image/webp', quality);
         };
-        
+
         img.src = URL.createObjectURL(file);
     });
 }
@@ -86,20 +95,14 @@ function initializeFileUpload() {
         e.target.parentElement.appendChild(processingInfo);
         
         try {
-            // Only resize if it's not HEIC (let server handle HEIC conversion)
-            if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
-                // Remove processing message for HEIC files
-                processingInfo.remove();
-                return;
-            }
-            
-            // Resize other image formats
+            // Resize all formats (Safari/iOS decodes HEIC natively)
             const resizedBlob = await resizeImage(file);
-            
-            // Create new file from resized blob
-            const resizedFile = new File([resizedBlob], 
-                file.name.replace(/\.[^/.]+$/, '.jpg'), 
-                { type: 'image/jpeg' }
+
+            // Use correct extension for output format
+            const ext = resizedBlob.type === 'image/webp' ? '.webp' : '.jpg';
+            const resizedFile = new File([resizedBlob],
+                file.name.replace(/\.[^/.]+$/, ext),
+                { type: resizedBlob.type }
             );
             
             // Update file input
