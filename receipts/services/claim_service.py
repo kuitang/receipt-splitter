@@ -168,10 +168,13 @@ class ClaimService:
         # Single bulk insert for all claims (within transaction)
         created_claims = Claim.objects.bulk_create(claims_to_create)
 
-        # Invalidate cache only after the new claims are committed and visible.
-        # Deleting inside the transaction lets a concurrent status poll re-cache
-        # pre-commit data between the delete and the commit, serving a stale
-        # view (missing this finalization) for the full cache TTL.
+        # Invalidate cache now AND after commit. The inline delete keeps the
+        # cache fresh for this connection (and for test transactions that
+        # never commit); the on_commit delete closes the race where a
+        # concurrent status poll re-caches pre-commit data between the inline
+        # delete and the commit, which would serve a stale view (missing this
+        # finalization) for the full cache TTL.
+        self._invalidate_receipt_caches(receipt_id)
         transaction.on_commit(lambda: self._invalidate_receipt_caches(receipt_id))
 
         # Compute participant totals directly (bypassing the cache, which still
@@ -230,9 +233,10 @@ class ClaimService:
             item.quantity_denominator = target_parts  # N/N = 1 whole item
             item.save(update_fields=['quantity_numerator', 'quantity_denominator'])
 
-        # Invalidate cache only after the subdivision is committed and visible
-        # (see finalize_claims for the race this avoids)
+        # Invalidate cache now and again after commit
+        # (see finalize_claims for the race this closes)
         receipt_id = item.receipt_id
+        self._invalidate_receipt_caches(receipt_id)
         transaction.on_commit(lambda: self._invalidate_receipt_caches(receipt_id))
 
         return {
