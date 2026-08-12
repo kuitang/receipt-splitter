@@ -17,13 +17,13 @@ These are hidden on page load and cloned by JavaScript when needed.
             <input type="number"
                    min="1"
                    max="99"
-                   class="subdivide-input w-full px-3 py-2 border border-gray-300 rounded-lg text-center tabular-nums"
+                   class="subdivide-input w-full h-11 px-3 border border-gray-300 rounded-lg text-center tabular-nums"
                    placeholder="Enter number of people">
             <div class="mt-4 flex justify-end space-x-2">
-                <button data-action="cancel-subdivide" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium">
+                <button data-action="cancel-subdivide" class="tap-target bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium">
                     Cancel
                 </button>
-                <button data-action="apply-subdivide" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                <button data-action="apply-subdivide" class="tap-target bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
                     Apply
                 </button>
             </div>
@@ -88,12 +88,12 @@ These are hidden on page load and cloned by JavaScript when needed.
                 <div class="flex justify-between items-center">
                     <p class="font-semibold text-gray-700">Tip</p>
                     <div class="flex items-center space-x-2">
-                        <input type="number" data-input="tip-value" placeholder="0" class="w-20 p-2 border border-gray-300 rounded-lg text-right">
+                        <input type="number" data-input="tip-value" placeholder="0" class="w-20 h-11 px-2 border border-gray-300 rounded-lg text-right">
                         <div class="flex">
-                            <button data-action="set-tip-type" data-type="percentage" class="px-4 py-3 border border-gray-300 rounded-l-lg bg-gray-200">
+                            <button data-action="set-tip-type" data-type="percentage" class="tap-target px-4 py-3 border border-gray-300 rounded-l-lg bg-gray-200">
                                 %
                             </button>
-                            <button data-action="set-tip-type" data-type="dollar" class="px-4 py-3 border-t border-b border-r border-gray-300 rounded-r-lg">
+                            <button data-action="set-tip-type" data-type="dollar" class="tap-target px-4 py-3 border-t border-b border-r border-gray-300 rounded-r-lg">
                                 $
                             </button>
                         </div>
@@ -105,11 +105,11 @@ These are hidden on page load and cloned by JavaScript when needed.
             <div data-show-for="percentage" class="mt-4 hidden">
                  <p class="font-semibold text-gray-700 mb-2">Calculate tip on:</p>
                 <div class="flex items-center space-x-4">
-                    <label class="flex items-center">
+                    <label class="tap-target flex items-center">
                         <input type="radio" name="tip-basis" value="pre-tax" checked class="form-radio">
                         <span class="ml-2">Pre-tax subtotal</span>
                     </label>
-                    <label class="flex items-center">
+                    <label class="tap-target flex items-center">
                         <input type="radio" name="tip-basis" value="post-tax" class="form-radio">
                         <span class="ml-2">Total with tax</span>
                     </label>

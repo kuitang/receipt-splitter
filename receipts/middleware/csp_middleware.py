@@ -131,7 +131,6 @@ class SimpleStrictCSPMiddleware(MiddlewareMixin):
             "screen-wake-lock=()",   # Prevent screen sleep
             "sync-xhr=()",           # Synchronous XHR (deprecated)
             "usb=()",                # USB devices
-            "web-share=()",          # Web share API
             "xr-spatial-tracking=()" # VR/AR
         ]
         response['Permissions-Policy'] = ", ".join(permissions)

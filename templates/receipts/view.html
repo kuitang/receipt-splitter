@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ receipt.restaurant_name }} - Receipt{% endblock %}
 
@@ -45,7 +46,7 @@
     <!-- Success Image if all items are claimed -->
     {% if total_unclaimed == 0 and participant_totals %}
     <div class="mb-4 text-center">
-        <img src="/media/sample_images/success_split.png" 
+        <img src="{% static 'images/success_split.png' %}"
              alt="Successfully split the bill" 
              class="w-32 h-32 mx-auto object-contain rounded-lg">
         <p class="text-green-600 font-semibold mt-2 text-sm">🎉 All items have been claimed!</p>
@@ -195,9 +196,10 @@
      data-receipt-id="{{ receipt.id }}"
      data-venmo-username="{{ receipt.venmo_username }}"
      data-restaurant-name="{{ receipt.restaurant_name }}"
+     data-is-uploader="{{ is_uploader|yesno:'true,false' }}"
+     data-uploader-name="{{ receipt.uploader_name }}"
      style="display: none;">
 </div>
-{% load static %}
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"
         integrity="sha384-HGmnkDZJy7mRkoARekrrj0VjEFSh9a0Z8qxGri/kTTAJkgR8hqD1lHsYSh3JdzRi"
         crossorigin="anonymous"></script>
