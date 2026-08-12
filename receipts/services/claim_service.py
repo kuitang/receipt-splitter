@@ -7,7 +7,6 @@ from decimal import Decimal
 from math import gcd
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.core.cache import cache
 from django.db import transaction
 
 from receipts.models import Claim, LineItem, Receipt
@@ -168,18 +167,8 @@ class ClaimService:
         # Single bulk insert for all claims (within transaction)
         created_claims = Claim.objects.bulk_create(claims_to_create)
 
-        # Invalidate cache now AND after commit. The inline delete keeps the
-        # cache fresh for this connection (and for test transactions that
-        # never commit); the on_commit delete closes the race where a
-        # concurrent status poll re-caches pre-commit data between the inline
-        # delete and the commit, which would serve a stale view (missing this
-        # finalization) for the full cache TTL.
-        self._invalidate_receipt_caches(receipt_id)
-        transaction.on_commit(lambda: self._invalidate_receipt_caches(receipt_id))
-
-        # Compute participant totals directly (bypassing the cache, which still
-        # holds pre-commit data until on_commit fires); my_total comes from the
-        # same exact cent allocation so it always matches the participant row
+        # Compute participant totals; my_total comes from the same exact cent
+        # allocation so it always matches the participant row
         participant_totals = self._get_participant_totals(receipt_id)
         my_total = participant_totals.get(claimer_name, Decimal('0'))
 
@@ -233,28 +222,11 @@ class ClaimService:
             item.quantity_denominator = target_parts  # N/N = 1 whole item
             item.save(update_fields=['quantity_numerator', 'quantity_denominator'])
 
-        # Invalidate cache now and again after commit
-        # (see finalize_claims for the race this closes)
-        receipt_id = item.receipt_id
-        self._invalidate_receipt_caches(receipt_id)
-        transaction.on_commit(lambda: self._invalidate_receipt_caches(receipt_id))
-
         return {
             'success': True,
             'quantity_numerator': item.quantity_numerator,
             'quantity_denominator': item.quantity_denominator,
         }
-
-    @staticmethod
-    def _invalidate_receipt_caches(receipt_id) -> None:
-        """Purge cached views/totals for a receipt.
-
-        Run via transaction.on_commit so the cache is only cleared once the
-        new data is visible to other connections (runs immediately when no
-        transaction is active).
-        """
-        cache.delete(f"participant_totals:{receipt_id}")
-        cache.delete(f"receipt_view:{receipt_id}")
 
     @staticmethod
     def _compute_min_parts(item, claims):
@@ -343,29 +315,8 @@ class ClaimService:
     def get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
         """
         Calculate total amounts claimed by each participant
-        Uses cache for finalized receipts
         """
-        # Check if receipt is finalized
-        cache_key = f"participant_totals:{receipt_id}"
-        
-        # Try to get from cache if receipt is finalized
-        try:
-            receipt = Receipt.objects.only('is_finalized').get(id=receipt_id)
-            if receipt.is_finalized:
-                cached = cache.get(cache_key)
-                if cached is not None:
-                    return cached
-        except Receipt.DoesNotExist:
-            return {}
-        
-        # Calculate totals
-        totals = self._get_participant_totals(receipt_id)
-        
-        # Cache if finalized (1 hour)
-        if receipt.is_finalized:
-            cache.set(cache_key, totals, 3600)
-        
-        return totals
+        return self._get_participant_totals(receipt_id)
     
     def calculate_session_total(self, receipt_id: str, session_id: str) -> Decimal:
         """
