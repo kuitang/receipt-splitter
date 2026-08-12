@@ -5,6 +5,7 @@ Provides comprehensive validation for file uploads and user inputs
 
 from django.core.exceptions import ValidationError
 from PIL import Image
+import html
 import logging
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -14,6 +15,18 @@ import bleach
 import magic
 
 logger = logging.getLogger(__name__)
+
+
+def strip_html_tags(value):
+    """Strip HTML tags from text without HTML-escaping the result.
+
+    bleach.clean() escapes special characters (& < >) as HTML entities, but we
+    store raw text in the database — Django templates escape on output. Storing
+    entities would double-escape on render (literal "&amp;") and leak entities
+    into URL parameters (e.g. Venmo notes). html.unescape() exactly reverses
+    the single escaping pass bleach applies.
+    """
+    return html.unescape(bleach.clean(value, tags=[], strip=True))
 
 
 class FileUploadValidator:
@@ -144,8 +157,8 @@ class InputValidator:
         # Strip whitespace
         name = name.strip()
         
-        # Remove any HTML tags and dangerous characters using bleach
-        name = bleach.clean(name, tags=[], strip=True)
+        # Remove any HTML tags and dangerous characters (without escaping)
+        name = strip_html_tags(name)
         
         # Check length after cleaning
         if len(name) < min_length:
@@ -218,7 +231,7 @@ class InputValidator:
         
         # Always clean restaurant name, even if validation fails
         original_name = data.get('restaurant_name', '')
-        cleaned_name = bleach.clean(original_name, tags=[], strip=True).strip()
+        cleaned_name = strip_html_tags(original_name).strip()
         
         try:
             data['restaurant_name'] = InputValidator.validate_name(
@@ -259,7 +272,7 @@ class InputValidator:
             for i, item in enumerate(data.get('items', [])):
                 # Always clean item name, even if validation fails
                 original_item_name = item.get('name', '')
-                cleaned_item_name = bleach.clean(original_item_name, tags=[], strip=True).strip()
+                cleaned_item_name = strip_html_tags(original_item_name).strip()
                 
                 try:
                     item['name'] = InputValidator.validate_name(

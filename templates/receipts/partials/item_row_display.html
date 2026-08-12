@@ -24,7 +24,7 @@ Context: item (LineItem), show_calculations, show_claims, claims, viewer_name, r
         <div class="ml-4 flex-shrink-0 flex items-center space-x-2">
             {% if not is_user_finalized %}
             <button type="button"
-                    class="h-8 w-8 rounded-lg flex items-center justify-center text-white font-medium bg-purple-600 hover:bg-purple-700 text-sm"
+                    class="tap-target h-10 w-10 rounded-lg flex items-center justify-center text-white font-medium bg-purple-600 hover:bg-purple-700 text-base"
                     data-action="subdivide-claim-item"
                     data-item-id="{{ item.id }}"
                     title="Split into parts">÷</button>

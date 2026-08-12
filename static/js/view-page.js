@@ -20,7 +20,7 @@ const MAX_POLLING_ERRORS = 3;
 
 // CSS class constants for claim inputs
 const CLAIM_INPUT_CLASSES = {
-    base: 'claim-quantity w-12 h-8 px-2 py-1 border rounded-lg text-center tabular-nums',
+    base: 'claim-quantity w-12 h-11 px-2 py-1 border rounded-lg text-center tabular-nums',
     enabled: 'border-gray-300 focus:ring-2 focus:ring-blue-500',
     disabled: 'border-gray-200 bg-gray-50 text-gray-600'
 };
@@ -862,7 +862,9 @@ function updateVenmoLink(amount) {
     const restaurantName = container.dataset.restaurantName;
     if (!venmoUsername) return;
 
-    const note = `You Owe - ${encodeURIComponent(restaurantName)} ${window.location.href}`;
+    // Encode the whole note exactly once — spaces become %20, & and + in
+    // names are percent-encoded, and no raw characters leak into the URL.
+    const note = encodeURIComponent(`You Owe - ${restaurantName} ${window.location.href}`);
     link.href = `https://venmo.com/${venmoUsername}?txn=pay&amount=${amount.toFixed(2)}&note=${note}`;
 }
 
@@ -1107,7 +1109,7 @@ function subdivideItemOnClaimPage(lineItemId) {
 
     options.forEach((val, idx) => {
         const label = document.createElement('label');
-        label.className = 'flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer';
+        label.className = 'flex items-center space-x-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer';
 
         const radio = document.createElement('input');
         radio.type = 'radio';
@@ -1145,12 +1147,12 @@ function subdivideItemOnClaimPage(lineItemId) {
     btnsDiv.className = 'flex justify-end space-x-2';
 
     const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium';
+    cancelBtn.className = 'bg-gray-200 text-gray-800 px-4 py-2.5 rounded-lg hover:bg-gray-300 font-medium';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', () => overlay.remove());
 
     const applyBtn = document.createElement('button');
-    applyBtn.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium';
+    applyBtn.className = 'bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 font-medium';
     applyBtn.textContent = 'Apply';
     applyBtn.addEventListener('click', async () => {
         // Check radio selection
