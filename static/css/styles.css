@@ -378,6 +378,23 @@
    Utility Classes
    ========================================================================== */
 
+/* Minimum 44x44px effective touch target (iOS HIG) without growing the visual.
+   The transparent ::after box extends the element's hit area to at least
+   44x44px, centered on the element. Buttons/links only — inputs cannot render
+   pseudo-elements, so give them a real height of 44px (h-11) instead. */
+.tap-target {
+  position: relative;
+}
+.tap-target::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
 /* Focus visible for accessibility */
 .focus-visible:focus {
   outline: 2px solid var(--color-primary-600);

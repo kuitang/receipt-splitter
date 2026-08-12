@@ -4,13 +4,13 @@
                value="{{ share_url|escape }}" 
                readonly 
                id="{{ widget_id }}"
-               class="flex-1 px-3 py-2 {{ border_color|default:'border-gray-300' }} border rounded-l-lg {{ input_bg|default:'bg-gray-50' }}">
+               class="flex-1 px-3 py-2.5 {{ border_color|default:'border-gray-300' }} border rounded-l-lg {{ input_bg|default:'bg-gray-50' }}">
 
         <!-- QR Code Button -->
         {% if not show_qr_code_inline %}
         <button data-action="show-qr-code"
                 data-widget-id="{{ widget_id }}"
-                class="px-3 py-2 {{ border_color|default:'border-gray-300' }} border border-l-0 {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors"
+                class="tap-target px-3 py-2.5 {{ border_color|default:'border-gray-300' }} border border-l-0 {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors"
                 title="Show QR Code">
             <svg class="h-6 w-6 {{ icon_color|default:'text-blue-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 5h-1m-4-5h1v1h-1V4zm-3 4h1v1H8V8zm12 5l-2.939 2.939a1 1 0 01-1.414 0L13 15m5 5v1m-6-5h-1m4 5h-1v1h1v-1zm-3-4h-1v1h1v-1zm-4-3v1m-3-4l2.939-2.939a1 1 0 011.414 0L9 7M4 5v1m3-4h1v1H7V2zm3 12h1v1h-1v-1zM5 4l-2.939 2.939a1 1 0 000 1.414L5 11m-1 5v1m0-6H3m1-4h1v1H4V6zm14 7l2.939-2.939a1 1 0 000-1.414L15 9m5-5h-1"></path></svg>
         </button>
@@ -19,7 +19,7 @@
         <!-- Native share button (mobile only) -->
         <button data-action="native-share"
                 data-widget-id="{{ widget_id }}"
-                class="mobile-share-btn px-3 py-2 {{ border_color|default:'border-gray-300' }} border border-l-0 {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors hidden"
+                class="mobile-share-btn tap-target px-3 py-2.5 {{ border_color|default:'border-gray-300' }} border border-l-0 {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors hidden"
                 title="Share">
             <!-- Standard iOS/Android share icon -->
             <svg class="h-6 w-6 {{ icon_color|default:'text-blue-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -28,7 +28,7 @@
         </button>
         <button data-action="copy-share-url"
                 data-widget-id="{{ widget_id }}"
-                class="px-3 py-2 {{ border_color|default:'border-gray-300' }} border border-l-0 rounded-r-lg {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors"
+                class="tap-target px-3 py-2.5 {{ border_color|default:'border-gray-300' }} border border-l-0 rounded-r-lg {{ button_bg|default:'bg-white' }} {{ button_hover|default:'hover:bg-blue-50' }} transition-colors"
                 title="Copy to clipboard">
             <div class="h-6 w-6 {{ icon_color|default:'text-blue-600' }} flex items-center justify-center text-lg font-bold">⧉</div>
         </button>
@@ -46,7 +46,7 @@
         <a data-action="share-whatsapp"
            data-widget-id="{{ widget_id }}"
            href="#"
-           class="flex-1 bg-green-500 text-white p-2 rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors"
+           class="flex-1 bg-green-500 text-white p-2.5 rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors"
            title="Share on WhatsApp">
             <!-- WhatsApp icon -->
             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -56,7 +56,7 @@
         <a data-action="share-messenger"
            data-widget-id="{{ widget_id }}"
            href="#"
-           class="flex-1 bg-blue-500 text-white p-2 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
+           class="flex-1 bg-blue-500 text-white p-2.5 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
            title="Share on Messenger">
             <!-- Facebook Messenger icon -->
             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -66,7 +66,7 @@
         <a data-action="share-sms"
            data-widget-id="{{ widget_id }}"
            href="#"
-           class="flex-1 bg-gray-600 text-white p-2 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
+           class="flex-1 bg-gray-600 text-white p-2.5 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
            title="Share via SMS">
             <!-- SMS/Messages icon -->
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -81,7 +81,7 @@
     <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 text-center">
         <h3 class="text-2xl font-semibold text-gray-900 mb-4">Scan QR Code</h3>
         <canvas id="qr-code-modal-canvas-{{ widget_id }}"></canvas>
-        <button data-action="close-qr-code-modal" data-widget-id="{{ widget_id }}" class="mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-medium">
+        <button data-action="close-qr-code-modal" data-widget-id="{{ widget_id }}" class="mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2.5 rounded-lg hover:bg-gray-300 font-medium">
             Close
         </button>
     </div>
