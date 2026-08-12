@@ -28,8 +28,7 @@ Context: item (LineItem object, optional), container_class (optional)
                     <input type="text"
                            value="{% if item %}{{ item.quantity_numerator }}{% if item.quantity_denominator != 1 %}/{{ item.quantity_denominator }}{% endif %}{% else %}1{% endif %}"
                            placeholder="Qt"
-                           class="item-quantity w-1/2 flex-grow h-11 px-1 sm:px-2 border border-gray-300 rounded-l-lg text-base focus:ring-2 focus:ring-blue-500 text-center tabular-nums"
-                           readonly>
+                           class="item-quantity w-1/2 flex-grow h-11 px-1 sm:px-2 border border-gray-300 rounded-l-lg text-base focus:ring-2 focus:ring-blue-500 text-center tabular-nums">
                     <button data-action="subdivide-item" class="tap-target h-11 bg-gray-200 text-gray-700 px-2 border-t border-b border-r border-gray-300 rounded-r-lg hover:bg-gray-300 text-sm font-medium">÷</button>
                 </div>
                 <span class="text-gray-500 font-medium">×</span>

@@ -247,17 +247,9 @@ class ReceiptService:
         total_claimed = split['total_claimed']
         total_unclaimed = split['total_unclaimed']
 
-        # Build name→venmo map from prefetched viewers
-        viewer_venmo_map = {
-            v.viewer_name: v.venmo_username
-            for v in receipt.viewers.all()
-            if v.venmo_username
-        }
-
-        # Sort participants by name, include venmo if available
+        # Sort participants by name
         participant_list = sorted([
-            {'name': name, 'amount': amount,
-             'venmo_username': viewer_venmo_map.get(name, '')}
+            {'name': name, 'amount': amount}
             for name, amount in participant_totals.items()
         ], key=lambda x: x['name'])
         
@@ -277,8 +269,7 @@ class ReceiptService:
         
         return result
     
-    def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str,
-                        venmo_username: str = '') -> ActiveViewer:
+    def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str) -> ActiveViewer:
         """Register a viewer for the receipt"""
         receipt = self._get_by_id(receipt_id)
         if not receipt:
@@ -287,7 +278,7 @@ class ReceiptService:
         viewer, created = ActiveViewer.objects.update_or_create(
             receipt=receipt,
             session_id=session_id,
-            defaults={'viewer_name': viewer_name, 'venmo_username': venmo_username}
+            defaults={'viewer_name': viewer_name}
         )
 
         return viewer

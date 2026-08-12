@@ -595,5 +595,59 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       // ...while the visible text is rounded to cents
       expect(shareEl.textContent).toBe('$3.69');
     });
+
+    it('should mark per-part price with ≈ when it cannot multiply back to the item share', () => {
+      setBodyHTML(`
+        <div class="item-container" data-item-id="202">
+          <h3>Shared Platter</h3>
+          <p class="text-gray-500 text-xs">+ Tax: $0.41 + Tip: $0.67 = <span class="font-semibold item-share-amount" data-amount="3.69">$3.69</span> per item</p>
+        </div>
+      `);
+
+      const pollData = [{
+        item_id: '202',
+        available_quantity: 3,
+        quantity_numerator: 3,
+        quantity_denominator: 3,
+        unit_price: 10.00,
+        total_price: 10.00,
+        per_portion_share: 3.692222,
+        claims: []
+      }];
+
+      updateItemClaims(pollData, 'kuizy', false);
+
+      // 3 × $3.69 = $11.07 but the item share rounds to $11.08 → honest ≈
+      const calcLine = document.querySelector('.text-gray-500.text-xs');
+      expect(calcLine.textContent).toContain('≈ $3.69');
+      expect(calcLine.textContent).not.toContain('= $3.69');
+    });
+
+    it('should restore = when per-part price multiplies back exactly', () => {
+      setBodyHTML(`
+        <div class="item-container" data-item-id="203">
+          <h3>Shared Platter</h3>
+          <p class="text-gray-500 text-xs">+ Tax: $0.41 + Tip: $0.67 ≈ <span class="font-semibold item-share-amount" data-amount="3.44">$3.44</span> per part</p>
+        </div>
+      `);
+
+      const pollData = [{
+        item_id: '203',
+        available_quantity: 2,
+        quantity_numerator: 2,
+        quantity_denominator: 2,
+        unit_price: 10.00,
+        total_price: 10.00,
+        per_portion_share: 5.50,
+        claims: []
+      }];
+
+      updateItemClaims(pollData, 'kuizy', false);
+
+      // 2 × $5.50 = $11.00 exactly → plain =
+      const calcLine = document.querySelector('.text-gray-500.text-xs');
+      expect(calcLine.textContent).toContain('= $5.50');
+      expect(calcLine.textContent).not.toContain('≈');
+    });
   });
 });

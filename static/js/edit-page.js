@@ -6,9 +6,9 @@
 // Page state variables
 let receiptSlug = null;
 let receiptId = null;
-let receiptTip = 0;
 let isProcessing = false;
 let receiptIsBalanced = true;
+let tipPromptShown = false;
 
 /**
  * Initialize edit page with data from DOM
@@ -18,7 +18,6 @@ function initializeEditPage() {
     if (container) {
         receiptSlug = container.dataset.receiptSlug;
         receiptId = container.dataset.receiptId;
-        receiptTip = parseFloat(container.dataset.receiptTip) || 0;
         isProcessing = container.dataset.isProcessing === 'true';
     }
 }
@@ -269,6 +268,31 @@ function removeItem(button) {
 }
 
 /**
+ * Parse a quantity string typed by the user.
+ * Accepts positive integers ("2") and fractions ("3/4").
+ * @param {string} value - The raw input value
+ * @returns {Object|null} {numerator, denominator} or null if invalid
+ */
+function parseQuantityInput(value) {
+    const match = /^\s*(\d+)\s*(?:\/\s*(\d+)\s*)?$/.exec(value);
+    if (!match) return null;
+    const numerator = parseInt(match[1], 10);
+    const denominator = match[2] ? parseInt(match[2], 10) : 1;
+    if (numerator <= 0 || denominator <= 0) return null;
+    return { numerator: numerator, denominator: denominator };
+}
+
+/**
+ * Format numerator/denominator for display in the quantity input
+ * @param {number} numerator
+ * @param {number} denominator
+ * @returns {string} "N" for whole quantities, "N/D" for fractions
+ */
+function formatQuantity(numerator, denominator) {
+    return denominator === 1 ? String(numerator) : `${numerator}/${denominator}`;
+}
+
+/**
  * Attach event listeners to item row
  * @param {HTMLElement} row - The item row element
  */
@@ -277,6 +301,27 @@ function attachItemListeners(row) {
         updateItemTotal(row);
         updateProrations();
     });
+
+    const quantityInput = row.querySelector('.item-quantity');
+    if (quantityInput) {
+        quantityInput.addEventListener('input', () => {
+            const parsed = parseQuantityInput(quantityInput.value);
+            if (!parsed) return; // Ignore incomplete/invalid input while typing
+            const numeratorEl = row.querySelector('.item-quantity-numerator');
+            const denominatorEl = row.querySelector('.item-quantity-denominator');
+            if (numeratorEl) numeratorEl.value = parsed.numerator;
+            if (denominatorEl) denominatorEl.value = parsed.denominator;
+            updateItemTotal(row);
+        });
+        quantityInput.addEventListener('change', () => {
+            // On blur, revert garbage input to the current model value
+            if (!parseQuantityInput(quantityInput.value)) {
+                const numerator = parseInt(row.querySelector('.item-quantity-numerator')?.value) || 1;
+                const denominator = parseInt(row.querySelector('.item-quantity-denominator')?.value) || 1;
+                quantityInput.value = formatQuantity(numerator, denominator);
+            }
+        });
+    }
 
     const subdivideBtn = row.querySelector('[data-action="subdivide-item"]');
     if (subdivideBtn) {
@@ -397,14 +442,30 @@ async function saveReceipt(skipReload = false) {
  */
 async function finalizeReceipt() {
     if (isProcessing) return;
-    
+
     // Check balance before allowing finalization
     if (!receiptIsBalanced) {
         // Keep this alert as it prevents invalid finalization
         alert('Cannot finalize receipt: The receipt doesn\'t balance. Please fix the errors shown above.');
         return;
     }
-    
+
+    // Prompt for a tip once before finalizing if none has been entered
+    const tipField = document.getElementById('tip');
+    const currentTip = tipField ? (parseFloat(tipField.value) || 0) : 0;
+    if (currentTip === 0 && !tipPromptShown) {
+        tipPromptShown = true;
+        initializeTipModal(() => completeFinalization());
+        return;
+    }
+
+    await completeFinalization();
+}
+
+/**
+ * Confirm and finalize the receipt (called after the tip prompt, if any)
+ */
+async function completeFinalization() {
     if (!confirm('Once finalized, this receipt cannot be edited. Continue?')) {
         return;
     }
@@ -594,9 +655,16 @@ function initializeProcessingAnimations() {
 // TIP MODAL FUNCTIONS
 // ============================================================================
 
-function initializeTipModal() {
+/**
+ * Show the Add Tip modal
+ * @param {Function} [onDone] - Called after the user applies a tip or declines
+ */
+function initializeTipModal(onDone) {
     const template = document.getElementById('add-tip-modal-template');
-    if (!template) return;
+    if (!template) {
+        if (onDone) onDone();
+        return;
+    }
 
     const modal = template.content.cloneNode(true).firstElementChild;
     document.body.appendChild(modal);
@@ -711,10 +779,12 @@ function initializeTipModal() {
         tipField.dispatchEvent(new Event('input'));
 
         modal.remove();
+        if (onDone) onDone();
     });
 
     modal.querySelector('[data-action="close-tip-modal"]').addEventListener('click', () => {
         modal.remove();
+        if (onDone) onDone();
     });
 
     updateTipTypeUI();
@@ -753,11 +823,7 @@ function initializeSubdivideModal(row) {
             numeratorInput.value = newNumerator;
             denominatorInput.value = newDenominator;
 
-            if (newDenominator === 1) {
-                quantityInput.value = newNumerator;
-            } else {
-                quantityInput.value = `${newNumerator}/${newDenominator}`;
-            }
+            quantityInput.value = formatQuantity(newNumerator, newDenominator);
 
             updateItemTotal(row);
         }
@@ -800,11 +866,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial balance check
         checkAndDisplayBalance();
 
-        // Show tip modal if tip is zero
-        console.log('Checking tip modal condition:', receiptTip, 'type:', typeof receiptTip);
-        if (receiptTip === 0 || Math.abs(receiptTip) < 0.01) {
-            console.log('Initializing tip modal for zero/near-zero tip');
-            initializeTipModal();
+        // Keep the tab title in sync with the restaurant name
+        const restaurantNameInput = document.getElementById('restaurant_name');
+        if (restaurantNameInput) {
+            restaurantNameInput.addEventListener('input', () => {
+                document.title = `Edit Receipt - ${restaurantNameInput.value}`;
+            });
         }
     }
     
@@ -862,6 +929,8 @@ if (typeof module !== 'undefined' && module.exports) {
         removeItem,
         attachItemListeners,
         getReceiptData,
+        parseQuantityInput,
+        formatQuantity,
         
         // Server Communication
         saveReceipt,
@@ -876,12 +945,13 @@ if (typeof module !== 'undefined' && module.exports) {
         initializeTipModal,
         
         // State variables (for testing)
-        _getState: () => ({ receiptSlug, receiptId, isProcessing, receiptIsBalanced }),
+        _getState: () => ({ receiptSlug, receiptId, isProcessing, receiptIsBalanced, tipPromptShown }),
         _setState: (state) => {
             if (state.receiptSlug !== undefined) receiptSlug = state.receiptSlug;
             if (state.receiptId !== undefined) receiptId = state.receiptId;
             if (state.isProcessing !== undefined) isProcessing = state.isProcessing;
             if (state.receiptIsBalanced !== undefined) receiptIsBalanced = state.receiptIsBalanced;
+            if (state.tipPromptShown !== undefined) tipPromptShown = state.tipPromptShown;
         }
     };
 }
