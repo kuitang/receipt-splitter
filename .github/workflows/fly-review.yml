@@ -37,7 +37,7 @@ jobs:
             AWS_ENDPOINT_URL_S3="${{ secrets.AWS_ENDPOINT_URL_S3 }}" \
             AWS_REGION="${{ secrets.AWS_REGION }}" \
             BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
-            -a "$APP_NAME" --stage
+            -a "$APP_NAME"
 
       - name: Allocate shared IPv4 for preview app
         if: github.event.action != 'closed'
