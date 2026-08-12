@@ -11,10 +11,10 @@ from django.core.exceptions import ValidationError
 from django.core.signing import Signer, BadSignature
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import QuerySet, Prefetch, Sum, F, DecimalField, FloatField
-from django.db.models.functions import Cast
+from django.db.models import Prefetch
 
 from receipts.models import Receipt, LineItem, ActiveViewer, Claim
+from receipts.services.money import compute_receipt_split
 from receipts.services.validation_pipeline import ValidationPipeline
 from receipts.async_processor import (
     process_receipt_async,
@@ -240,13 +240,13 @@ class ReceiptService:
                 'available_quantity': available_quantity
             })
         
-        # Calculate participant totals
-        participant_totals = self._get_participant_totals(receipt_id)
-        
-        # Calculate summary
-        total_claimed = sum(participant_totals.values())
-        total_unclaimed = receipt.total - total_claimed
-        
+        # Calculate participant totals with exact cent allocation so that
+        # participant totals + unclaimed always equal receipt.total exactly
+        split = compute_receipt_split(receipt)
+        participant_totals = split['participant_totals']
+        total_claimed = split['total_claimed']
+        total_unclaimed = split['total_unclaimed']
+
         # Build name→venmo map from prefetched viewers
         viewer_venmo_map = {
             v.viewer_name: v.venmo_username
@@ -266,7 +266,8 @@ class ReceiptService:
             'items_with_claims': items_with_claims,
             'participant_totals': participant_list,
             'total_claimed': total_claimed,
-            'total_unclaimed': total_unclaimed
+            'total_unclaimed': total_unclaimed,
+            'is_fully_claimed': split['is_fully_claimed']
         }
         
         # Cache if finalized (30 minutes)
@@ -455,31 +456,6 @@ class ReceiptService:
                 }
                 for item in receipt.items.all()
             ]
-        }
-    
-    def _get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
-        """Calculate totals per participant efficiently using single database query.
-
-        Share = (claim.numerator / item.numerator) * (item.total + item.tax + item.tip)
-        """
-        if not Receipt.objects.filter(id=receipt_id).exists():
-            return {}
-
-        # Cast to FloatField to force float division in SQLite (avoids integer truncation)
-        results = Claim.objects.filter(
-            line_item__receipt_id=receipt_id
-        ).values('claimer_name').annotate(
-            total=Sum(
-                (Cast(F('quantity_numerator'), FloatField())
-                 / Cast(F('line_item__quantity_numerator'), FloatField()))
-                * (F('line_item__total_price') + F('line_item__prorated_tax') + F('line_item__prorated_tip')),
-                output_field=DecimalField(max_digits=12, decimal_places=6)
-            )
-        ).order_by('claimer_name')
-
-        return {
-            result['claimer_name']: result['total'] or Decimal('0')
-            for result in results
         }
     
     def _get_all_claimer_names(self, receipt_id: str) -> List[str]:

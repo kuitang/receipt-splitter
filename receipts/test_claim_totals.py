@@ -10,7 +10,7 @@ from decimal import Decimal
 import json
 
 from receipts.models import Receipt, LineItem, Claim
-from receipts.services import ClaimService
+from receipts.services import ClaimService, ReceiptService
 
 
 class ClaimTotalsByNameRepositoryTests(TestCase):
@@ -362,8 +362,192 @@ class ClaimTotalsIntegrationTests(TestCase):
         
         service = ClaimService()
         participant_totals = service.get_participant_totals(self.receipt.id)
-        
+
         # John should have total from both sessions
         self.assertEqual(participant_totals["John"], Decimal("22.88"))
         # Jane should have her total
         self.assertEqual(participant_totals["Jane"], Decimal("5.20"))
+
+
+class RoundingResidueTests(TestCase):
+    """Sub-cent rounding residue must not break the fully-claimed state.
+
+    Regression: a fully-claimed receipt showed "Not Claimed $0.00" and never
+    showed the success state, because per-item prorations are quantized to
+    6 decimal places so summing per-claim shares diverges from receipt.total
+    by sub-cent amounts (positive or negative).
+    """
+
+    def setUp(self):
+        self.receipt_service = ReceiptService()
+
+    def _make_receipt(self, tip):
+        """3 items at $10.00 with prorations computed exactly as production does.
+
+        With tip=1.00 each prorated tip is 1/3 = 0.333333 (6dp), so the sum
+        of shares is 0.000001 BELOW the receipt total (positive residue).
+        With tip=2.00 each prorated tip is 0.666667, so the sum of shares is
+        0.000001 ABOVE the receipt total (negative residue).
+        """
+        receipt = Receipt.objects.create(
+            uploader_name="Uploader",
+            restaurant_name="Residue Cafe",
+            date=timezone.now(),
+            subtotal=Decimal("30.00"),
+            tax=Decimal("1.23"),
+            tip=tip,
+            total=Decimal("30.00") + Decimal("1.23") + tip,
+            is_finalized=True
+        )
+        items = []
+        for i in range(3):
+            item = LineItem(
+                receipt=receipt,
+                name=f"Dish {i + 1}",
+                quantity_numerator=1,
+                unit_price=Decimal("10.00"),
+                total_price=Decimal("10.00"),
+            )
+            item.calculate_prorations()
+            item.save()
+            items.append(item)
+        return receipt, items
+
+    def _claim_all(self, items, names):
+        for item, name in zip(items, names):
+            Claim.objects.create(
+                line_item=item,
+                claimer_name=name,
+                quantity_numerator=item.quantity_numerator,
+                session_id=f"session-{name}",
+                is_finalized=True,
+            )
+
+    def _assert_fully_claimed_invariants(self, receipt):
+        data = self.receipt_service.get_receipt_for_viewing_by_slug(receipt.slug)
+
+        # Fully claimed: no unclaimed residue, quantity-based flag set
+        self.assertEqual(data['total_unclaimed'], Decimal('0'))
+        self.assertTrue(data['is_fully_claimed'])
+
+        # Money adds up exactly: participants sum to the receipt total
+        participant_sum = sum(p['amount'] for p in data['participant_totals'])
+        self.assertEqual(participant_sum, receipt.total)
+        self.assertEqual(data['total_claimed'], receipt.total)
+
+        # Every displayed amount is a whole number of cents
+        for p in data['participant_totals']:
+            self.assertEqual(p['amount'], p['amount'].quantize(Decimal('0.01')))
+        return data
+
+    def test_fully_claimed_positive_residue(self):
+        """Sum of rounded shares below total: no 'Not Claimed $0.00' row"""
+        receipt, items = self._make_receipt(tip=Decimal("1.00"))
+        self._claim_all(items, ["Alice", "Bob", "Carol"])
+        self._assert_fully_claimed_invariants(receipt)
+
+    def test_fully_claimed_negative_residue(self):
+        """Sum of rounded shares above total: total_unclaimed must not go negative"""
+        receipt, items = self._make_receipt(tip=Decimal("2.00"))
+        self._claim_all(items, ["Alice", "Bob", "Carol"])
+        self._assert_fully_claimed_invariants(receipt)
+
+    def test_fully_claimed_subdivided_item(self):
+        """A subdivided item claimed in thirds still balances exactly"""
+        receipt = Receipt.objects.create(
+            uploader_name="Uploader",
+            restaurant_name="Split Bar",
+            date=timezone.now(),
+            subtotal=Decimal("10.00"),
+            tax=Decimal("1.00"),
+            tip=Decimal("2.00"),
+            total=Decimal("13.00"),
+            is_finalized=True
+        )
+        item = LineItem(
+            receipt=receipt,
+            name="Shared Platter",
+            quantity_numerator=3,
+            quantity_denominator=3,
+            unit_price=Decimal("10.00"),
+            total_price=Decimal("10.00"),
+        )
+        item.calculate_prorations()
+        item.save()
+        # 13.00 / 3 = 4.3333... per portion: cannot round evenly
+        for name in ["Alice", "Bob", "Carol"]:
+            Claim.objects.create(
+                line_item=item,
+                claimer_name=name,
+                quantity_numerator=1,
+                session_id=f"session-{name}",
+                is_finalized=True,
+            )
+        data = self._assert_fully_claimed_invariants(receipt)
+        # No one drifts more than a cent from their exact share (13/3)
+        for p in data['participant_totals']:
+            self.assertLess(abs(p['amount'] - Decimal("13.00") / 3), Decimal("0.01"))
+
+    def test_many_items_fully_claimed_by_three(self):
+        """Production-like: 19 items, three claimers, awkward prices"""
+        prices = [Decimal(p) for p in (
+            "12.34", "9.99", "23.45", "7.77", "15.00", "8.13", "19.87",
+            "11.11", "6.66", "14.29", "22.22", "5.55", "18.18", "9.09",
+            "13.13", "17.71", "21.12", "10.01", "45.13"
+        )]
+        subtotal = sum(prices)
+        tax = Decimal("25.71")
+        tip = Decimal("58.30")
+        receipt = Receipt.objects.create(
+            uploader_name="Uploader",
+            restaurant_name="Big Night Out",
+            date=timezone.now(),
+            subtotal=subtotal,
+            tax=tax,
+            tip=tip,
+            total=subtotal + tax + tip,
+            is_finalized=True
+        )
+        items = []
+        for i, price in enumerate(prices):
+            item = LineItem(
+                receipt=receipt,
+                name=f"Item {i + 1}",
+                quantity_numerator=1,
+                unit_price=price,
+                total_price=price,
+            )
+            item.calculate_prorations()
+            item.save()
+            items.append(item)
+        names = ["Alice", "Bob", "Carol"]
+        self._claim_all(items, [names[i % 3] for i in range(len(items))])
+        self._assert_fully_claimed_invariants(receipt)
+
+    def test_partially_claimed_receipt_shows_unclaimed(self):
+        """Partially claimed receipts still report a correct unclaimed amount"""
+        receipt, items = self._make_receipt(tip=Decimal("1.00"))
+        # Only claim the first two items
+        self._claim_all(items[:2], ["Alice", "Bob"])
+
+        data = self.receipt_service.get_receipt_for_viewing_by_slug(receipt.slug)
+
+        self.assertFalse(data['is_fully_claimed'])
+        self.assertGreater(data['total_unclaimed'], Decimal('0'))
+        # Unclaimed is the third item's share (~10.74) to the cent
+        third_share = items[2].get_total_share()
+        self.assertLess(abs(data['total_unclaimed'] - third_share), Decimal("0.01"))
+        # Claimed + unclaimed must equal the receipt total exactly
+        participant_sum = sum(p['amount'] for p in data['participant_totals'])
+        self.assertEqual(participant_sum + data['total_unclaimed'], receipt.total)
+        self.assertEqual(data['total_claimed'] + data['total_unclaimed'], receipt.total)
+
+    def test_unclaimed_receipt_reports_full_total(self):
+        """No claims at all: everything is unclaimed"""
+        receipt, items = self._make_receipt(tip=Decimal("1.00"))
+
+        data = self.receipt_service.get_receipt_for_viewing_by_slug(receipt.slug)
+
+        self.assertFalse(data['is_fully_claimed'])
+        self.assertEqual(data['total_unclaimed'], receipt.total)
+        self.assertEqual(data['total_claimed'], Decimal('0'))

@@ -4,7 +4,6 @@ Encapsulates all business logic related to claims
 """
 from typing import Dict, Optional, List, Tuple
 from decimal import Decimal
-from fractions import Fraction
 from math import gcd
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -12,8 +11,9 @@ from django.core.cache import cache
 from django.db import transaction
 
 from receipts.models import Claim, LineItem, Receipt
-from django.db.models import QuerySet, Sum, F, DecimalField, FloatField, Prefetch, Q, Value
-from django.db.models.functions import Coalesce, Cast
+from django.db.models import QuerySet, Sum, Q, Value
+from django.db.models.functions import Coalesce
+from receipts.services.money import compute_receipt_split
 from receipts.services.validation_pipeline import ValidationPipeline
 from receipts.middleware.query_monitor import log_query_performance
 
@@ -172,17 +172,10 @@ class ClaimService:
         cache.delete(f"participant_totals:{receipt_id}")
         cache.delete(f"receipt_view:{receipt_id}")
 
-        # Calculate my_total: share = (claim_num / item_num) * total_share
-        my_total = Decimal('0')
-        for claim in created_claims:
-            line_item = locked_items_dict.get(str(claim.line_item_id))
-            if line_item and line_item.quantity_numerator > 0:
-                share_fraction = Fraction(claim.quantity_numerator, line_item.quantity_numerator)
-                total_share = line_item.total_price + line_item.prorated_tax + line_item.prorated_tip
-                my_total += Decimal(share_fraction.numerator) / Decimal(share_fraction.denominator) * total_share
-
-        # Get participant totals
+        # Get participant totals (exact cent allocation); my_total comes from
+        # the same allocation so it always matches the participant row
         participant_totals = self.get_participant_totals(receipt_id)
+        my_total = participant_totals.get(claimer_name, Decimal('0'))
 
         return {
             'success': True,
@@ -484,26 +477,17 @@ class ClaimService:
             return None
     
     def _get_participant_totals(self, receipt_id: str) -> Dict[str, Decimal]:
-        """Calculate totals per participant. share = claim_num / item_num * total_share"""
-        if not Receipt.objects.filter(id=receipt_id).exists():
+        """Calculate totals per participant with exact cent allocation.
+
+        Shares are computed exactly (claim_num / item_num * total_share) and
+        rounded once at the receipt level so totals always sum to receipt.total.
+        """
+        try:
+            receipt = Receipt.objects.prefetch_related('items__claims').get(id=receipt_id)
+        except Receipt.DoesNotExist:
             return {}
 
-        # Cast to FloatField to force float division in SQLite (avoids integer truncation)
-        results = Claim.objects.filter(
-            line_item__receipt_id=receipt_id
-        ).values('claimer_name').annotate(
-            total=Sum(
-                (Cast(F('quantity_numerator'), FloatField())
-                 / Cast(F('line_item__quantity_numerator'), FloatField()))
-                * (F('line_item__total_price') + F('line_item__prorated_tax') + F('line_item__prorated_tip')),
-                output_field=DecimalField(max_digits=12, decimal_places=6)
-            )
-        ).order_by('claimer_name')
-
-        return {
-            result['claimer_name']: result['total'] or Decimal('0')
-            for result in results
-        }
+        return compute_receipt_split(receipt)['participant_totals']
     
     def _count_claimed_numerator(self, line_item_id: str) -> int:
         """Get total claimed numerator for a line item (shared denominator)."""

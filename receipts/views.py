@@ -275,7 +275,7 @@ def view_receipt(request, receipt_slug):
         my_total = Decimal('0')
         my_claims_by_item = {}  # Map item_id -> quantity_claimed
         is_user_finalized = False
-        
+
         if viewer_name:
             # Extract claims from prefetched data instead of making 3 separate queries
             for item_data in receipt_data['items_with_claims']:
@@ -284,13 +284,14 @@ def view_receipt(request, receipt_slug):
                     if claim.claimer_name == viewer_name:
                         my_claims.append(claim)
                         my_claims_by_item[str(item.id)] = claim.quantity_numerator
-                        # Share = (claim_num / item_num) * total_share
-                        if item.quantity_numerator > 0:
-                            from fractions import Fraction
-                            share_fraction = Fraction(claim.quantity_numerator, item.quantity_numerator)
-                            my_total += (Decimal(share_fraction.numerator) / Decimal(share_fraction.denominator)) * item.get_total_share()
                         if claim.is_finalized:
                             is_user_finalized = True
+            # Use the cent-allocated participant totals so the displayed
+            # (and Venmo'd) amount matches the participant row exactly
+            for participant in receipt_data['participant_totals']:
+                if participant['name'] == viewer_name:
+                    my_total = participant['amount']
+                    break
         
         # Add user's existing claims to items_with_claims data
         for item_data in receipt_data['items_with_claims']:
@@ -311,9 +312,10 @@ def view_receipt(request, receipt_slug):
             'participant_totals': receipt_data['participant_totals'],
             'total_claimed': receipt_data['total_claimed'],
             'total_unclaimed': receipt_data['total_unclaimed'],
+            'is_fully_claimed': receipt_data['is_fully_claimed'],
             'share_url': request.build_absolute_uri(receipt.get_absolute_url())
         }
-        
+
         return render(request, 'receipts/view.html', context)
         
     except ReceiptNotFoundError:
@@ -479,20 +481,21 @@ def get_claim_status(request, receipt_slug):
             viewer_name = receipt.uploader_name
         
         # Calculate user's total from prefetched data (no extra queries!)
+        # Uses the cent-allocated participant totals so it matches the
+        # participant row and the server-rendered page exactly
         my_total = Decimal('0')
         is_user_finalized = False
         if viewer_name:
-            from fractions import Fraction
+            for participant in receipt_data['participant_totals']:
+                if participant['name'] == viewer_name:
+                    my_total = participant['amount']
+                    break
             for item_data in receipt_data['items_with_claims']:
-                item = item_data['item']
                 for claim in item_data['claims']:
-                    if claim.claimer_name == viewer_name:
-                        if item.quantity_numerator > 0:
-                            share_fraction = Fraction(claim.quantity_numerator, item.quantity_numerator)
-                            my_total += (Decimal(share_fraction.numerator) / Decimal(share_fraction.denominator)) * item.get_total_share()
-                        if claim.is_finalized and claim.session_id == user_context.session_id:
-                            is_user_finalized = True
-        
+                    if (claim.claimer_name == viewer_name and claim.is_finalized
+                            and claim.session_id == user_context.session_id):
+                        is_user_finalized = True
+
         # Prepare response data
         response_data = {
             'success': True,
@@ -505,6 +508,7 @@ def get_claim_status(request, receipt_slug):
             ],
             'total_claimed': float(receipt_data['total_claimed']),
             'total_unclaimed': float(receipt_data['total_unclaimed']),
+            'is_fully_claimed': receipt_data['is_fully_claimed'],
             'my_total': float(my_total),
             'items_with_claims': []
         }
