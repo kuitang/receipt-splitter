@@ -17,6 +17,19 @@ jobs:
       - name: Get code
         uses: actions/checkout@v4
 
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # TEMP: remove after PR 20 review app deploys cleanly. Fly's postgres
+      # provisioning flaked twice, leaving orphaned half-created apps that
+      # block fly-pr-review-apps from re-launching with a database.
+      - name: Reset orphaned review apps before deploy
+        if: github.event.action != 'closed'
+        run: |
+          APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
+          for A in "${APP_NAME}-db" "$APP_NAME"; do
+            fly apps destroy "$A" --yes || echo "$A not present"
+          done
+
       - name: Deploy PR app to Fly.io
         id: deploy
         uses: superfly/fly-pr-review-apps@latest
