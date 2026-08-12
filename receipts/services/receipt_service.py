@@ -9,7 +9,6 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.signing import Signer, BadSignature
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Prefetch
 
@@ -172,9 +171,6 @@ class ReceiptService:
         Get receipt by slug with all claims and calculations for viewing
         Combines get_receipt_by_slug and get_receipt_for_viewing into ONE query
         """
-        # Try cache first for finalized receipts
-        # We need to get ID first, but we can do it in the same query below
-        
         # Get receipt with ALL related data in ONE query!
         try:
             receipt = Receipt.objects.prefetch_related(
@@ -190,42 +186,22 @@ class ReceiptService:
                 receipt.save(update_fields=['slug'])
         except Receipt.DoesNotExist:
             raise ReceiptNotFoundError(f"Receipt with slug {slug} not found")
-        
-        # Check cache for finalized receipts
-        cache_key = f"receipt_view:{receipt.id}"
-        if receipt.is_finalized:
-            cached = cache.get(cache_key)
-            if cached is not None:
-                return cached
-        
-        # Rest of the method remains the same...
+
         return self._prepare_receipt_viewing_data(receipt)
-    
+
     def get_receipt_for_viewing(self, receipt_id: str) -> Dict:
         """
         Get receipt with all claims and calculations for viewing
-        Uses cache for finalized receipts
         """
-        # Check cache for finalized receipts
-        cache_key = f"receipt_view:{receipt_id}"
-        
         # Get receipt with all related data in ONE query (not two!)
         receipt = self._get_with_claims_and_viewers(receipt_id)
         if not receipt:
             raise ReceiptNotFoundError(f"Receipt {receipt_id} not found")
-        
-        # Check cache AFTER we have the receipt (avoid double query)
-        if receipt.is_finalized:
-            cached = cache.get(cache_key)
-            if cached is not None:
-                return cached
-        
+
         return self._prepare_receipt_viewing_data(receipt)
-    
+
     def _prepare_receipt_viewing_data(self, receipt: Receipt) -> Dict:
         """Prepare viewing data from a prefetched receipt (no additional queries!)"""
-        receipt_id = str(receipt.id)
-        
         # Prepare items with claims data - calculate availability without extra queries!
         items_with_claims = []
         for item in receipt.items.all():
@@ -253,7 +229,7 @@ class ReceiptService:
             for name, amount in participant_totals.items()
         ], key=lambda x: x['name'])
         
-        result = {
+        return {
             'receipt': receipt,
             'items_with_claims': items_with_claims,
             'participant_totals': participant_list,
@@ -261,13 +237,6 @@ class ReceiptService:
             'total_unclaimed': total_unclaimed,
             'is_fully_claimed': split['is_fully_claimed']
         }
-        
-        # Cache if finalized (30 minutes)
-        cache_key = f"receipt_view:{receipt_id}"
-        if receipt.is_finalized:
-            cache.set(cache_key, result, 1800)
-        
-        return result
     
     def register_viewer(self, receipt_id: str, viewer_name: str, session_id: str) -> ActiveViewer:
         """Register a viewer for the receipt"""

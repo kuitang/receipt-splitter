@@ -967,6 +967,23 @@ async function submitClaims(claims) {
         if (!response.ok) {
             const error = await response.json();
 
+            // Already finalized (e.g. a retried request after the first one
+            // succeeded) — the finalized state is authoritative, so show the
+            // message and reload to display the finalized view
+            if (response.status === 409) {
+                clearSavedClaims();
+                isSubmitting = true;
+                alert(error.error || 'Your claims have already been finalized.');
+                if (typeof window !== 'undefined' && window.location) {
+                    try {
+                        window.location.reload();
+                    } catch (e) {
+                        console.log('Navigation attempted but not supported in test environment');
+                    }
+                }
+                return;
+            }
+
             // Check if we got availability information (race condition occurred)
             if (error.availability && error.preserve_input) {
                 // Adjust quantities in UI to available amounts
@@ -1431,6 +1448,7 @@ if (typeof module !== 'undefined' && module.exports) {
         
         // Actions
         confirmClaims,
+        submitClaims,
         
         // Polling functionality
         startPolling,

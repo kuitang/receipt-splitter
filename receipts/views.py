@@ -395,6 +395,15 @@ def claim_item(request, receipt_slug):
         return JsonResponse({'error': str(e)}, status=400)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid request data'}, status=400)
+    except ValueError as e:
+        # finalize_claims raises ValueError for already-finalized retries and
+        # missing receipts — both are client errors, not server errors
+        message = str(e)
+        if 'already been finalized' in message:
+            return JsonResponse({'error': message, 'already_finalized': True}, status=409)
+        if 'not found' in message:
+            return JsonResponse({'error': message}, status=404)
+        return JsonResponse({'error': message}, status=400)
     except Exception as e:
         logger.exception(f"Exception in claim_item for slug '{receipt_slug}'")
         return JsonResponse({'error': 'An unexpected error occurred.'}, status=500)

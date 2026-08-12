@@ -212,7 +212,7 @@ def test_kuizy_fries_regression_scenario(
         expected_quantity = 2
         expected_available = 0
     else:
-        assert response.status_code in {400, 500}
+        assert response.status_code in {400, 409}
         assert "error" in result
         expected_quantity = 1
         expected_available = 1
@@ -249,7 +249,7 @@ def test_finalization_prevents_further_changes(
         data=json.dumps(finalize_data),
         content_type="application/json",
     )
-    assert second.status_code in {400, 500}
+    assert second.status_code == 409
     error = json.loads(second.content)
     assert "error" in error
 
