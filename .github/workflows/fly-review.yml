@@ -27,7 +27,7 @@ jobs:
         run: |
           APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
           for A in "${APP_NAME}-db" "$APP_NAME"; do
-            fly apps destroy "$A" --yes || echo "$A not present"
+            flyctl apps destroy "$A" --yes || echo "$A not present"
           done
 
       - name: Deploy PR app to Fly.io
