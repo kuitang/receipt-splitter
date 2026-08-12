@@ -547,4 +547,53 @@ describe('REGRESSION TESTS - Critical Bug Prevention', () => {
       expect(participantsDiv.textContent).toContain('$25.00');
     });
   });
+
+  describe('Bug: Sub-cent Rounding Drift ($290.75 vs $290.73)', () => {
+    it('should accumulate full-precision shares and round only the final total', () => {
+      // Per-portion share of 11.076666/3 = 3.692222 (non-terminating).
+      // Old behavior multiplied the rounded $3.69 by 3 = $11.07, drifting
+      // from the server's single-rounded $11.08.
+      setBodyHTML(`
+        <div class="item-container" data-item-id="200">
+          <h3>Shared Platter</h3>
+          <div class="item-share-amount" data-amount="3.692222"></div>
+          <input type="number" class="claim-quantity" value="3" min="0" max="3" data-item-id="200">
+        </div>
+        <p id="my-total">$0.00</p>
+      `);
+
+      updateTotal();
+
+      // 3 x 3.692222 = 11.076666 -> rounds once to $11.08
+      expect(document.getElementById('my-total').textContent).toBe('$11.08');
+    });
+
+    it('should keep full precision in data-amount after polling updates', () => {
+      setBodyHTML(`
+        <div class="item-container" data-item-id="201">
+          <h3>Shared Platter</h3>
+          <p class="text-gray-500 text-xs">+ Tax: $0.41 + Tip: $0.67 = <span class="font-semibold item-share-amount" data-amount="3.69">$3.69</span> per item</p>
+        </div>
+      `);
+
+      const pollData = [{
+        item_id: '201',
+        available_quantity: 3,
+        quantity_numerator: 3,
+        quantity_denominator: 3,
+        unit_price: 10.00,
+        total_price: 10.00,
+        per_portion_share: 3.692222,
+        claims: []
+      }];
+
+      updateItemClaims(pollData, 'kuizy', false);
+
+      const shareEl = document.querySelector('.item-share-amount');
+      // data-amount keeps full precision for calculations...
+      expect(shareEl.dataset.amount).toBe('3.692222');
+      // ...while the visible text is rounded to cents
+      expect(shareEl.textContent).toBe('$3.69');
+    });
+  });
 });

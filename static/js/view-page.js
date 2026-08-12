@@ -524,13 +524,14 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
             }
         }
 
-        // Update per-portion share display and data attribute
+        // Update per-portion share display and data attribute.
+        // data-amount keeps full precision (rounding happens once, on the
+        // final total) while the visible text is rounded to cents.
         if (itemData.per_portion_share != null) {
             const shareEl = itemContainer.querySelector('.item-share-amount');
             if (shareEl) {
-                const share = itemData.per_portion_share.toFixed(2);
-                shareEl.dataset.amount = share;
-                shareEl.textContent = `$${share}`;
+                shareEl.dataset.amount = String(itemData.per_portion_share);
+                shareEl.textContent = `$${itemData.per_portion_share.toFixed(2)}`;
             }
             // Update the "per item/part" line
             const calcLine = itemContainer.querySelector('.text-gray-500.text-xs');
@@ -539,9 +540,8 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                 const suffix = den > 1 ? 'part' : 'item';
                 const shareSpan = calcLine.querySelector('.item-share-amount');
                 if (shareSpan) {
-                    const share = itemData.per_portion_share.toFixed(2);
-                    shareSpan.dataset.amount = share;
-                    shareSpan.textContent = `$${share}`;
+                    shareSpan.dataset.amount = String(itemData.per_portion_share);
+                    shareSpan.textContent = `$${itemData.per_portion_share.toFixed(2)}`;
                 }
                 // Update suffix text (part vs item)
                 const lastText = calcLine.lastChild;

@@ -1,0 +1,42 @@
+name: Cleanup Orphaned Review Apps
+# Destroys Fly review apps (pr-N-kuitang-receipt-splitter and their -db
+# postgres apps) whose PR is closed. The close-time cleanup in
+# fly-review.yml silently failed for a while (`fly` vs `flyctl`), so
+# orphaned -db apps can linger. Run manually from the Actions tab.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be destroyed without destroying"
+        type: boolean
+        default: true
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Destroy review apps for closed PRs
+        run: |
+          set -euo pipefail
+          DRY_RUN="${{ inputs.dry_run }}"
+          REPO="${{ github.repository }}"
+
+          flyctl apps list --json | jq -r '.[].Name' | grep -E '^pr-[0-9]+-kuitang-receipt-splitter(-db)?$' | while read -r APP; do
+            PR_NUM=$(echo "$APP" | sed -E 's/^pr-([0-9]+)-.*/\1/')
+            STATE=$(gh pr view "$PR_NUM" --repo "$REPO" --json state --jq .state 2>/dev/null || echo "UNKNOWN")
+            if [ "$STATE" = "OPEN" ]; then
+              echo "SKIP  $APP (PR #$PR_NUM is open)"
+            elif [ "$DRY_RUN" = "true" ]; then
+              echo "WOULD DESTROY  $APP (PR #$PR_NUM state: $STATE)"
+            else
+              echo "DESTROY  $APP (PR #$PR_NUM state: $STATE)"
+              flyctl apps destroy "$APP" --yes || echo "Failed to destroy $APP"
+            fi
+          done
+          echo "Done."

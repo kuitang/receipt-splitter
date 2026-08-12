@@ -218,8 +218,9 @@ class ViewTests(TestCase):
         
         # Check that the per-item share is calculated and displayed
         # Total share is 20.00 + 2.00 + 3.00 = 25.00 for all 2 items
-        # Per item: 25.00 / 2 = 12.50
-        self.assertContains(response, 'data-amount="12.50"')
+        # Per item: 25.00 / 2 = 12.50 (data-amount keeps full precision so
+        # the JS rounds only once, at the final total)
+        self.assertContains(response, 'data-amount="12.500000"')
         self.assertContains(response, '$12.50</span>')
     
     def test_view_nonexistent_receipt(self):
@@ -370,13 +371,13 @@ class ViewTests(TestCase):
         response = self.client.post(url, {'viewer_name': 'Test Viewer'})
         
         # Item 1: 20.00 + (40% of 5.00 tax) + (40% of 10.00 tip) = 20 + 2 + 4 = 26.00 total
-        # Per item: 26.00 / 2 = 13.00
-        self.assertContains(response, 'data-amount="13.00"')
+        # Per item: 26.00 / 2 = 13.00 (data-amount keeps full precision)
+        self.assertContains(response, 'data-amount="13.000000"')
         self.assertContains(response, '$13.00</span>')
-        
+
         # Item 2: 30.00 + (60% of 5.00 tax) + (60% of 10.00 tip) = 30 + 3 + 6 = 39.00 total
         # Per item: 39.00 / 3 = 13.00
-        self.assertContains(response, 'data-amount="13.00"')
+        self.assertContains(response, 'data-amount="13.000000"')
         self.assertContains(response, '$13.00</span>')
     
     def test_participant_totals_display(self):

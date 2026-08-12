@@ -43,8 +43,8 @@
     
     {% else %}
     
-    <!-- Success Image if all items are claimed -->
-    {% if total_unclaimed == 0 and participant_totals %}
+    <!-- Success Image if all items are claimed (quantity-based, immune to rounding) -->
+    {% if is_fully_claimed and participant_totals %}
     <div class="mb-4 text-center">
         <img src="{% static 'images/success_split.png' %}"
              alt="Successfully split the bill" 
