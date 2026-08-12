@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from fractions import Fraction
 import uuid
 import random
@@ -113,6 +113,19 @@ class LineItem(models.Model):
     def get_per_item_share(self):
         """Backward-compat alias. Returns per-portion share."""
         return self.get_per_portion_share()
+
+    def per_portion_display_is_approximate(self):
+        """True when the cent-rounded per-portion share times the number of
+        portions differs from the cent-rounded total share.
+
+        Rounding happens once on the final total (see services/money.py), so
+        the displayed per-portion price is approximate whenever multiplying
+        it back out would drift by a cent (e.g. 3 × $3.44 = $10.32 vs $10.31).
+        """
+        cent = Decimal('0.01')
+        per_rounded = self.get_per_portion_share().quantize(cent, rounding=ROUND_HALF_UP)
+        total_rounded = self.get_total_share().quantize(cent, rounding=ROUND_HALF_UP)
+        return per_rounded * self.quantity_numerator != total_rounded
 
     def get_available_quantity(self):
         """Available numerator units (same denominator as item)."""
@@ -233,7 +246,6 @@ class ActiveViewer(models.Model):
     receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name='viewers')
     viewer_name = models.CharField(max_length=50)
     session_id = models.CharField(max_length=100)
-    venmo_username = models.CharField(max_length=30, blank=True, default='')
     last_seen = models.DateTimeField(auto_now=True)
     
     class Meta:

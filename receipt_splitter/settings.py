@@ -185,14 +185,45 @@ DATABASES = {
     )
 }
 
-# Configure SQLite-specific options for better concurrency
+# Configure SQLite-specific options for better concurrency.
+#
+# Why each knob (do not remove without understanding):
+#
+# - transaction_mode=IMMEDIATE: Django's default BEGIN (DEFERRED) starts
+#   transactions as readers; the first write then upgrades shared->reserved.
+#   If another connection holds the write lock at that moment, SQLite returns
+#   SQLITE_BUSY *immediately* (its deadlock detection skips the busy handler),
+#   so `timeout` cannot help and requests 500 with "database is locked".
+#   Every @transaction.atomic block in this app writes (finalize_claims,
+#   subdivide_item, _update_receipt_with_items, update_or_create, session
+#   saves), so starting them as writers is correct: writers then QUEUE on
+#   BEGIN IMMEDIATE, where busy_timeout does apply. Requires Django >= 5.1.
+#
+# - timeout (busy_timeout): how long a queued writer waits for the write
+#   lock before giving up. Only effective now that transactions begin
+#   IMMEDIATE (see above); it was useless against the upgrade deadlock.
+#
+# - journal_mode=WAL: readers no longer block the writer's commit and the
+#   writer doesn't block readers, so the ~5s status polling (which, due to
+#   SESSION_SAVE_EVERY_REQUEST, also writes the session row) can't starve
+#   claim finalization. WAL is a persistent property of the database file,
+#   but setting it per-connection is idempotent and covers fresh databases.
+#
+# - synchronous=NORMAL: recommended pairing with WAL; a crash can lose the
+#   last transactions but cannot corrupt the database. Cuts fsync cost on
+#   Fly's shared CPUs.
+#
+# Applies only to SQLite; Postgres (DATABASE_URL) deployments are untouched.
 if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
     if 'OPTIONS' not in DATABASES['default']:
         DATABASES['default']['OPTIONS'] = {}
     DATABASES['default']['OPTIONS'].update({
-        'timeout': 20,  # Increase from default 5 seconds
-        # Note: WAL mode must be set via PRAGMA on the database file itself
-        # See management command or run: PRAGMA journal_mode=WAL;
+        'timeout': 20,
+        'transaction_mode': 'IMMEDIATE',
+        'init_command': (
+            'PRAGMA journal_mode=WAL;'
+            ' PRAGMA synchronous=NORMAL;'
+        ),
     })
 
 # Cache configuration

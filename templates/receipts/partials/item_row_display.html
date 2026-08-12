@@ -36,7 +36,7 @@ Context: item (LineItem), show_calculations, show_claims, claims, viewer_name, r
     
     {% if show_calculations %}
     <div class="mt-1">
-        <p class="text-gray-500 text-xs">+ Tax: ${{ item.prorated_tax|floatformat:2 }} + Tip: ${{ item.prorated_tip|floatformat:2 }} = <span class="font-semibold item-share-amount" data-amount="{{ item.get_per_portion_share|floatformat:6 }}">${{ item.get_per_portion_share|floatformat:2 }}</span> per {% if item.quantity_denominator > 1 %}part{% else %}item{% endif %}</p>
+        <p class="text-gray-500 text-xs">+ Tax: ${{ item.prorated_tax|floatformat:2 }} + Tip: ${{ item.prorated_tip|floatformat:2 }} {% if item.per_portion_display_is_approximate %}≈{% else %}={% endif %} <span class="font-semibold item-share-amount" data-amount="{{ item.get_per_portion_share|floatformat:6 }}">${{ item.get_per_portion_share|floatformat:2 }}</span> per {% if item.quantity_denominator > 1 %}part{% else %}item{% endif %}</p>
     </div>
     {% endif %}
 

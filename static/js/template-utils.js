@@ -225,28 +225,17 @@ window.TemplateUtils = {
      * Create participant entry from template
      * @param {string} name - Participant name
      * @param {number} amount - Amount owed
-     * @param {{href: string, title: string}|null} venmoLink - Venmo charge link
-     *        (uploader-only); the link element is removed when omitted
      * @returns {DocumentFragment|null} The participant entry
      */
-    createParticipantEntry(name, amount, venmoLink = null) {
+    createParticipantEntry(name, amount) {
         const clone = this.cloneTemplate('participant-entry-template');
         if (!clone) return null;
 
         const nameSpan = clone.querySelector('[data-participant-name]');
         const amountSpan = clone.querySelector('[data-participant-amount]');
-        const venmoAnchor = clone.querySelector('[data-participant-venmo-link]');
 
         if (nameSpan) nameSpan.textContent = name;
         if (amountSpan) amountSpan.textContent = `$${amount.toFixed(2)}`;
-        if (venmoAnchor) {
-            if (venmoLink) {
-                venmoAnchor.href = venmoLink.href;
-                venmoAnchor.title = venmoLink.title;
-            } else {
-                venmoAnchor.remove();
-            }
-        }
 
         return clone;
     },

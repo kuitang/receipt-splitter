@@ -654,82 +654,13 @@ describe('View Page Claiming Functionality', () => {
         expect(bobEntry.querySelector('.tabular-nums').textContent).toBe('$18.75');
       });
 
-      describe('Venmo charge links in rebuilt participant rows', () => {
-        const participantTotals = [
-          { name: 'Uploader Ulla', amount: 12.00, venmo_username: 'ulla-venmo' },
-          { name: 'Bob', amount: 18.75, venmo_username: 'bob-venmo' },
-          { name: 'Carol', amount: 5.25, venmo_username: '' }
-        ];
+      it('should not render any links in rebuilt participant rows', () => {
+        updateParticipantTotals([
+          { name: 'Alice', amount: 25.50 },
+          { name: 'Bob', amount: 18.75 }
+        ]);
 
-        function setUploaderPageData(isUploader) {
-          const pageData = document.getElementById('view-page-data');
-          pageData.dataset.isUploader = isUploader ? 'true' : 'false';
-          pageData.dataset.uploaderName = 'Uploader Ulla';
-          pageData.dataset.restaurantName = "Tom & Jerry's Café + Bar";
-        }
-
-        function findEntry(name) {
-          const entries = document.querySelectorAll('.space-y-2 .flex.justify-between.items-center');
-          return Array.from(entries).find(entry =>
-            entry.querySelector('.text-gray-700')?.textContent === name
-          );
-        }
-
-        it('should render charge link for uploader with single-encoded note', () => {
-          setUploaderPageData(true);
-
-          updateParticipantTotals(participantTotals);
-
-          const bobLink = findEntry('Bob').querySelector('a[data-participant-venmo-link]');
-          expect(bobLink).toBeTruthy();
-          expect(bobLink.getAttribute('target')).toBe('_blank');
-          expect(bobLink.getAttribute('rel')).toBe('noopener noreferrer');
-          expect(bobLink.classList.contains('tap-target')).toBe(true);
-          expect(bobLink.title).toBe('Request $18.75 from Bob');
-
-          const href = bobLink.getAttribute('href');
-          expect(href).toContain('https://venmo.com/bob-venmo?txn=charge&amount=18.75&note=');
-          const note = href.split('note=')[1];
-          expect(note).toBe(encodeURIComponent(
-            `You Owe - Tom & Jerry's Café + Bar ${window.location.href}`
-          ));
-          // Single-encoded: & and + are percent-encoded exactly once
-          expect(note).toContain('%26');
-          expect(note).toContain('%2B');
-          expect(note).not.toContain('%2526'); // no double encoding
-          expect(note).not.toContain('&');     // no raw separators leak
-        });
-
-        it('should not render charge link for uploader\'s own row or participants without venmo', () => {
-          setUploaderPageData(true);
-
-          updateParticipantTotals(participantTotals);
-
-          expect(findEntry('Uploader Ulla').querySelector('a')).toBeNull();
-          expect(findEntry('Carol').querySelector('a')).toBeNull();
-        });
-
-        it('should not render any charge links for non-uploader viewers', () => {
-          setUploaderPageData(false);
-
-          updateParticipantTotals(participantTotals);
-
-          expect(document.querySelectorAll('.space-y-2 a').length).toBe(0);
-        });
-
-        it('should keep charge links across repeated poll cycles', () => {
-          setUploaderPageData(true);
-
-          updateParticipantTotals(participantTotals);
-          updateParticipantTotals(participantTotals);
-          updateParticipantTotals(participantTotals);
-
-          const bobEntries = Array.from(
-            document.querySelectorAll('.space-y-2 .flex.justify-between.items-center')
-          ).filter(entry => entry.querySelector('.text-gray-700')?.textContent === 'Bob');
-          expect(bobEntries.length).toBe(1);
-          expect(bobEntries[0].querySelector('a[data-participant-venmo-link]')).toBeTruthy();
-        });
+        expect(document.querySelectorAll('.space-y-2 a').length).toBe(0);
       });
 
       it('should update total amounts correctly', () => {

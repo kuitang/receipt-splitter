@@ -632,4 +632,215 @@ describe('Receipt Editor - Real Tests Without Excessive Mocking', () => {
       expect(document.querySelector('[data-component="add-tip-modal"]')).toBeNull();
     });
   });
+
+  describe('Quantity Input Wiring', () => {
+    function addRowWithQty(name, numerator, denominator, price) {
+      addItem();
+      const rows = document.querySelectorAll('.item-row');
+      const row = rows[rows.length - 1];
+      row.querySelector('.item-name').value = name;
+      row.querySelector('.item-quantity-numerator').value = String(numerator);
+      row.querySelector('.item-quantity-denominator').value = String(denominator);
+      row.querySelector('.item-quantity').value =
+        denominator === 1 ? String(numerator) : `${numerator}/${denominator}`;
+      row.querySelector('.item-price').value = String(price);
+      updateItemTotal(row);
+      return row;
+    }
+
+    it('should render the quantity input as editable (not readonly)', () => {
+      addItem();
+      const quantityInput = document.querySelector('.item-quantity');
+      expect(quantityInput.readOnly).toBe(false);
+    });
+
+    it('should update numerator, item total and subtotal when typing a lower quantity', () => {
+      const row = addRowWithQty('Fries', 2, 1, 3.99);
+      expect(row.querySelector('.item-total').value).toBe('7.98');
+
+      const quantityInput = row.querySelector('.item-quantity');
+      quantityInput.value = '1';
+      quantityInput.dispatchEvent(new Event('input'));
+
+      expect(row.querySelector('.item-quantity-numerator').value).toBe('1');
+      expect(row.querySelector('.item-quantity-denominator').value).toBe('1');
+      expect(row.querySelector('.item-total').value).toBe('3.99');
+      expect(document.getElementById('subtotal').value).toBe('3.99');
+    });
+
+    it('should support typing a fractional quantity like 3/4', () => {
+      const row = addRowWithQty('Cake', 1, 1, 8.00);
+
+      const quantityInput = row.querySelector('.item-quantity');
+      quantityInput.value = '3/4';
+      quantityInput.dispatchEvent(new Event('input'));
+
+      expect(row.querySelector('.item-quantity-numerator').value).toBe('3');
+      expect(row.querySelector('.item-quantity-denominator').value).toBe('4');
+      expect(row.querySelector('.item-total').value).toBe('6.00');
+
+      const data = getReceiptData();
+      expect(data.items[0].quantity_numerator).toBe(3);
+      expect(data.items[0].quantity_denominator).toBe(4);
+    });
+
+    it('should ignore garbage input while typing and keep the model unchanged', () => {
+      const row = addRowWithQty('Fries', 2, 1, 3.99);
+      const quantityInput = row.querySelector('.item-quantity');
+
+      ['abc', '0', '-1', '', '1.5', '2/0'].forEach(garbage => {
+        quantityInput.value = garbage;
+        quantityInput.dispatchEvent(new Event('input'));
+        expect(row.querySelector('.item-quantity-numerator').value).toBe('2');
+        expect(row.querySelector('.item-quantity-denominator').value).toBe('1');
+        expect(row.querySelector('.item-total').value).toBe('7.98');
+      });
+    });
+
+    it('should revert garbage input to the model value on change', () => {
+      const row = addRowWithQty('Soda', 3, 4, 8.00);
+      const quantityInput = row.querySelector('.item-quantity');
+
+      quantityInput.value = 'garbage';
+      quantityInput.dispatchEvent(new Event('change'));
+
+      expect(quantityInput.value).toBe('3/4');
+    });
+
+    it('should update the quantity display when subdividing', () => {
+      const row = addRowWithQty('Pizza', 2, 1, 10.00);
+      row.querySelector('[data-action="subdivide-item"]').click();
+
+      document.querySelector('.subdivide-input').value = '2';
+      document.querySelector('[data-action="apply-subdivide"]').click();
+
+      expect(row.querySelector('.item-quantity-numerator').value).toBe('4');
+      expect(row.querySelector('.item-quantity-denominator').value).toBe('2');
+      expect(row.querySelector('.item-quantity').value).toBe('4/2');
+      expect(row.querySelector('.item-total').value).toBe('20.00');
+    });
+
+    it('should validate quantity strings via parseQuantityInput', () => {
+      const { parseQuantityInput } = editPageModule;
+      expect(parseQuantityInput('2')).toEqual({ numerator: 2, denominator: 1 });
+      expect(parseQuantityInput('3/4')).toEqual({ numerator: 3, denominator: 4 });
+      expect(parseQuantityInput(' 3 / 4 ')).toEqual({ numerator: 3, denominator: 4 });
+      expect(parseQuantityInput('0')).toBeNull();
+      expect(parseQuantityInput('2/0')).toBeNull();
+      expect(parseQuantityInput('-1')).toBeNull();
+      expect(parseQuantityInput('1.5')).toBeNull();
+      expect(parseQuantityInput('abc')).toBeNull();
+      expect(parseQuantityInput('')).toBeNull();
+    });
+  });
+
+  describe('Finalize Flow Tip Prompt', () => {
+    beforeEach(() => {
+      setBodyHTML(`
+        <div id="edit-page-data"
+             data-receipt-slug="test-receipt"
+             data-receipt-id="123"
+             data-is-processing="false">
+        </div>
+        <input id="restaurant_name" value="Test Restaurant">
+        <input id="subtotal" type="number" value="100.00">
+        <input id="tax" type="number" value="10.00">
+        <input id="tip" type="number" value="0.00">
+        <input id="total" type="number" value="110.00">
+        <div id="items-container"></div>
+        <div id="share-modal" class="hidden"></div>
+        <input id="share-url">
+        <button data-action="finalize">Finalize & Share</button>
+      `);
+      initializeEditPage();
+      _setState({ isProcessing: false, receiptIsBalanced: true, tipPromptShown: false });
+      // Restore real fetch helpers (earlier tests replace these globals)
+      global.authenticatedFetch = authenticatedFetch;
+      global.authenticatedJsonFetch = authenticatedJsonFetch;
+      global.fetch = vi.fn();
+    });
+
+    it('should open the tip modal on first finalize when tip is zero, before confirming', async () => {
+      await finalizeReceipt();
+
+      expect(document.querySelector('[data-component="add-tip-modal"]')).not.toBeNull();
+      expect(global.confirm).not.toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('should continue finalization after applying a tip', async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ is_balanced: true }) })
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ share_url: 'http://localhost/r/abc123/' }) });
+
+      await finalizeReceipt();
+      const modal = document.querySelector('[data-component="add-tip-modal"]');
+      modal.querySelector('[data-action="set-tip-percentage"][data-value="20"]').click();
+      modal.querySelector('[data-action="apply-tip"]').click();
+
+      await vi.waitFor(() => {
+        expect(document.getElementById('share-modal').classList.contains('hidden')).toBe(false);
+      });
+      expect(global.confirm).toHaveBeenCalledTimes(1);
+      expect(document.getElementById('tip').value).toBe('20.00');
+      expect(document.getElementById('share-url').value).toBe('http://localhost/r/abc123/');
+    });
+
+    it('should not reopen the tip modal on subsequent finalize clicks', async () => {
+      global.confirm.mockReturnValue(false);
+
+      await finalizeReceipt();
+      document.querySelector('[data-action="close-tip-modal"]').click();
+      expect(document.querySelector('[data-component="add-tip-modal"]')).toBeNull();
+
+      await finalizeReceipt();
+      expect(document.querySelector('[data-component="add-tip-modal"]')).toBeNull();
+      expect(global.confirm).toHaveBeenCalled();
+    });
+
+    it('should skip the tip prompt when a tip is already set', async () => {
+      document.getElementById('tip').value = '5.00';
+      global.confirm.mockReturnValue(false);
+
+      await finalizeReceipt();
+
+      expect(document.querySelector('[data-component="add-tip-modal"]')).toBeNull();
+      expect(global.confirm).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Page Load Behavior', () => {
+    function setupFullPage() {
+      setBodyHTML(`
+        <div id="edit-page-data"
+             data-receipt-slug="test-receipt"
+             data-receipt-id="123"
+             data-is-processing="false">
+        </div>
+        <input id="restaurant_name" value="Old Name">
+        <input id="subtotal" type="number" value="100.00">
+        <input id="tax" type="number" value="10.00">
+        <input id="tip" type="number" value="0.00">
+        <input id="total" type="number" value="110.00">
+        <div id="items-container"></div>
+      `);
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+    }
+
+    it('should not auto-open the tip modal when the page loads with zero tip', () => {
+      setupFullPage();
+      expect(document.querySelector('[data-component="add-tip-modal"]')).toBeNull();
+    });
+
+    it('should update document.title when the restaurant name changes', () => {
+      setupFullPage();
+      document.title = 'Edit Receipt - Old Name';
+
+      const nameInput = document.getElementById('restaurant_name');
+      nameInput.value = 'New Bistro';
+      nameInput.dispatchEvent(new Event('input'));
+
+      expect(document.title).toBe('Edit Receipt - New Bistro');
+    });
+  });
 });

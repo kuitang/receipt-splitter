@@ -165,4 +165,74 @@ describe('View Page Essential Unit Tests', () => {
       expect(errorDetails.innerHTML).toContain('Burger: trying to claim 5 but only 2 available');
     });
   });
+
+  describe('beforeunload unsaved-changes prompt', () => {
+    function dispatchBeforeUnload() {
+      // The handler is registered inside the module's DOMContentLoaded
+      // listener; re-dispatching runs it against the current DOM.
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+      const event = new window.Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event;
+    }
+
+    it('does not prompt a finalized viewer with a Venmo pay link', () => {
+      // Finalized-with-Venmo variant: claim inputs hold the claimed
+      // quantities (readonly), there is no #claim-button, and the sticky
+      // section shows the pay link instead of the "Claims Finalized" ✓ text.
+      setBodyHTML(`
+        <div id="view-page-data" data-receipt-slug="test-receipt" data-receipt-id="123"></div>
+        <div class="item-container" data-item-id="1">
+          <h3>Burger</h3>
+          <div class="item-share-amount" data-amount="14.16"></div>
+          <input type="number" class="claim-quantity" data-item-id="1" min="0" max="1" value="1" readonly disabled>
+        </div>
+        <div class="sticky bottom-4">
+          <p class="text-sm text-gray-600">Your Total (Bob) - Finalized</p>
+          <p id="my-total">$14.16</p>
+          <a id="venmo-pay-link" href="https://venmo.com/alice?txn=pay&amount=14.16">Pay @alice $14.16</a>
+        </div>
+      `);
+
+      const event = dispatchBeforeUnload();
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('does not prompt a finalized viewer without a Venmo link', () => {
+      setBodyHTML(`
+        <div id="view-page-data" data-receipt-slug="test-receipt" data-receipt-id="123"></div>
+        <div class="item-container" data-item-id="1">
+          <input type="number" class="claim-quantity" data-item-id="1" min="0" max="1" value="1" readonly disabled>
+        </div>
+        <div class="sticky bottom-4">
+          <p id="my-total">$14.16</p>
+          <div class="text-center">
+            <div class="text-blue-600 text-2xl mb-1">✓</div>
+            <p class="text-sm text-blue-600 font-medium">Claims Finalized</p>
+          </div>
+        </div>
+      `);
+
+      const event = dispatchBeforeUnload();
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('still prompts a viewer with unsaved claim selections', () => {
+      setBodyHTML(`
+        <div id="view-page-data" data-receipt-slug="test-receipt" data-receipt-id="123"></div>
+        <div class="item-container" data-item-id="1">
+          <h3>Burger</h3>
+          <div class="item-share-amount" data-amount="14.16"></div>
+          <input type="number" class="claim-quantity" data-item-id="1" min="0" max="2" value="2">
+        </div>
+        <div class="sticky bottom-4">
+          <p id="my-total">$28.32</p>
+          <button id="claim-button">Finalize Claims</button>
+        </div>
+      `);
+
+      const event = dispatchBeforeUnload();
+      expect(event.defaultPrevented).toBe(true);
+    });
+  });
 });

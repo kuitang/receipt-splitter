@@ -168,13 +168,19 @@ class ClaimService:
         # Single bulk insert for all claims (within transaction)
         created_claims = Claim.objects.bulk_create(claims_to_create)
 
-        # Invalidate cache since new claims were added
-        cache.delete(f"participant_totals:{receipt_id}")
-        cache.delete(f"receipt_view:{receipt_id}")
+        # Invalidate cache now AND after commit. The inline delete keeps the
+        # cache fresh for this connection (and for test transactions that
+        # never commit); the on_commit delete closes the race where a
+        # concurrent status poll re-caches pre-commit data between the inline
+        # delete and the commit, which would serve a stale view (missing this
+        # finalization) for the full cache TTL.
+        self._invalidate_receipt_caches(receipt_id)
+        transaction.on_commit(lambda: self._invalidate_receipt_caches(receipt_id))
 
-        # Get participant totals (exact cent allocation); my_total comes from
-        # the same allocation so it always matches the participant row
-        participant_totals = self.get_participant_totals(receipt_id)
+        # Compute participant totals directly (bypassing the cache, which still
+        # holds pre-commit data until on_commit fires); my_total comes from the
+        # same exact cent allocation so it always matches the participant row
+        participant_totals = self._get_participant_totals(receipt_id)
         my_total = participant_totals.get(claimer_name, Decimal('0'))
 
         return {
@@ -227,15 +233,28 @@ class ClaimService:
             item.quantity_denominator = target_parts  # N/N = 1 whole item
             item.save(update_fields=['quantity_numerator', 'quantity_denominator'])
 
-        # Invalidate cache
-        cache.delete(f"participant_totals:{item.receipt_id}")
-        cache.delete(f"receipt_view:{item.receipt_id}")
+        # Invalidate cache now and again after commit
+        # (see finalize_claims for the race this closes)
+        receipt_id = item.receipt_id
+        self._invalidate_receipt_caches(receipt_id)
+        transaction.on_commit(lambda: self._invalidate_receipt_caches(receipt_id))
 
         return {
             'success': True,
             'quantity_numerator': item.quantity_numerator,
             'quantity_denominator': item.quantity_denominator,
         }
+
+    @staticmethod
+    def _invalidate_receipt_caches(receipt_id) -> None:
+        """Purge cached views/totals for a receipt.
+
+        Run via transaction.on_commit so the cache is only cleared once the
+        new data is visible to other connections (runs immediately when no
+        transaction is active).
+        """
+        cache.delete(f"participant_totals:{receipt_id}")
+        cache.delete(f"receipt_view:{receipt_id}")
 
     @staticmethod
     def _compute_min_parts(item, claims):

@@ -22,3 +22,5 @@ viewer_cookies.txt
 test/js/generated-templates.js
 test/js/test-templates.html
 test-results-*.json
+.playwright-cli/
+.claude/

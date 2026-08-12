@@ -324,32 +324,12 @@ function updateParticipantTotals(participantTotals) {
         }
     });
     
-    // Charge links are uploader-only: read page data to mirror the
-    // server-rendered Venmo pill (view.html) when rebuilding rows
-    const pageData = document.getElementById('view-page-data');
-    const isUploader = pageData?.dataset.isUploader === 'true';
-    const uploaderName = pageData?.dataset.uploaderName || '';
-    const restaurantName = pageData?.dataset.restaurantName || '';
-
     // Add updated participant entries
     participantTotals.forEach(participant => {
         let entry;
 
-        // Build Venmo charge link for the uploader's view only, never for
-        // the uploader's own row (matches server-side template condition)
-        let venmoLink = null;
-        if (isUploader && participant.venmo_username && participant.name !== uploaderName) {
-            const amount = participant.amount.toFixed(2);
-            // Encode the whole note exactly once — same pattern as updateVenmoLink
-            const note = encodeURIComponent(`You Owe - ${restaurantName} ${window.location.href}`);
-            venmoLink = {
-                href: `https://venmo.com/${participant.venmo_username}?txn=charge&amount=${amount}&note=${note}`,
-                title: `Request $${amount} from ${participant.name}`
-            };
-        }
-
         // Use template to create participant entry
-        const entryFragment = window.TemplateUtils.createParticipantEntry(participant.name, participant.amount, venmoLink);
+        const entryFragment = window.TemplateUtils.createParticipantEntry(participant.name, participant.amount);
         if (entryFragment) {
             entry = entryFragment.firstElementChild || entryFragment.querySelector('div');
         }
@@ -542,6 +522,18 @@ function updateItemClaims(itemsWithClaims, viewerName = null, isFinalized = fals
                 if (shareSpan) {
                     shareSpan.dataset.amount = String(itemData.per_portion_share);
                     shareSpan.textContent = `$${itemData.per_portion_share.toFixed(2)}`;
+
+                    // Show ≈ when the rounded per-portion share times parts
+                    // drifts from the rounded item share (rounding happens
+                    // once on the final total, so per-part is approximate).
+                    const parts = itemData.quantity_numerator || 1;
+                    const perCents = Math.round(itemData.per_portion_share * 100);
+                    const totalCents = Math.round(itemData.per_portion_share * parts * 100);
+                    const symbol = perCents * parts !== totalCents ? '≈' : '=';
+                    const beforeText = shareSpan.previousSibling;
+                    if (beforeText && beforeText.nodeType === Node.TEXT_NODE) {
+                        beforeText.textContent = beforeText.textContent.replace(/[=≈](\s*)$/, `${symbol}$1`);
+                    }
                 }
                 // Update suffix text (part vs item)
                 const lastText = calcLine.lastChild;
@@ -1391,9 +1383,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasQuantities = Array.from(document.querySelectorAll('.claim-quantity'))
             .some(input => parseInt(input.value) > 0);
 
-        // Check if already finalized (look for finalized indicator)
-        const isFinalized = document.querySelector('.text-blue-600.font-medium') ||
-                          document.querySelector('#claim-button')?.style.display === 'none';
+        // Check if already finalized: the server only renders #claim-button
+        // while the viewer can still change claims. Finalized viewers (both
+        // the "Claims Finalized" ✓ variant and the Venmo pay-link variant)
+        // have no claim button, so its absence means nothing is unsaved.
+        const claimButton = document.getElementById('claim-button');
+        const isFinalized = !claimButton || claimButton.style.display === 'none';
 
         if (hasQuantities && !isFinalized) {
             e.preventDefault();

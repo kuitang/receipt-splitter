@@ -24,11 +24,6 @@
                        maxlength="50"
                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                        placeholder="Enter your name">
-                <input type="text"
-                       name="viewer_venmo"
-                       maxlength="31"
-                       class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                       placeholder="Venmo username (optional)">
                 <button type="submit" class="w-full bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 font-medium">
                     Continue
                 </button>
@@ -43,13 +38,10 @@
     
     {% else %}
     
-    <!-- Success Image if all items are claimed (quantity-based, immune to rounding) -->
+    <!-- Success banner if all items are claimed (quantity-based, immune to rounding) -->
     {% if is_fully_claimed and participant_totals %}
-    <div class="mb-4 text-center">
-        <img src="{% static 'images/success_split.png' %}"
-             alt="Successfully split the bill" 
-             class="w-32 h-32 mx-auto object-contain rounded-lg">
-        <p class="text-green-600 font-semibold mt-2 text-sm">🎉 All items have been claimed!</p>
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-center">
+        <p class="text-green-700 font-semibold">🎉 All items have been claimed!</p>
     </div>
     {% endif %}
 
@@ -96,16 +88,7 @@
                         {% for participant in participant_totals %}
                         <div class="flex justify-between items-center">
                             <span class="text-gray-700">{{ participant.name }}</span>
-                            <div class="flex items-center gap-2">
-                                <span class="font-medium tabular-nums">${{ participant.amount|floatformat:2 }}</span>
-                                {% if is_uploader and participant.venmo_username and participant.name != receipt.uploader_name %}
-                                <a href="https://venmo.com/{{ participant.venmo_username }}?txn=charge&amount={{ participant.amount|floatformat:2 }}&note=You%20Owe%20-%20{{ receipt.restaurant_name|urlencode:"" }}%20{{ share_url|urlencode:"" }}"
-                                   target="_blank"
-                                   rel="noopener noreferrer"
-                                   class="tap-target text-xs px-3 py-1.5 bg-[#008CFF] text-white rounded font-medium hover:bg-[#0070CC] transition-colors"
-                                   title="Request ${{ participant.amount|floatformat:2 }} from {{ participant.name }}">Venmo</a>
-                                {% endif %}
-                            </div>
+                            <span class="font-medium tabular-nums">${{ participant.amount|floatformat:2 }}</span>
                         </div>
                         {% endfor %}
                         {% if total_unclaimed > 0 %}
@@ -196,8 +179,6 @@
      data-receipt-id="{{ receipt.id }}"
      data-venmo-username="{{ receipt.venmo_username }}"
      data-restaurant-name="{{ receipt.restaurant_name }}"
-     data-is-uploader="{{ is_uploader|yesno:'true,false' }}"
-     data-uploader-name="{{ receipt.uploader_name }}"
      style="display: none;">
 </div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"

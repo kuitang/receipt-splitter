@@ -213,15 +213,6 @@ def view_receipt(request, receipt_slug):
         if request.method == 'POST' and not viewer_name and not is_uploader:
             name = request.POST.get('viewer_name', '').strip()
 
-            # Validate and clean venmo username (same logic as upload)
-            import re
-            viewer_venmo_raw = request.POST.get('viewer_venmo', '').strip()
-            viewer_venmo = ''
-            if viewer_venmo_raw:
-                venmo_clean = viewer_venmo_raw.lstrip('@')
-                if venmo_clean and re.match(r'^[a-zA-Z0-9_-]{5,30}$', venmo_clean):
-                    viewer_venmo = venmo_clean
-
             try:
                 validated_name = validator.validate_name(name, "Your name")
             except ValidationError as e:
@@ -262,12 +253,11 @@ def view_receipt(request, receipt_slug):
             user_context.authenticate_as(validated_name)
             viewer_name = validated_name
 
-            # Register viewer with optional venmo
+            # Register viewer
             receipt_service.register_viewer(
                 receipt_id,
                 validated_name,
-                user_context.session_id,
-                venmo_username=viewer_venmo
+                user_context.session_id
             )
         
         # Extract user's claims from already-fetched data (no additional queries!)
@@ -502,8 +492,7 @@ def get_claim_status(request, receipt_slug):
             'viewer_name': viewer_name,
             'is_finalized': is_user_finalized,
             'participant_totals': [
-                {'name': participant['name'], 'amount': float(participant['amount']),
-                 'venmo_username': participant.get('venmo_username', '')}
+                {'name': participant['name'], 'amount': float(participant['amount'])}
                 for participant in receipt_data['participant_totals']
             ],
             'total_claimed': float(receipt_data['total_claimed']),

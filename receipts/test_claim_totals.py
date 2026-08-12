@@ -551,3 +551,62 @@ class RoundingResidueTests(TestCase):
         self.assertFalse(data['is_fully_claimed'])
         self.assertEqual(data['total_unclaimed'], receipt.total)
         self.assertEqual(data['total_claimed'], Decimal('0'))
+
+class PerPortionDisplayApproximationTests(TestCase):
+    """per_portion_display_is_approximate flags per-part prices that cannot
+    multiply back to the (rounded) item share without drifting by a cent."""
+
+    def _make_item(self, subtotal, tax, numerator, total_price, unit_price=None):
+        receipt = Receipt.objects.create(
+            uploader_name="Uploader",
+            restaurant_name="Test Restaurant",
+            date=timezone.now(),
+            subtotal=subtotal,
+            tax=tax,
+            tip=Decimal("0.00"),
+            total=subtotal + tax,
+            is_finalized=True,
+        )
+        item = LineItem.objects.create(
+            receipt=receipt,
+            name="Item",
+            quantity_numerator=numerator,
+            unit_price=unit_price if unit_price is not None else total_price / numerator,
+            total_price=total_price,
+        )
+        item.calculate_prorations()
+        item.save()
+        return item
+
+    def test_exact_per_portion_is_not_approximate(self):
+        # $10.00 + $2.00 tax over 2 portions = exactly $6.00 each
+        item = self._make_item(Decimal("10.00"), Decimal("2.00"), 2, Decimal("10.00"))
+        self.assertEqual(item.get_per_portion_share() * 2, item.get_total_share())
+        self.assertFalse(item.per_portion_display_is_approximate())
+
+    def test_drifting_per_portion_is_approximate(self):
+        # Share of $10.31 over 3 portions rounds to $3.44 each, but
+        # 3 x $3.44 = $10.32 != $10.31: display must say approximately.
+        item = self._make_item(Decimal("10.31"), Decimal("0.00"), 3, Decimal("10.31"))
+        self.assertEqual(
+            item.get_total_share().quantize(Decimal("0.01")), Decimal("10.31")
+        )
+        self.assertTrue(item.per_portion_display_is_approximate())
+
+    def test_single_portion_is_never_approximate(self):
+        item = self._make_item(Decimal("10.31"), Decimal("0.00"), 1, Decimal("10.31"))
+        self.assertFalse(item.per_portion_display_is_approximate())
+
+
+class SqliteConcurrencySettingsTests(TestCase):
+    """SQLite must be configured to queue on locks instead of 500ing with
+    'database is locked' under concurrent writers."""
+
+    def test_sqlite_options_configure_busy_timeout_and_immediate_transactions(self):
+        from django.conf import settings
+
+        db = settings.DATABASES['default']
+        if db['ENGINE'] != 'django.db.backends.sqlite3':
+            self.skipTest("Only relevant when running on SQLite")
+        self.assertGreaterEqual(db['OPTIONS']['timeout'], 5)
+        self.assertEqual(db['OPTIONS']['transaction_mode'], 'IMMEDIATE')
