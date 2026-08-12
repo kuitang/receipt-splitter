@@ -177,7 +177,7 @@
                            id="restaurant_name"
                            value="{{ receipt.restaurant_name|default:'Restaurant Name' }}"
                            placeholder="Restaurant Name"
-                           class="text-3xl font-bold text-gray-900 bg-transparent border-0 p-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:rounded-lg focus:px-2 w-full"
+                           class="h-11 text-3xl font-bold text-gray-900 bg-transparent border-0 p-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:rounded-lg focus:px-2 w-full"
                            {% if is_processing %}disabled{% endif %}>
                     <p class="text-gray-600 mt-1">Review and edit the extracted receipt data</p>
                 </div>
@@ -230,10 +230,10 @@
                                     <div class="relative">
                                         <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                                         <input type="number" 
-                                               id="subtotal" 
+                                               id="subtotal"
                                                value="{{ receipt.subtotal|floatformat:2 }}"
                                                step="0.01"
-                                               class="w-32 pl-6 pr-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-medium">
+                                               class="w-32 h-11 pl-6 pr-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-medium">
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -241,10 +241,10 @@
                                     <div class="relative">
                                         <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                                         <input type="number" 
-                                               id="tax" 
+                                               id="tax"
                                                value="{{ receipt.tax|floatformat:2 }}"
                                                step="0.01"
-                                               class="w-32 pl-6 pr-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-medium">
+                                               class="w-32 h-11 pl-6 pr-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-medium">
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -252,10 +252,10 @@
                                     <div class="relative">
                                         <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                                         <input type="number" 
-                                               id="tip" 
+                                               id="tip"
                                                value="{{ receipt.tip|floatformat:2 }}"
                                                step="0.01"
-                                               class="w-32 pl-6 pr-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-medium">
+                                               class="w-32 h-11 pl-6 pr-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-medium">
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center border-t pt-2 mt-2">
@@ -263,10 +263,10 @@
                                     <div class="relative">
                                         <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold">$</span>
                                         <input type="number" 
-                                               id="total" 
+                                               id="total"
                                                value="{{ receipt.total|floatformat:2 }}"
                                                step="0.01"
-                                               class="w-32 pl-6 pr-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-bold text-lg">
+                                               class="w-32 h-11 pl-6 pr-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right tabular-nums font-bold text-lg">
                                     </div>
                                 </div>
                             </div>
@@ -278,7 +278,7 @@
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold {% if is_processing %}opacity-50{% endif %}">Line Items</h2>
-                    <button data-action="add-item" class="bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
+                    <button data-action="add-item" class="tap-target bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium {% if is_processing %}opacity-50 cursor-not-allowed{% endif %}" {% if is_processing %}disabled{% endif %}>
                         + Add Item
                     </button>
                 </div>
@@ -335,7 +335,7 @@
             </div>
         </div>
         {% include 'receipts/partials/copy_link_widget.html' with share_url='' widget_id='share-url' show_qr_code_inline=True %}
-        <button data-action="close-share-modal" class="mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-medium">
+        <button data-action="close-share-modal" class="tap-target mt-4 w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-medium">
             Close
         </button>
     </div>

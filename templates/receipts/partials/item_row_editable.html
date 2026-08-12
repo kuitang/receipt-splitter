@@ -8,29 +8,29 @@ Context: item (LineItem object, optional), container_class (optional)
     <input type="hidden" class="item-quantity-denominator" value="{% if item %}{{ item.quantity_denominator }}{% else %}1{% endif %}">
     <div class="flex-1 border rounded-lg p-4 relative">
         <!-- Delete button: inside box (top-right) -->
-        <button data-action="remove-item" class="absolute top-2 right-2 text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
+        <button data-action="remove-item" class="tap-target absolute top-2 right-2 text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
             <div class="w-5 h-5 flex items-center justify-center text-lg font-bold">×</div>
         </button>
         
         <!-- Mobile: stack name on top, quantity/price below -->
         <!-- Desktop: keep original single-line layout -->
-        <div class="flex flex-col sm:flex-row sm:gap-2 sm:items-center pr-8">
-            <div class="flex-1 mb-2 sm:mb-0">
+        <div class="flex flex-col sm:flex-row sm:gap-2 sm:items-center sm:pr-8">
+            <div class="flex-1 mb-2 sm:mb-0 pr-8 sm:pr-0">
                 <input type="text" 
                        value="{% if item %}{{ item.name|escape }}{% endif %}"
                        placeholder="Item name" 
-                       class="item-name font-semibold text-lg text-gray-900 bg-transparent border-0 p-0 focus:bg-white focus:border focus:border-blue-500 focus:rounded-lg focus:px-3 focus:py-2 hover:bg-gray-50 hover:rounded-lg hover:px-3 hover:py-2 transition-all duration-200 outline-none w-full" 
+                       class="item-name h-11 font-semibold text-lg text-gray-900 bg-transparent border-0 p-0 focus:bg-white focus:border focus:border-blue-500 focus:rounded-lg focus:px-3 hover:bg-gray-50 hover:rounded-lg hover:px-3 transition-all duration-200 outline-none w-full"
                        style="cursor: text;">
             </div>
             <!-- Mobile: Put quantity/price on same line below name -->
             <div class="flex gap-2 items-center">
-                <div class="w-24 sm:w-32 flex items-center">
+                <div class="w-20 sm:w-32 flex items-center">
                     <input type="text"
                            value="{% if item %}{{ item.quantity_numerator }}{% if item.quantity_denominator != 1 %}/{{ item.quantity_denominator }}{% endif %}{% else %}1{% endif %}"
                            placeholder="Qt"
-                           class="item-quantity w-1/2 flex-grow px-1 sm:px-2 py-2 border border-gray-300 rounded-l-lg text-base focus:ring-2 focus:ring-blue-500 text-center tabular-nums"
+                           class="item-quantity w-1/2 flex-grow h-11 px-1 sm:px-2 border border-gray-300 rounded-l-lg text-base focus:ring-2 focus:ring-blue-500 text-center tabular-nums"
                            readonly>
-                    <button data-action="subdivide-item" class="bg-gray-200 text-gray-700 px-2 py-2 border-t border-b border-r border-gray-300 rounded-r-lg hover:bg-gray-300 text-sm font-medium">÷</button>
+                    <button data-action="subdivide-item" class="tap-target h-11 bg-gray-200 text-gray-700 px-2 border-t border-b border-r border-gray-300 rounded-r-lg hover:bg-gray-300 text-sm font-medium">÷</button>
                 </div>
                 <span class="text-gray-500 font-medium">×</span>
                 <div class="w-20 sm:w-24">
@@ -38,7 +38,7 @@ Context: item (LineItem object, optional), container_class (optional)
                            value="{% if item %}{{ item.unit_price|floatformat:2 }}{% endif %}"
                            step="0.01"
                            placeholder="Price"
-                           class="item-price w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 text-right tabular-nums">
+                           class="item-price w-full h-11 px-2 sm:px-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 text-right tabular-nums">
                 </div>
                 <span class="text-gray-500 font-medium">=</span>
                 <div class="flex-1 sm:w-28">
@@ -46,7 +46,7 @@ Context: item (LineItem object, optional), container_class (optional)
                            value="{% if item %}{{ item.total_price|floatformat:2 }}{% endif %}"
                            step="0.01"
                            placeholder="Total"
-                           class="item-total w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg text-base font-semibold focus:ring-2 focus:ring-blue-500 text-right tabular-nums bg-gray-50"
+                           class="item-total w-full h-11 px-2 sm:px-3 border border-gray-300 rounded-lg text-base font-semibold focus:ring-2 focus:ring-blue-500 text-right tabular-nums bg-gray-50"
                            readonly>
                 </div>
             </div>

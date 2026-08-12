@@ -324,12 +324,32 @@ function updateParticipantTotals(participantTotals) {
         }
     });
     
+    // Charge links are uploader-only: read page data to mirror the
+    // server-rendered Venmo pill (view.html) when rebuilding rows
+    const pageData = document.getElementById('view-page-data');
+    const isUploader = pageData?.dataset.isUploader === 'true';
+    const uploaderName = pageData?.dataset.uploaderName || '';
+    const restaurantName = pageData?.dataset.restaurantName || '';
+
     // Add updated participant entries
     participantTotals.forEach(participant => {
         let entry;
-        
+
+        // Build Venmo charge link for the uploader's view only, never for
+        // the uploader's own row (matches server-side template condition)
+        let venmoLink = null;
+        if (isUploader && participant.venmo_username && participant.name !== uploaderName) {
+            const amount = participant.amount.toFixed(2);
+            // Encode the whole note exactly once — same pattern as updateVenmoLink
+            const note = encodeURIComponent(`You Owe - ${restaurantName} ${window.location.href}`);
+            venmoLink = {
+                href: `https://venmo.com/${participant.venmo_username}?txn=charge&amount=${amount}&note=${note}`,
+                title: `Request $${amount} from ${participant.name}`
+            };
+        }
+
         // Use template to create participant entry
-        const entryFragment = window.TemplateUtils.createParticipantEntry(participant.name, participant.amount);
+        const entryFragment = window.TemplateUtils.createParticipantEntry(participant.name, participant.amount, venmoLink);
         if (entryFragment) {
             entry = entryFragment.firstElementChild || entryFragment.querySelector('div');
         }
