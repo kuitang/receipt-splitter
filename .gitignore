@@ -24,3 +24,5 @@ test/js/test-templates.html
 test-results-*.json
 .playwright-cli/
 .claude/
+db.sqlite3-shm
+db.sqlite3-wal
