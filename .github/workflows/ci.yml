@@ -24,11 +24,23 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.17'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.lock
+          python - <<'PYLOCK'
+          from importlib.metadata import version
+          from pathlib import Path
+          from pip._vendor.packaging.requirements import Requirement
+          for line in Path('requirements.txt').read_text().splitlines():
+              line = line.split('#', 1)[0].strip()
+              if not line:
+                  continue
+              req = Requirement(line)
+              if req.marker is None or req.marker.evaluate():
+                  assert version(req.name) in req.specifier, f"Regenerate requirements.lock for {req}"
+          PYLOCK
       - name: Run backend unit tests
         run: pytest -m backend
 
@@ -50,11 +62,23 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.17'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.lock
+          python - <<'PYLOCK'
+          from importlib.metadata import version
+          from pathlib import Path
+          from pip._vendor.packaging.requirements import Requirement
+          for line in Path('requirements.txt').read_text().splitlines():
+              line = line.split('#', 1)[0].strip()
+              if not line:
+                  continue
+              req = Requirement(line)
+              if req.marker is None or req.marker.evaluate():
+                  assert version(req.name) in req.specifier, f"Regenerate requirements.lock for {req}"
+          PYLOCK
       - name: Run integration suite
         run: pytest -m integration
 
@@ -69,11 +93,23 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.17'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.lock
+          python - <<'PYLOCK'
+          from importlib.metadata import version
+          from pathlib import Path
+          from pip._vendor.packaging.requirements import Requirement
+          for line in Path('requirements.txt').read_text().splitlines():
+              line = line.split('#', 1)[0].strip()
+              if not line:
+                  continue
+              req = Requirement(line)
+              if req.marker is None or req.marker.evaluate():
+                  assert version(req.name) in req.specifier, f"Regenerate requirements.lock for {req}"
+          PYLOCK
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
