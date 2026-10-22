@@ -4,7 +4,7 @@
 # ============================================
 # Stage 1: Python dependencies builder
 # ============================================
-FROM python:3.13.17-slim-trixie as python-deps
+FROM python:3.14.7-slim-trixie as python-deps
 
 # Install build dependencies (only needed for compilation)
 RUN apt-get update && apt-get install -y \
@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 # ============================================
 # Stage 2: Static files builder
 # ============================================
-FROM python:3.13.17-slim-trixie as static-builder
+FROM python:3.14.7-slim-trixie as static-builder
 
 # Copy virtual environment from previous stage
 COPY --from=python-deps /opt/venv /opt/venv
@@ -48,7 +48,7 @@ RUN python manage.py collectstatic --noinput
 # ============================================
 # Stage 3: Final production image
 # ============================================
-FROM python:3.13.17-slim-trixie
+FROM python:3.14.7-slim-trixie
 
 # Install only runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y \
