@@ -19,8 +19,8 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy and install Python dependencies
-COPY requirements.lock .
-RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+COPY requirements.txt .
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 # ============================================
 # Stage 2: Static files builder
