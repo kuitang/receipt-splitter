@@ -33,7 +33,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@vitest/ui": "^4.0.18",
     "happy-dom": "^20.6.1",
-    "nodemon": "^3.1.11",
+    "nodemon": "^3.1.14",
     "vitest": "^4.0.18"
   }
 }
