@@ -32,3 +32,22 @@ def test_oversized_upload_rejected_before_read_or_image_parse():
     with patch.object(upload.file, 'read', side_effect=AssertionError('must reject before reading')):
         with pytest.raises(ValidationError, match='limit'):
             FileUploadValidator.validate_image_file(upload)
+
+
+@pytest.mark.backend
+def test_native_heic_upload_and_ocr_preparation_round_trip():
+    import pillow_heif
+    from lib.ocr.ocr_lib import ReceiptOCR
+
+    pillow_heif.register_heif_opener()
+    image = Image.new('RGB', (16, 24), 'red')
+    raw = BytesIO()
+    image.save(raw, format='HEIF')
+    upload = SimpleUploadedFile('receipt.heic', raw.getvalue(), content_type='image/heic')
+    cleaned = FileUploadValidator.validate_image_file(upload)
+    assert Image.open(cleaned).size == (16, 24)
+    cleaned.seek(0)
+    ocr = ReceiptOCR.__new__(ReceiptOCR)
+    processed, mime = ocr._prepare_image(cleaned.read(), 'image/heic')
+    assert mime in ('image/heic', 'image/jpeg')
+    assert Image.open(BytesIO(processed)).size == (16, 24)
