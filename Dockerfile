@@ -76,6 +76,10 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive
 
+# Package installers are build-only; keep the production runtime free of their vendored libraries.
+RUN /usr/local/bin/python -m pip uninstall -y pip setuptools wheel
+RUN /opt/venv/bin/python -m pip uninstall -y pip wheel
+
 # Switch to non-root user
 USER appuser
 
