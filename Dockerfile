@@ -4,7 +4,24 @@
 # ============================================
 # Stage 1: Python dependencies builder
 # ============================================
-FROM python:3.13.17-slim-trixie as python-deps
+# Security-fixed native HEIF stack. Source URLs, hashes and upstream recipe are
+# pinned in the builder; CPU dispatch stays portable across Fly amd64 hosts.
+FROM python:3.13.18-slim-trixie AS heif-native
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake pkg-config nasm ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+ENV INSTALL_DIR_LIBS=/opt/heif \
+    CMAKE_PREFIX_PATH=/opt/heif \
+    PKG_CONFIG_PATH=/opt/heif/lib/pkgconfig \
+    LD_LIBRARY_PATH=/opt/heif/lib \
+    CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe"
+COPY docker/build_native_heif.py /tmp/build_native_heif.py
+RUN python /tmp/build_native_heif.py \
+    && find /opt/heif/lib -name '*.a' -delete
+COPY docker/record_native_build.py /tmp/record_native_build.py
+RUN python /tmp/record_native_build.py
+
+FROM python:3.13.18-slim-trixie as python-deps
 
 # Install build dependencies (only needed for compilation)
 RUN apt-get update && apt-get install -y \
@@ -14,26 +31,34 @@ RUN apt-get update && apt-get install -y \
     libmagic-dev \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=heif-native /opt/heif /opt/heif
+ENV LIBHEIF_ROOT=/opt/heif \
+    PKG_CONFIG_PATH=/opt/heif/lib/pkgconfig \
+    LD_LIBRARY_PATH=/opt/heif/lib
+
 # Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --require-hashes -r requirements.txt
+COPY requirements.txt requirements-build.txt ./
+RUN pip install --no-cache-dir --require-hashes -r requirements-build.txt \
+    && pip install --no-cache-dir --no-build-isolation --no-binary=pillow-heif --require-hashes -r requirements.txt
 
 # ============================================
 # Stage 2: Static files builder
 # ============================================
-FROM python:3.13.17-slim-trixie as static-builder
+FROM python:3.13.18-slim-trixie as static-builder
 
 # Copy virtual environment from previous stage
 COPY --from=python-deps /opt/venv /opt/venv
+COPY --from=heif-native /opt/heif /opt/heif
+ENV LD_LIBRARY_PATH=/opt/heif/lib
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install runtime dependencies for Django
 RUN apt-get update && apt-get install -y \
-    libmagic1 \
+    libmagic1 libstdc++6 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -48,11 +73,11 @@ RUN python manage.py collectstatic --noinput
 # ============================================
 # Stage 3: Final production image
 # ============================================
-FROM python:3.13.17-slim-trixie
+FROM python:3.13.18-slim-trixie
 
 # Install only runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y \
-    libmagic1 \
+    libmagic1 libstdc++6 libgomp1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -63,6 +88,8 @@ WORKDIR /code
 
 # Copy virtual environment from builder
 COPY --from=python-deps /opt/venv /opt/venv
+COPY --from=heif-native /opt/heif /opt/heif
+ENV LD_LIBRARY_PATH=/opt/heif/lib
 
 # Copy application code
 COPY --chown=appuser:appuser . .

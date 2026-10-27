@@ -24,7 +24,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13.17'
+          python-version: '3.13.18'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -62,7 +62,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13.17'
+          python-version: '3.13.18'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -93,7 +93,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13.17'
+          python-version: '3.13.18'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -117,3 +117,18 @@ jobs:
         run: npm ci
       - name: Run frontend tests
         run: npm test -- --run
+
+  production-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image with pinned native security fixes
+        run: docker build --pull -t receipt-production-test .
+      - name: Verify actual production codecs, CA trust and allowed HEIC conversion
+        run: docker run --rm --network none --entrypoint python receipt-production-test docker/verify_image_runtime.py
+      - name: Run backend, OCR and finalize regressions in the production artifact
+        run: >-
+          docker run --rm --network none
+          -v "$PWD:/testapp" -w /testapp -e SECRET_KEY=local-production-image-test
+          --entrypoint python receipt-production-test
+          -m pytest -m 'not integration and not perf'
