@@ -7,6 +7,8 @@
 # Security-fixed native HEIF stack. Source URLs, hashes and upstream recipe are
 # pinned in the builder; CPU dispatch stays portable across Fly amd64 hosts.
 FROM python:3.13.18-slim-trixie AS heif-native
+ARG SECURITY_REBUILD=local
+RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake pkg-config nasm ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -22,6 +24,8 @@ COPY docker/record_native_build.py /tmp/record_native_build.py
 RUN python /tmp/record_native_build.py
 
 FROM python:3.13.18-slim-trixie as python-deps
+ARG SECURITY_REBUILD=local
+RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
 # Install build dependencies (only needed for compilation)
 RUN apt-get update && apt-get install -y \
@@ -49,6 +53,8 @@ RUN pip install --no-cache-dir --require-hashes -r requirements-build.txt \
 # Stage 2: Static files builder
 # ============================================
 FROM python:3.13.18-slim-trixie as static-builder
+ARG SECURITY_REBUILD=local
+RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
 # Copy virtual environment from previous stage
 COPY --from=python-deps /opt/venv /opt/venv
@@ -74,6 +80,8 @@ RUN python manage.py collectstatic --noinput
 # Stage 3: Final production image
 # ============================================
 FROM python:3.13.18-slim-trixie
+ARG SECURITY_REBUILD=local
+RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
 # Install only runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y \
