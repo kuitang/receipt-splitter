@@ -15,7 +15,7 @@ jobs:
       group: pr-${{ github.event.number }}
     steps:
       - name: Get code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Refresh preview build layers for this workflow attempt
         if: github.event.action != 'closed'
