@@ -35,14 +35,33 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           APP_NAME="pr-${{ github.event.number }}-${{ github.repository_owner }}-${{ github.event.repository.name }}"
-          flyctl secrets set \
-            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
-            AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
-            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
-            AWS_ENDPOINT_URL_S3="${{ secrets.AWS_ENDPOINT_URL_S3 }}" \
-            AWS_REGION="${{ secrets.AWS_REGION }}" \
-            BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
-            -a "$APP_NAME"
+          UPDATE_LOG=$(mktemp)
+          for ATTEMPT in $(seq 1 15); do
+            if flyctl secrets set \
+              GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+              AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+              AWS_ENDPOINT_URL_S3="${{ secrets.AWS_ENDPOINT_URL_S3 }}" \
+              AWS_REGION="${{ secrets.AWS_REGION }}" \
+              BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
+              -a "$APP_NAME" > "$UPDATE_LOG" 2>&1; then
+              rm -f "$UPDATE_LOG"
+              echo "Review app secrets applied."
+              break
+            fi
+            if ! grep -q 'machine is replacing: concurrent update in progress' "$UPDATE_LOG"; then
+              rm -f "$UPDATE_LOG"
+              echo "::error::Review secret update failed with a non-transient Fly error."
+              exit 1
+            fi
+            if [ "$ATTEMPT" -eq 15 ]; then
+              rm -f "$UPDATE_LOG"
+              echo "::error::Fly review Machine replacement did not finish within the retry budget."
+              exit 1
+            fi
+            echo "Waiting for the Fly review Machine replacement (attempt $ATTEMPT/15)."
+            sleep 2
+          done
 
       - name: Allocate shared IPv4 for preview app
         if: github.event.action != 'closed'
