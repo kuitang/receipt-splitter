@@ -34,6 +34,43 @@ class FileUploadValidator:
     
     ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    MAX_HEIF_TOP_LEVEL_BOXES = 4096
+
+    @classmethod
+    def _validate_still_heif(cls, content):
+        """Reject HEIF sequences before libheif interprets their sample tables.
+
+        GHSA-74mj-m37q-h3q9 affects the top-level ``moov`` sequence path
+        before decoding. Receipt uploads support still HEIC/HEIF photos.
+        Walk only top-level ISO BMFF headers, bounded by the upload size and
+        box count; never search arbitrary compressed image bytes for markers.
+        """
+        if content[4:8] != b'ftyp':
+            return
+        offset = 0
+        box_count = 0
+        while offset < len(content):
+            box_count += 1
+            if box_count > cls.MAX_HEIF_TOP_LEVEL_BOXES:
+                raise ValidationError('HEIC/HEIF container has too many sections.')
+            remaining = len(content) - offset
+            if remaining < 8:
+                raise ValidationError('Invalid HEIC/HEIF container length.')
+            size = int.from_bytes(content[offset:offset + 4], 'big')
+            kind = content[offset + 4:offset + 8]
+            header_size = 8
+            if size == 1:
+                if remaining < 16:
+                    raise ValidationError('Invalid HEIC/HEIF extended container length.')
+                header_size = 16
+                size = int.from_bytes(content[offset + 8:offset + 16], 'big')
+            elif size == 0:
+                size = remaining
+            if size < header_size or size > remaining:
+                raise ValidationError('Invalid HEIC/HEIF container length.')
+            if kind == b'moov':
+                raise ValidationError('HEIC/HEIF image sequences are not supported. Upload a still photo.')
+            offset += size
     
     @classmethod
     def validate_image_file(cls, uploaded_file):
@@ -68,6 +105,9 @@ class FileUploadValidator:
 
         if detected_mime not in cls.ALLOWED_MIME_TYPES:
             raise ValidationError(f'File content is not a valid image. Detected type: {detected_mime}')
+
+        if detected_mime in ('image/heic', 'image/heif'):
+            cls._validate_still_heif(file_content)
         
         # Additional image validation
         try:
@@ -85,7 +125,10 @@ class FileUploadValidator:
             # Previous approach used list(image.getdata()) which created
             # ~12M Python tuples for a 12MP image, consuming ~2GB RAM.
             # Instead, just remove EXIF from the info dict and re-save.
-            if hasattr(image, '_getexif') and image._getexif():
+            exif = image.getexif()
+            if exif:
+                # HEIF also consults Pillow's cached Exif object when saving.
+                exif.clear()
                 image.info.pop('exif', None)
                 output = BytesIO()
                 image_format = image.format or 'JPEG'

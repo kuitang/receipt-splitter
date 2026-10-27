@@ -44,6 +44,9 @@ jobs:
             fi
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/security-evidence:/reports" aquasec/trivy:0.76.1 image --scanners vuln --format json --output "/reports/$DIGEST-vulnerabilities.json" "$IMAGE"
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/security-evidence:/reports" aquasec/trivy:0.76.1 image --format cyclonedx --output "/reports/$DIGEST-sbom.json" "$IMAGE"
+            if [ "$APP" = youowe ]; then
+              docker run --rm --network none --entrypoint python "$IMAGE" docker/verify_image_runtime.py > "security-evidence/$DIGEST-native.txt"
+            fi
           done < security-evidence/images.txt
       - uses: actions/upload-artifact@v4
         if: always()
