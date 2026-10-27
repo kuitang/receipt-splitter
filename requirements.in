@@ -59,7 +59,7 @@ txaio==25.12.2
 typing_extensions==4.14.1
 typing-inspection==0.4.2
 urllib3==2.8.0
-webencodings==0.5.1
+webencodings==0.6.1
 websockets==15.0.1
 whitenoise==6.9.0
 zope.interface>=8,<9
