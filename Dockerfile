@@ -6,7 +6,7 @@
 # ============================================
 # Security-fixed native HEIF stack. Source URLs, hashes and upstream recipe are
 # pinned in the builder; CPU dispatch stays portable across Fly amd64 hosts.
-FROM python:3.13.18-slim-trixie AS heif-native
+FROM python:3.15.0-slim-trixie AS heif-native
 ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,7 +23,7 @@ RUN python /tmp/build_native_heif.py \
 COPY docker/record_native_build.py /tmp/record_native_build.py
 RUN python /tmp/record_native_build.py
 
-FROM python:3.13.18-slim-trixie as python-deps
+FROM python:3.15.0-slim-trixie as python-deps
 ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
@@ -52,7 +52,7 @@ RUN pip install --no-cache-dir --require-hashes -r requirements-build.txt \
 # ============================================
 # Stage 2: Static files builder
 # ============================================
-FROM python:3.13.18-slim-trixie as static-builder
+FROM python:3.15.0-slim-trixie as static-builder
 ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
@@ -79,7 +79,7 @@ RUN python manage.py collectstatic --noinput
 # ============================================
 # Stage 3: Final production image
 # ============================================
-FROM python:3.13.18-slim-trixie
+FROM python:3.15.0-slim-trixie
 ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
