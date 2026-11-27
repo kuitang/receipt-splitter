@@ -78,28 +78,7 @@ jobs:
           DB_APP_NAME="${APP_NAME}-db"
           echo "Cleaning up database app: $DB_APP_NAME"
 
-          if flyctl apps info "$DB_APP_NAME" > /dev/null 2>&1; then
-            MACHINE_IDS=$(flyctl machines list -a "$DB_APP_NAME" --json | jq -r '.[].id')
-            if [ -n "$MACHINE_IDS" ]; then
-              for MACHINE_ID in $MACHINE_IDS; do
-                echo "Destroying database machine $MACHINE_ID"
-                flyctl machines destroy "$MACHINE_ID" -a "$DB_APP_NAME" --force || echo "Failed to destroy machine $MACHINE_ID"
-              done
-            else
-              echo "No machines found for $DB_APP_NAME"
-            fi
-
-            VOLUME_IDS=$(flyctl volumes list -a "$DB_APP_NAME" --json | jq -r '.[]?.id')
-            if [ -n "$VOLUME_IDS" ]; then
-              for VOLUME_ID in $VOLUME_IDS; do
-                echo "Destroying database volume $VOLUME_ID"
-                flyctl volumes destroy "$VOLUME_ID" -a "$DB_APP_NAME" --yes || echo "Failed to destroy volume $VOLUME_ID"
-              done
-            else
-              echo "No volumes found for $DB_APP_NAME"
-            fi
-
-            flyctl apps destroy "$DB_APP_NAME" --yes || echo "Failed to destroy database app $DB_APP_NAME"
-          else
-            echo "Database app $DB_APP_NAME does not exist, skipping."
+          APPS=$(flyctl apps list --json)
+          if jq -e --arg db "$DB_APP_NAME" 'any(.[]; .Name == $db)' <<< "$APPS" >/dev/null; then
+            flyctl apps destroy "$DB_APP_NAME" --yes
           fi

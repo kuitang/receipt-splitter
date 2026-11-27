@@ -27,16 +27,16 @@ jobs:
           DRY_RUN="${{ inputs.dry_run }}"
           REPO="${{ github.repository }}"
 
-          flyctl apps list --json | jq -r '.[].Name' | grep -E '^pr-[0-9]+-kuitang-receipt-splitter(-db)?$' | while read -r APP; do
+          flyctl apps list --json | jq -r '.[] | .Name | select(test("^pr-[0-9]+-kuitang-receipt-splitter(-db)?$"))' | while read -r APP; do
             PR_NUM=$(echo "$APP" | sed -E 's/^pr-([0-9]+)-.*/\1/')
-            STATE=$(gh pr view "$PR_NUM" --repo "$REPO" --json state --jq .state 2>/dev/null || echo "UNKNOWN")
-            if [ "$STATE" = "OPEN" ]; then
-              echo "SKIP  $APP (PR #$PR_NUM is open)"
+            STATE=$(gh pr view "$PR_NUM" --repo "$REPO" --json state --jq .state)
+            if [[ "$STATE" != CLOSED && "$STATE" != MERGED ]]; then
+              echo "SKIP  $APP (PR #$PR_NUM state: $STATE)"
             elif [ "$DRY_RUN" = "true" ]; then
               echo "WOULD DESTROY  $APP (PR #$PR_NUM state: $STATE)"
             else
               echo "DESTROY  $APP (PR #$PR_NUM state: $STATE)"
-              flyctl apps destroy "$APP" --yes || echo "Failed to destroy $APP"
+              flyctl apps destroy "$APP" --yes
             fi
           done
           echo "Done."
