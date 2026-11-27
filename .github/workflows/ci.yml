@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.18'
       - name: Install Python dependencies
@@ -60,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.18'
       - name: Install Python dependencies
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libmagic1 libheif1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.18'
       - name: Install Python dependencies
