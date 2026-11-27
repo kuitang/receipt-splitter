@@ -110,7 +110,7 @@ jobs:
               if req.marker is None or req.marker.evaluate():
                   assert version(req.name) in req.specifier, f"Regenerate requirements.txt for {req}"
           PYLOCK
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
       - name: Install npm dependencies
