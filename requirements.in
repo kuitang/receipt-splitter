@@ -6,7 +6,7 @@ moto[s3]
 anyio==4.14.2
 asgiref==3.9.1
 attrs==25.3.0
-autobahn==26.7.1
+autobahn==26.10.1
 Automat==25.4.16
 beautifulsoup4==4.13.4
 bleach==6.4.0
@@ -36,7 +36,7 @@ packaging==25.0
 pillow==13.0.0
 pillow_heif==1.8.1
 psycopg2-binary==2.9.11
-pyasn1==0.6.4
+pyasn1==0.6.5
 pyasn1_modules==0.4.2
 pycparser==2.22
 pydantic==2.12.5
@@ -48,7 +48,7 @@ requests==2.33.0
 rsa==4.9.1
 service-identity==24.2.0
 sniffio==1.3.1
-soupsieve==2.9.0
+soupsieve==4.0
 sqlparse==0.6.0
 pytest==9.0.3
 pytest-django==4.11.1
