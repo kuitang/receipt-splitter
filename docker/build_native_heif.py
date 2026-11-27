@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import shutil
 import tarfile
+from time import sleep
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 RECIPE_URL = "https://raw.githubusercontent.com/bigcat88/pillow_heif/0ed53791bef34eeda0182b7a26476f99445922de/libheif/build_libs.py"
@@ -21,8 +23,16 @@ SOURCES = {
 
 
 def fetch_verified(url, digest, destination):
-    with urlopen(url, timeout=90) as response:
-        data = response.read()
+    for attempt in range(3):
+        try:
+            with urlopen(url, timeout=90) as response:
+                data = response.read()
+            break
+        except (TimeoutError, URLError) as error:
+            if attempt == 2 or isinstance(error, HTTPError) and error.code < 500:
+                raise
+            print(f"Retrying native source download: {url}", flush=True)
+            sleep(2 ** attempt)
     if hashlib.sha256(data).hexdigest() != digest:
         raise RuntimeError(f"Source checksum mismatch: {url}")
     destination.write_bytes(data)

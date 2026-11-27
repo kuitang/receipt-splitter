@@ -9,7 +9,7 @@
 FROM python:3.13.18-slim-trixie AS heif-native
 ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential cmake pkg-config nasm ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 ENV INSTALL_DIR_LIBS=/opt/heif \
@@ -28,7 +28,7 @@ ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
 # Install build dependencies (only needed for compilation)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     build-essential \
     gcc \
     pkg-config \
@@ -63,7 +63,7 @@ ENV LD_LIBRARY_PATH=/opt/heif/lib
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install runtime dependencies for Django
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libmagic1 libstdc++6 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -84,7 +84,7 @@ ARG SECURITY_REBUILD=local
 RUN printf '%s\n' "$SECURITY_REBUILD" > /tmp/security-rebuild
 
 # Install only runtime dependencies (no build tools)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libmagic1 libstdc++6 libgomp1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
